@@ -1,5 +1,5 @@
 {
-  "name": "@montavis/viewer-core",
+  "name": "@monta-vis/viewer-core",
   "version": "0.1.0",
   "type": "module",
   "description": "Shared instruction viewer components for Montavis",
