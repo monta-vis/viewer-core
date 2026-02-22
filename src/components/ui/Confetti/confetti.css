@@ -1,0 +1,54 @@
+/**
+ * Confetti Animation Styles
+ *
+ * Pure CSS confetti particles with fall + spin animation.
+ */
+
+.confetti-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9999;
+  overflow: hidden;
+}
+
+.confetti-particle {
+  position: absolute;
+  top: -20px;
+  border-radius: 2px;
+  opacity: 1;
+  animation: confetti-fall linear forwards, confetti-spin linear infinite;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(0) rotate(0deg);
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(100vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+
+@keyframes confetti-spin {
+  0% {
+    transform: rotateY(0deg) rotateX(0deg);
+  }
+  100% {
+    transform: rotateY(360deg) rotateX(360deg);
+  }
+}
+
+/* Different particle shapes - some are rectangles */
+.confetti-particle:nth-child(odd) {
+  border-radius: 0;
+  transform: scale(1, 0.5);
+}
+
+.confetti-particle:nth-child(3n) {
+  border-radius: 50%;
+}
