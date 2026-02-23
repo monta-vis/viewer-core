@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Edit",
+      "Write",
+      "Read",
+      "Bash",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "WebSearch",
+      "Task",
+      "mcp__playwright",
+      "mcp__filesystem",
+      "mcp__github",
+      "mcp__sqlite",
+      "mcp__context7",
+      "mcp__ide"
+    ],
+    "deny": [],
+    "ask": [],
+    "defaultMode": "bypassPermissions"
+  },
+  "enabledPlugins": {
+    "code-simplifier@claude-plugins-official": true
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "mcpServers": {
+    "sqlite": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "mcp-sqlite", "--db-path", "/workspace/src/backend/montavis.db"]
+    },
+    "github": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "filesystem": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c", "npx",
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/workspace/src",
+        "/workspace/.claude"
+      ]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": [
+        "/c", "npx",
+        "-y",
+        "@playwright/mcp@0.0.30",
+        "--browser", "chromium",
+        "--headless",
+        "--no-sandbox",
+        "--isolated"
+      ],
+      "env": {
+        "PLAYWRIGHT_BROWSERS_PATH": "/opt/playwright-browsers"
+      }
+    },
+    "context7": {
+      "type": "stdio",
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@upstash/context7-mcp"]
+    }
+  }
+}

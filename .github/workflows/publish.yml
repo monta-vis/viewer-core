@@ -20,8 +20,8 @@ jobs:
           registry-url: https://npm.pkg.github.com
 
       - run: npm ci
-      - run: npm run build
+      - run: npm run build:core
 
-      - run: npm publish
+      - run: npm publish -w packages/viewer-core
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

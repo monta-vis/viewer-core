@@ -1,4 +1,7 @@
 node_modules/
 dist/
+packages/*/dist/
+dist-electron/
 *.tsbuildinfo
 .vite/
+--db-path

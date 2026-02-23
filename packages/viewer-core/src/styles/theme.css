@@ -1,0 +1,414 @@
+/* ============================================
+   Montavis Design System — Shared Theme
+   ============================================
+   Single source of truth for CSS variables.
+   Bundled into viewer-core.css via Vite.
+   Consumer apps get these by importing:
+     @monta-vis/viewer-core/styles.css
+   ============================================ */
+
+/* ============================================
+   DARK THEME (default)
+   ============================================ */
+
+:root {
+  color-scheme: dark;
+
+  /* ── Base Hues ── */
+  --hue-brand: 185;
+  --saturation-brand: 70%;
+  --lightness-brand: 55%;
+
+  --lightness-brand-hover: 63%;
+  --lightness-brand-selected: 68%;
+  --lightness-brand-active: 73%;
+  --hue-navy: 210;
+  --color-accent-text: hsl(var(--hue-navy), 45%, 10%);
+  --hue-green: 142;
+  --hue-yellow: 45;
+  --hue-orange: 27;
+  --hue-red: 354;
+  --hue-purple: 280;
+  --hue-blue: 200;
+  --hue-pink: 340;
+
+  /* ── Core Colors ── */
+  --color-primary: hsl(var(--hue-navy), 45%, 10%);
+  --color-secondary: hsl(var(--hue-brand), var(--saturation-brand), var(--lightness-brand));
+  --color-tertiary: hsl(var(--hue-navy), 40%, 20%);
+  --color-accent: hsl(var(--hue-yellow), 100%, 51%);
+  --color-surface: hsl(var(--hue-navy), 43%, 16%);
+  --color-error: hsl(var(--hue-red), 70%, 54%);
+
+  /* ── Semantic Colors ── */
+  --color-success: hsl(var(--hue-green), 71%, 45%);
+  --color-warning: hsl(var(--hue-yellow), 100%, 51%);
+  --color-info: hsl(var(--hue-brand), 70%, 45%);
+  --color-tutorial: hsl(38, 92%, 50%);
+
+  /* ── Feature Colors ── */
+  --color-video-section: hsl(var(--hue-green), 61%, 35%);
+  --color-bar: hsl(var(--hue-navy), 4%, 78%);
+  --color-video: hsl(var(--hue-brand), 65%, 55%);
+  --color-playhead: var(--color-accent);
+  --color-image: hsl(210, 70%, 55%);
+  --color-image-marker: hsl(var(--hue-brand), 70%, 55%);
+  --color-detection-area: hsl(var(--hue-yellow), 100%, 51%);
+
+  /* ── VideoSection State Colors ── */
+  --color-video-section-hover: hsl(var(--hue-green), 61%, 43%);
+  --color-video-section-selected: hsl(var(--hue-green), 61%, 48%);
+  --color-video-section-editing: hsl(var(--hue-green), 61%, 53%);
+  --color-video-section-bg: hsla(var(--hue-green), 61%, 41%, 0.2);
+  --color-video-section-bg-hover: hsla(var(--hue-green), 61%, 48%, 0.28);
+  --color-video-section-bg-selected: hsla(var(--hue-green), 61%, 55%, 0.35);
+  --color-video-section-bg-editing: hsla(var(--hue-green), 61%, 60%, 0.45);
+  --color-video-section-glow: hsla(var(--hue-green), 61%, 50%, 0.6);
+  --color-video-extent-bg: hsla(0, 0%, 100%, 0.08);
+  --color-video-start-end: hsl(var(--hue-green), 75%, 56%);
+  --color-video-start-end-glow: hsla(var(--hue-green), 75%, 56%, 0.8);
+
+  /* ── VideoFrame Colors ── */
+  --color-video-frame: hsl(var(--hue-blue), 80%, 55%);
+  --color-video-frame-selected: hsl(var(--hue-blue), 85%, 65%);
+  --color-video-frame-editing: hsl(var(--hue-yellow), 100%, 55%);
+
+  /* ── Timeline/Playhead Tokens ── */
+  --playhead-width: 0.125rem;
+  --playhead-width-active: 0.1875rem;
+  --playhead-handle-size: 0.5rem;
+  --playhead-handle-size-hover: 0.75rem;
+  --track-height-ruler: 2rem;
+  --track-height-sections: 3rem;
+  --track-height-substeps: 2rem;
+  --track-height-frames: 2.5rem;
+
+  /* ── Element Type Colors (used by Parts/Tools/Reference UI) ── */
+  --color-element-part: hsl(var(--hue-orange), 90%, 55%);
+  --color-element-tool: hsl(var(--hue-orange), 90%, 55%);
+  --color-element-reference: hsl(var(--hue-yellow), 100%, 51%);
+  --color-element-image: hsl(210, 70%, 55%);
+  --color-element-video: hsl(var(--hue-green), 61%, 45%);
+  --color-element-description: hsl(var(--hue-purple), 60%, 60%);
+  --color-element-note: hsl(var(--hue-pink), 75%, 55%);
+  --color-element-drawing: hsl(var(--hue-brand), 70%, 45%);
+  --color-element-drawing-bg: hsla(var(--hue-brand), 70%, 45%, 0.2);
+  --color-element-substep: hsl(var(--hue-orange), 95%, 50%);
+  --color-element-codescan: hsl(var(--hue-purple), 60%, 50%);
+  --color-element-frame: hsl(var(--hue-blue), 70%, 50%);
+
+  /* ── Substep Palette (8 colors) ── */
+  --color-substep-1: hsl(var(--hue-orange), 95%, 55%);
+  --color-substep-2: hsl(var(--hue-brand), 70%, 50%);
+  --color-substep-3: hsl(var(--hue-purple), 60%, 55%);
+  --color-substep-4: hsl(var(--hue-green), 60%, 45%);
+  --color-substep-5: hsl(var(--hue-pink), 70%, 55%);
+  --color-substep-6: hsl(var(--hue-yellow), 100%, 50%);
+  --color-substep-7: hsl(var(--hue-blue), 70%, 50%);
+  --color-substep-8: hsl(15, 80%, 55%);
+
+  /* ── Keyframe Colors ── */
+  --color-keyframe-defined: hsl(var(--hue-green), 71%, 45%);
+  --color-keyframe-defined-stroke: hsl(var(--hue-green), 71%, 35%);
+  --color-keyframe-interpolated: hsl(var(--hue-brand), 70%, 50%);
+  --color-keyframe-interpolated-stroke: hsl(var(--hue-brand), 70%, 40%);
+
+  /* ── Layout & Transitions ── */
+  --navbar-height: 3.5rem;
+  --sidebar-width: 18rem;
+  --sidebar-width-collapsed: 4rem;
+  --radius-sm: 0.125rem;
+  --radius-md: 0.25rem;
+  --radius-lg: 0.375rem;
+  --radius-xl: 0.5rem;
+  --radius-full: 9999px;
+  --transition-fast: 150ms;
+  --transition-normal: 200ms;
+  --transition-slow: 300ms;
+
+  /* ── Note Level Colors ── */
+  --color-note-info-bg: hsla(var(--hue-brand), 70%, 50%, 0.85);
+  --color-note-info-border: hsl(var(--hue-brand), 70%, 50%);
+  --color-note-info-text: hsl(var(--hue-brand), 70%, 70%);
+
+  --color-note-warning-bg: hsla(var(--hue-yellow), 100%, 51%, 0.85);
+  --color-note-warning-border: hsl(var(--hue-yellow), 100%, 51%);
+  --color-note-warning-text: hsl(var(--hue-yellow), 100%, 70%);
+
+  --color-note-critical-bg: hsla(var(--hue-red), 70%, 54%, 0.85);
+  --color-note-critical-border: hsl(var(--hue-red), 70%, 54%);
+  --color-note-critical-text: hsl(var(--hue-red), 70%, 70%);
+
+  --color-note-quality-bg: hsla(var(--hue-green), 71%, 45%, 0.85);
+  --color-note-quality-border: hsl(var(--hue-green), 71%, 45%);
+  --color-note-quality-text: hsl(var(--hue-green), 71%, 65%);
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 0.0625rem 0.125rem hsla(0, 0%, 0%, 0.3);
+  --shadow-md: 0 0.25rem 0.375rem hsla(0, 0%, 0%, 0.4);
+  --shadow-lg: 0 0.625rem 0.9375rem hsla(0, 0%, 0%, 0.5);
+
+  /* ── Video Player ── */
+  --color-video-controls-bg: hsla(var(--hue-navy), 45%, 10%, 0.9);
+  --color-video-progress-bg: hsla(0, 0%, 100%, 0.2);
+  --color-video-progress-fill: hsl(var(--hue-brand), 70%, 50%);
+
+  /* ── Backgrounds ── */
+  --color-bg-base: hsl(var(--hue-bg, var(--hue-navy)), 45%, 10%);
+  --color-bg-surface: hsl(var(--hue-bg, var(--hue-navy)), 43%, 16%);
+  --color-bg-elevated: hsl(var(--hue-bg, var(--hue-navy)), 40%, 22%);
+
+  /* ── Text ── */
+  --color-text-base: hsl(0, 0%, 98%);
+  --color-text-primary: hsl(0, 0%, 98%);
+  --color-text-muted: hsla(0, 0%, 100%, 0.7);
+  --color-text-subtle: hsla(0, 0%, 100%, 0.5);
+  --color-text-inverse: hsl(var(--hue-navy), 45%, 10%);
+  --color-text-secondary: hsl(var(--hue-brand), 70%, 60%);
+
+  /* ── Borders ── */
+  --color-border-base: hsla(0, 0%, 100%, 0.1);
+  --color-border-muted: hsla(0, 0%, 100%, 0.05);
+  --color-border-strong: hsla(0, 0%, 100%, 0.2);
+
+  /* ── Interactive States ── */
+  --color-bg-hover: hsla(0, 0%, 100%, 0.06);
+  --color-bg-selected: hsla(0, 0%, 100%, 0.1);
+  --color-text-danger: hsl(var(--hue-red), 70%, 60%);
+
+  /* ── Neutral Item States ── */
+  --item-bg: hsl(var(--hue-bg, var(--hue-navy)), 43%, 16%);
+  --item-bg-hover: hsl(var(--hue-bg, var(--hue-navy)), 43%, 24%);
+  --item-bg-selected: hsl(var(--hue-bg, var(--hue-navy)), 43%, 28%);
+  --item-bg-selected-hover: hsl(var(--hue-bg, var(--hue-navy)), 43%, 34%);
+  --item-bg-active: hsl(var(--hue-bg, var(--hue-navy)), 43%, 38%);
+
+  /* ── Accent Item States ── */
+  --item-accent-bg: hsl(var(--hue-brand), 70%, 47%);
+  --item-accent-bg-hover: hsl(var(--hue-brand), 70%, 55%);
+  --item-accent-bg-selected: hsl(var(--hue-brand), 70%, 59%);
+  --item-accent-bg-active: hsl(var(--hue-brand), 70%, 65%);
+
+  /* ── Status Colors ── */
+  --color-status-success: hsl(var(--hue-green), 71%, 45%);
+  --color-status-success-bg: hsla(var(--hue-green), 71%, 45%, 0.2);
+  --color-status-success-text: hsl(var(--hue-green), 71%, 65%);
+
+  --color-status-warning: hsl(var(--hue-yellow), 100%, 51%);
+  --color-status-warning-bg: hsla(var(--hue-yellow), 100%, 51%, 0.2);
+  --color-status-warning-text: hsl(var(--hue-yellow), 100%, 70%);
+
+  --color-status-error: hsl(var(--hue-red), 70%, 54%);
+  --color-status-error-bg: hsla(var(--hue-red), 70%, 54%, 0.2);
+  --color-status-error-text: hsl(var(--hue-red), 70%, 70%);
+}
+
+/* ============================================
+   LIGHT THEME
+   ============================================ */
+
+.light {
+  color-scheme: light;
+
+  /* ── Brand Lightness (darker for contrast) ── */
+  --lightness-brand: 40%;
+  --color-accent-text: hsl(0, 0%, 100%);
+  --lightness-brand-hover: 35%;
+  --lightness-brand-selected: 30%;
+  --lightness-brand-active: 25%;
+
+  /* Core Colors */
+  --color-secondary: hsl(var(--hue-brand), var(--saturation-brand), var(--lightness-brand));
+  --color-info: hsl(var(--hue-brand), 70%, 35%);
+
+  /* Note Level Colors */
+  --color-note-info-bg: hsla(var(--hue-brand), 70%, 50%, 0.8);
+  --color-note-info-border: hsl(var(--hue-brand), 70%, 40%);
+  --color-note-info-text: hsl(var(--hue-brand), 70%, 30%);
+
+  --color-note-warning-bg: hsla(var(--hue-yellow), 100%, 51%, 0.8);
+  --color-note-warning-border: hsl(var(--hue-yellow), 100%, 40%);
+  --color-note-warning-text: hsl(var(--hue-yellow), 100%, 25%);
+
+  --color-note-critical-bg: hsla(var(--hue-red), 70%, 54%, 0.8);
+  --color-note-critical-border: hsl(var(--hue-red), 70%, 45%);
+  --color-note-critical-text: hsl(var(--hue-red), 70%, 35%);
+
+  --color-note-quality-bg: hsla(var(--hue-green), 71%, 45%, 0.8);
+  --color-note-quality-border: hsl(var(--hue-green), 71%, 35%);
+  --color-note-quality-text: hsl(var(--hue-green), 71%, 25%);
+
+  /* Shadows */
+  --shadow-sm: 0 0.0625rem 0.125rem hsla(0, 0%, 0%, 0.05);
+  --shadow-md: 0 0.25rem 0.375rem hsla(0, 0%, 0%, 0.1);
+  --shadow-lg: 0 0.625rem 0.9375rem hsla(0, 0%, 0%, 0.15);
+
+  /* Video Player */
+  --color-video-controls-bg: hsla(0, 0%, 100%, 0.95);
+  --color-video-progress-bg: hsla(0, 0%, 0%, 0.1);
+  --color-video-progress-fill: hsl(var(--hue-brand), 70%, 40%);
+
+  /* Backgrounds */
+  --color-bg-base: hsl(var(--hue-bg, var(--hue-navy)), 20%, 98%);
+  --color-bg-surface: hsl(0, 0%, 100%);
+  --color-bg-elevated: hsl(var(--hue-bg, var(--hue-navy)), 15%, 96%);
+
+  /* Text */
+  --color-text-base: hsl(var(--hue-navy), 45%, 10%);
+  --color-text-primary: hsl(var(--hue-navy), 45%, 10%);
+  --color-text-muted: hsla(var(--hue-navy), 45%, 10%, 0.7);
+  --color-text-subtle: hsla(var(--hue-navy), 45%, 10%, 0.5);
+  --color-text-inverse: hsl(0, 0%, 100%);
+  --color-text-secondary: hsl(var(--hue-brand), 70%, 35%);
+
+  /* Borders */
+  --color-border-base: hsla(var(--hue-navy), 15%, 50%, 0.2);
+  --color-border-muted: hsla(var(--hue-navy), 15%, 50%, 0.1);
+  --color-border-strong: hsla(var(--hue-navy), 15%, 50%, 0.3);
+
+  /* Interactive States */
+  --color-bg-hover: hsla(var(--hue-navy), 15%, 50%, 0.1);
+  --color-bg-selected: hsla(var(--hue-navy), 15%, 50%, 0.15);
+  --color-text-danger: hsl(var(--hue-red), 70%, 45%);
+
+  /* Neutral Item States */
+  --item-bg: hsl(var(--hue-navy), 15%, 95%);
+  --item-bg-hover: hsl(var(--hue-navy), 15%, 90%);
+  --item-bg-selected: hsl(var(--hue-navy), 15%, 85%);
+  --item-bg-selected-hover: hsl(var(--hue-navy), 15%, 80%);
+  --item-bg-active: hsl(var(--hue-navy), 15%, 77%);
+
+  /* Accent Item States */
+  --item-accent-bg: hsl(var(--hue-brand), 70%, 42%);
+  --item-accent-bg-hover: hsl(var(--hue-brand), 70%, 37%);
+  --item-accent-bg-selected: hsl(var(--hue-brand), 70%, 32%);
+  --item-accent-bg-active: hsl(var(--hue-brand), 70%, 27%);
+
+  /* Status Colors */
+  --color-status-success: hsl(var(--hue-green), 71%, 35%);
+  --color-status-success-bg: hsla(var(--hue-green), 71%, 45%, 0.15);
+  --color-status-success-text: hsl(var(--hue-green), 71%, 30%);
+
+  --color-status-warning: hsl(var(--hue-yellow), 100%, 40%);
+  --color-status-warning-bg: hsla(var(--hue-yellow), 100%, 51%, 0.15);
+  --color-status-warning-text: hsl(var(--hue-yellow), 100%, 30%);
+
+  --color-status-error: hsl(var(--hue-red), 70%, 45%);
+  --color-status-error-bg: hsla(var(--hue-red), 70%, 54%, 0.15);
+  --color-status-error-text: hsl(var(--hue-red), 70%, 35%);
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    sans-serif;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg-base);
+  color: var(--color-text-base);
+  transition: background-color 200ms, color 200ms;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+}
+
+button {
+  font: inherit;
+  border: none;
+  cursor: pointer;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+
+*::-webkit-scrollbar {
+  width: 0.375rem;
+  height: 0.375rem;
+  transition: width 200ms ease;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsla(var(--hue-brand), 30%, 50%, 0.3);
+  border-radius: var(--radius-full);
+  transition: background 200ms ease, width 200ms ease;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: hsla(var(--hue-brand), 40%, 55%, 0.5);
+}
+
+*:hover::-webkit-scrollbar {
+  width: 0.5rem;
+  height: 0.5rem;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: hsla(var(--hue-brand), 30%, 50%, 0.3) transparent;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+  20%, 40%, 60%, 80% { transform: translateX(4px); }
+}
+
+.animate-shake {
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes montavis-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Bounce-down hint for scroll overflow */
+@keyframes bounce-subtle {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(0.375rem); }
+}
+
+.animate-bounce-subtle {
+  animation: bounce-subtle 1.5s ease-in-out infinite;
+}
+
+/* ============================================
+   FONT SIZE
+   ============================================ */
+
+html.font-size-small {
+  font-size: 87.5%;
+}
+
+html.font-size-large {
+  font-size: 112.5%;
+}
