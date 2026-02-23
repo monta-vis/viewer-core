@@ -32,6 +32,8 @@ interface ProjectListItem {
   folderName: string;
   created_at: string;
   updated_at: string;
+  languages: string[];
+  translationData: { language_code: string; name?: string; description?: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -190,15 +192,6 @@ function DashboardPage() {
       {/* Main content */}
       <main className="flex-1 overflow-auto">
         <div className="p-6 lg:p-8">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-[var(--color-text-primary)]">
-              {t('dashboard.myInstructions')}
-            </h1>
-            <p className="text-sm text-[var(--color-text-muted)] mt-0.5">
-              {t('dashboard.projectCount', { count: filteredAndSorted.length })}
-            </p>
-          </div>
-
               <DashboardToolbar
                 searchQuery={searchQuery}
                 onSearchChange={setSearchQuery}
@@ -260,6 +253,8 @@ function DashboardPage() {
                         folderName={project.folderName}
                         imageUrl={resolveCoverImageUrl(project)}
                         sourceLanguage={project.source_language}
+                        languages={project.languages}
+                        translationData={project.translationData}
                         createdAt={project.created_at}
                         updatedAt={project.updated_at}
                         onClick={() =>

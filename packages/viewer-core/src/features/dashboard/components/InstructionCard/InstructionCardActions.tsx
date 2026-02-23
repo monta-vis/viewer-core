@@ -54,6 +54,8 @@ export function InstructionCardActions({
   useClickOutside(translateDropdownRef, () => setOpenDropdown(null), openDropdown === 'translate');
   useClickOutside(exportDropdownRef, () => setOpenDropdown(null), openDropdown === 'export');
 
+  const hasAnyAction = !!(onEdit || onTutorial || onProcessMedia || onBlurPersons || onTranslate || onEditTranslations || onExport);
+
   const toggleDropdown = useCallback((target: NonNullable<DropdownType>) => {
     setOpenDropdown(prev => prev === target ? null : target);
   }, []);
@@ -63,6 +65,8 @@ export function InstructionCardActions({
     setOpenDropdown(null);
     onExport?.(format);
   }, [onExport]);
+
+  if (!hasAnyAction) return null;
 
   return (
     <div className="absolute top-3 left-3 z-10 bg-white/20 dark:bg-black/25 backdrop-blur-md rounded-lg shadow-lg ring-1 ring-white/20 p-1 flex gap-0.5 transition-opacity duration-200">

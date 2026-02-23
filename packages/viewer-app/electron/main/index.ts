@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, protocol } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, protocol } from "electron";
 import path from "path";
 import { fileURLToPath } from "url";
 import { createReadStream, existsSync, statSync } from "fs";
@@ -131,10 +131,19 @@ function registerIpcHandlers(): void {
 // Window
 // ---------------------------------------------------------------------------
 
+function getIconPath(): string {
+  if (isDev) {
+    return path.join(process.cwd(), "resources", "icon.ico");
+  }
+  return path.join(app.getAppPath(), "resources", "icon.ico");
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    icon: getIconPath(),
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,
@@ -144,16 +153,17 @@ function createWindow() {
 
   if (isDev && process.env["VITE_DEV_SERVER_URL"]) {
     void win.loadURL(process.env["VITE_DEV_SERVER_URL"]);
+
+    // F12 to toggle DevTools (dev only)
+    win.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12") {
+        win.webContents.toggleDevTools();
+        event.preventDefault();
+      }
+    });
   } else {
     void win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
-
-  // F12 toggles DevTools
-  win.webContents.on("before-input-event", (_event, input) => {
-    if (input.key === "F12") {
-      win.webContents.toggleDevTools();
-    }
-  });
 }
 
 // ---------------------------------------------------------------------------
@@ -161,6 +171,7 @@ function createWindow() {
 // ---------------------------------------------------------------------------
 
 void app.whenReady().then(() => {
+  Menu.setApplicationMenu(null);
   registerProtocol();
   registerIpcHandlers();
   createWindow();

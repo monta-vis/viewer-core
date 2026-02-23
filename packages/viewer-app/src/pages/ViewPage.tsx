@@ -1,10 +1,12 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   sqliteToSnapshot,
   transformSnapshotToStore,
+  flattenTranslations,
+  applyTranslationsToStore,
   InstructionViewProvider,
   InstructionViewContainer,
   InstructionView,
@@ -13,17 +15,34 @@ import {
   IconButton,
   Navbar,
 } from "@monta-vis/viewer-core";
-import type { InstructionData } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot } from "@monta-vis/viewer-core";
+
+/** Apply content translations for a language to base (untranslated) data. */
+function translateData(
+  snap: InstructionSnapshot,
+  base: InstructionData,
+  lang: string,
+): InstructionData {
+  const sourceLanguage = snap.instruction.source_language ?? "en";
+  if (lang === sourceLanguage) return base;
+  const rows = flattenTranslations(snap.translations, lang);
+  return applyTranslationsToStore(base, rows);
+}
 
 export function ViewPage() {
   const { folderName } = useParams<{ folderName: string }>();
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [data, setData] = useState<InstructionData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Refs for snapshot and base data — used by language effect without triggering it
+  const snapshotRef = useRef<InstructionSnapshot | null>(null);
+  const baseDataRef = useRef<InstructionData | null>(null);
+
+  // ── Load project data from SQLite (once per folderName) ──
   useEffect(() => {
     if (!folderName || !window.electronAPI) {
       setError("Unable to load project");
@@ -34,17 +53,30 @@ export function ViewPage() {
     window.electronAPI.projects
       .getData(decodeURIComponent(folderName))
       .then((projectData) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- IPC returns untyped data, sqliteToSnapshot validates internally
-        const snapshot = sqliteToSnapshot(projectData as any);
-        const storeData = transformSnapshotToStore(snapshot);
-        setData(storeData);
+        const snap = sqliteToSnapshot(projectData as Parameters<typeof sqliteToSnapshot>[0]);
+        const base = transformSnapshotToStore(snap);
+
+        snapshotRef.current = snap;
+        baseDataRef.current = base;
+
+        // Apply translations for current i18n language
+        setData(translateData(snap, base, i18n.language));
         setIsLoading(false);
       })
       .catch((err: Error) => {
         setError(err.message);
         setIsLoading(false);
       });
+    // i18n.language intentionally excluded — handled by separate effect below
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [folderName]);
+
+  // ── Re-apply translations when global i18n language changes ──
+  // PreferencesDialog calls i18n.changeLanguage(), so we listen here.
+  useEffect(() => {
+    if (!snapshotRef.current || !baseDataRef.current) return;
+    setData(translateData(snapshotRef.current, baseDataRef.current, i18n.language));
+  }, [i18n.language]);
 
   // Derive the first step ID from the loaded data
   const firstStepId = useMemo(() => {
@@ -98,21 +130,6 @@ export function ViewPage() {
 
   return (
     <div className="h-screen flex flex-col bg-[var(--color-bg-base)]">
-      <Navbar
-        left={
-          <div className="flex items-center gap-3">
-            <IconButton
-              icon={<ArrowLeft />}
-              aria-label={t("common.back")}
-              variant="ghost"
-              onClick={() => navigate("/")}
-            />
-            <span className="text-lg font-semibold text-[var(--color-text-primary)]">
-              {data?.instructionName ?? "Instruction"}
-            </span>
-          </div>
-        }
-      />
       <div className="flex-1 overflow-hidden">
         <VideoProvider>
           <InstructionViewProvider>

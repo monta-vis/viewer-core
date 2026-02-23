@@ -44,6 +44,7 @@ export { resolveRawFrameCapture, resolvePartToolFrameCapture, type FrameCaptureD
 export { resolveReferenceTargets, type ReferenceTargetResult } from './utils/resolveReferenceTargets';
 export { computeReferenceToggle } from './utils/referenceToggle';
 export { applyTranslationsToStore, type TranslationRow } from './utils/applyTranslations';
+export { flattenTranslations } from './utils/flattenTranslations';
 export { getImageDrawings, getVideoDrawings } from './utils/filterSubstepDrawings';
 export { resolvePartToolImageUrl } from './utils/resolvePartToolImageUrl';
 

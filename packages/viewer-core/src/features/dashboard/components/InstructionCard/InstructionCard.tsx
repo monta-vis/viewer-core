@@ -1,6 +1,6 @@
 import { clsx } from 'clsx';
 import { Check, X, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
-import { Card, StatusBadge, Badge, IconButton } from '@/components/ui';
+import { Card, Badge, IconButton } from '@/components/ui';
 import { useInstructionCard } from './useInstructionCard';
 import { InstructionCardImage } from './InstructionCardImage';
 import { InstructionCardActions } from './InstructionCardActions';
@@ -9,7 +9,7 @@ import { type InstructionCardProps } from './types';
 export { type InstructionCardProps, type ExportFormat } from './types';
 
 export function InstructionCard(props: InstructionCardProps) {
-  const { id, status, onEdit, onExport, onEditTranslations } = props;
+  const { id, onEdit, onExport, onEditTranslations } = props;
 
   const {
     state,
@@ -117,7 +117,6 @@ export function InstructionCard(props: InstructionCardProps) {
                 )}
               </div>
               <div className="shrink-0 flex items-center gap-1.5">
-                {status && <StatusBadge status={status} size="sm" />}
                 {computed.showLanguageFallbackBadge && (
                   <span
                     className="px-2 py-0.5 rounded text-xs font-semibold uppercase text-amber-600 dark:text-amber-400 bg-amber-500/10"
@@ -227,12 +226,6 @@ export function InstructionCard(props: InstructionCardProps) {
         onUploadClick={handlers.handleUploadClick}
         onImageDelete={handlers.handleImageDelete}
       />
-
-      {status && (
-        <div className="absolute top-2 right-2">
-          <StatusBadge status={status} size="sm" />
-        </div>
-      )}
 
       {/* Editable fields */}
       <div className="p-4 flex flex-col gap-3">

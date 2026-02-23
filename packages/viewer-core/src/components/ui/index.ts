@@ -20,9 +20,6 @@ export type { CardProps, CardHeaderProps, CardTitleProps, CardContentProps } fro
 export { Badge, NumberBadge } from './Badge'
 export type { BadgeProps, BadgeVariant, BadgeSize, NumberBadgeProps } from './Badge'
 
-export { StatusBadge } from './StatusBadge'
-export type { StatusBadgeProps, StatusType } from './StatusBadge'
-
 // Drawers
 export { Drawer } from './Drawer'
 export type { DrawerProps, DrawerAnchor } from './Drawer'

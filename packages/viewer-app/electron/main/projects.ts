@@ -20,6 +20,8 @@ export interface ProjectListItem {
   folderName: string;
   created_at: string;
   updated_at: string;
+  languages: string[];
+  translationData: { language_code: string; name?: string; description?: string }[];
 }
 
 // ---------------------------------------------------------------------------
@@ -98,6 +100,7 @@ export interface ElectronProjectData {
   images: Record<string, unknown>[];
   substepReferences: Record<string, unknown>[];
   safetyIcons: Record<string, unknown>[];
+  translations: Record<string, unknown>[];
 }
 
 /** Whitelist of tables to read from the project database. */
@@ -122,6 +125,7 @@ const ALLOWED_TABLES: Record<string, keyof ElectronProjectData> = {
   images: "images",
   substep_references: "substepReferences",
   safety_icons: "safetyIcons",
+  translations: "translations",
 };
 
 // ---------------------------------------------------------------------------
@@ -173,6 +177,7 @@ export function getProjectData(folderName: string): ElectronProjectData {
       images: [],
       substepReferences: [],
       safetyIcons: [],
+      translations: [],
     };
 
     for (const [tableName, key] of Object.entries(ALLOWED_TABLES)) {
@@ -254,6 +259,39 @@ export function listProjects(): ProjectListItem[] {
         }
       }
 
+      // Query available translation languages + instruction-level translations
+      let languages: string[] = [];
+      let translationData: { language_code: string; name?: string; description?: string }[] = [];
+      try {
+        const langRows = db
+          .prepare("SELECT DISTINCT language_code FROM translations")
+          .all() as { language_code: string }[];
+        languages = langRows.map((r) => r.language_code);
+
+        if (languages.length > 0) {
+          const tRows = db
+            .prepare(
+              `SELECT language_code, field_name, text FROM translations
+               WHERE entity_type = 'instruction' AND entity_id = ?`,
+            )
+            .all(row.id as string) as { language_code: string; field_name: string; text: string | null }[];
+
+          const langMap = new Map<string, { language_code: string; name?: string; description?: string }>();
+          for (const tr of tRows) {
+            let entry = langMap.get(tr.language_code);
+            if (!entry) {
+              entry = { language_code: tr.language_code };
+              langMap.set(tr.language_code, entry);
+            }
+            if (tr.field_name === "name") entry.name = tr.text ?? undefined;
+            if (tr.field_name === "description") entry.description = tr.text ?? undefined;
+          }
+          translationData = Array.from(langMap.values());
+        }
+      } catch {
+        // translations table may not exist in older DBs
+      }
+
       projects.push({
         id: row.id as string,
         name: row.name as string,
@@ -267,6 +305,8 @@ export function listProjects(): ProjectListItem[] {
         folderName: entry.name,
         created_at: row.created_at as string,
         updated_at: row.updated_at as string,
+        languages,
+        translationData,
       });
     } catch {
       // Skip unreadable projects

@@ -4,7 +4,6 @@ export {
   useInstructionCard,
   InstructionCardImage,
   InstructionCardActions,
-  statusBorderStyles,
   SUPPORTED_LANGUAGES,
   getLanguageLabel,
   mapToSupportedLanguage,
@@ -12,7 +11,6 @@ export {
 export type {
   InstructionCardProps,
   ExportFormat,
-  InstructionStatusType,
   InstructionCardState,
   LanguageCode,
 } from './components/InstructionCard';

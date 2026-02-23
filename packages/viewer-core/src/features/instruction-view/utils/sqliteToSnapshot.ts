@@ -5,7 +5,7 @@
  * Media URLs use the mvis-media:// protocol so Electron's custom protocol
  * handler serves files directly from disk.
  */
-import type { InstructionSnapshot } from '@/types/snapshot';
+import type { InstructionSnapshot, SnapshotTranslations, EntityTranslation } from '@/types/snapshot';
 import { buildMediaUrl } from '@/lib/media';
 
 /** Type for ElectronProjectData from main process - matches electron.d.ts */
@@ -18,6 +18,7 @@ type ElectronProjectData = {
     estimated_duration?: number | null;
     revision: number;
     cover_image_area_id: string | null;
+    source_language?: string | null;
     use_blurred?: boolean;
     folderName: string;
     created_at: string;
@@ -43,6 +44,7 @@ type ElectronProjectData = {
   images: Record<string, unknown>[];
   substepReferences?: Record<string, unknown>[];
   safetyIcons?: Record<string, unknown>[];
+  translations?: Record<string, unknown>[];
 };
 
 /** Helper: key an array of rows by their `id` field. */
@@ -65,6 +67,61 @@ function groupIds(rows: Record<string, unknown>[], foreignKey: string): Record<s
     map[fk].push(row.id as string);
   }
   return map;
+}
+
+/** Map entity_type from DB to SnapshotTranslations key. */
+const ENTITY_TYPE_MAP: Record<string, keyof SnapshotTranslations> = {
+  instruction: 'instruction',
+  step: 'steps',
+  substep: 'substeps',
+  note: 'notes',
+  part_tool: 'partTools',
+  substep_description: 'substepDescriptions',
+  drawing: 'drawings',
+};
+
+/**
+ * Parse flat translation rows into the nested SnapshotTranslations structure.
+ * DB rows: { entity_type, entity_id, field_name, language_code, text, is_auto }
+ * Target: { [entityType]: { [entityId]: { [langCode]: EntityTranslation } } }
+ */
+function parseTranslations(rows: Record<string, unknown>[]): { translations: SnapshotTranslations; languages: string[] } {
+  const result: SnapshotTranslations = {
+    instruction: {},
+    steps: {},
+    substeps: {},
+    notes: {},
+    partTools: {},
+    substepDescriptions: {},
+    drawings: {},
+  };
+  const languageSet = new Set<string>();
+
+  for (const row of rows) {
+    const entityType = row.entity_type as string;
+    const entityId = row.entity_id as string;
+    const fieldName = row.field_name as string;
+    const langCode = row.language_code as string;
+    const text = row.text as string | null;
+    const isAuto = !!(row.is_auto as number | boolean);
+
+    const key = ENTITY_TYPE_MAP[entityType];
+    if (!key) continue;
+
+    languageSet.add(langCode);
+
+    const bucket = result[key];
+    if (!bucket[entityId]) bucket[entityId] = {};
+    if (!bucket[entityId][langCode]) bucket[entityId][langCode] = { is_auto: isAuto };
+
+    const entry = bucket[entityId][langCode];
+    const field = fieldName as keyof EntityTranslation;
+    if (field === 'name' || field === 'description' || field === 'title' || field === 'text' || field === 'content' || field === 'repeat_label') {
+      entry[field] = text;
+    }
+  }
+
+  return { translations: result, languages: Array.from(languageSet) };
 }
 
 export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot {
@@ -225,12 +282,15 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
     };
   }
 
+  // Parse translations from DB rows
+  const parsed = parseTranslations(data.translations ?? []);
+
   return {
     meta: {
       instruction_id: instruction.id,
       revision: instruction.revision,
       generated_at: instruction.updated_at,
-      languages: [],
+      languages: parsed.languages,
       cdn_base_url: '',
     },
     instruction: {
@@ -240,17 +300,10 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       article_number: instruction.article_number ?? null,
       estimated_duration: instruction.estimated_duration ?? null,
       cover_image_area_id: instruction.cover_image_area_id ?? null,
+      source_language: instruction.source_language ?? undefined,
       use_blurred: useBlurred,
     },
-    translations: {
-      instruction: {},
-      steps: {},
-      substeps: {},
-      notes: {},
-      partTools: {},
-      substepDescriptions: {},
-      drawings: {},
-    },
+    translations: parsed.translations,
     steps,
     substeps,
     videos,

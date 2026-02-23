@@ -4,14 +4,6 @@ import type React from 'react';
 export { SUPPORTED_LANGUAGES, getLanguageLabel, mapToSupportedLanguage } from '@/lib/languages';
 export type { LanguageCode } from '@/lib/languages';
 
-export type InstructionStatusType = 'completed' | 'in_progress' | 'pending';
-
-export const statusBorderStyles: Record<InstructionStatusType, string> = {
-  completed: 'ring-2 ring-[var(--color-video-section)]',
-  in_progress: 'ring-2 ring-[var(--color-accent)]',
-  pending: 'ring-2 ring-[var(--color-error)]',
-};
-
 export type ExportFormat = 'mvis' | 'mweb' | 'pdf';
 
 export interface InstructionCardProps {
@@ -35,8 +27,6 @@ export interface InstructionCardProps {
   onClick?: (lang?: string) => void;
   /** Whether this card is selected */
   selected?: boolean;
-  /** Status of the instruction */
-  status?: InstructionStatusType;
   /** Called after successful update */
   onUpdate?: (updated: { name: string; description: string | null }) => void;
   /** Available languages for this instruction */

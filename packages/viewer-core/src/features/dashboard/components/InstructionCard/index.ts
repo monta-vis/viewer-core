@@ -1,6 +1,6 @@
 export { InstructionCard } from './InstructionCard';
-export type { InstructionCardProps, ExportFormat, InstructionStatusType, InstructionCardState } from './types';
-export { statusBorderStyles, SUPPORTED_LANGUAGES, getLanguageLabel, mapToSupportedLanguage } from './types';
+export type { InstructionCardProps, ExportFormat, InstructionCardState } from './types';
+export { SUPPORTED_LANGUAGES, getLanguageLabel, mapToSupportedLanguage } from './types';
 export type { LanguageCode } from './types';
 export { useInstructionCard } from './useInstructionCard';
 export { InstructionCardImage } from './InstructionCardImage';

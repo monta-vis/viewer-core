@@ -54,7 +54,6 @@ packages/viewer-core/src/
 │   ├── Navbar/                       # Layout navbar (left/center/right slots)
 │   ├── PreferencesDialog/            # Settings modal (language, theme, font size, speed)
 │   ├── Spinner/                      # Loading indicator
-│   ├── StatusBadge/                  # Status indicator
 │   ├── ContextMenu.tsx               # Right-click menu
 │   └── TutorialClickIcon.tsx         # Tutorial overlay
 ├── features/
@@ -135,7 +134,7 @@ User feedback & star ratings.
 - **Card** — Versatile card with variants (default, elevated, ghost, glass), optional interactivity.
 - **Button / IconButton** — Buttons with variant/size system, WCAG touch targets.
 - **Drawer** — Edge-anchored slide panel with backdrop.
-- **Badge / NumberBadge / StatusBadge** — Label and status indicators.
+- **Badge / NumberBadge** — Label indicators.
 
 ## Stores (Zustand)
 
