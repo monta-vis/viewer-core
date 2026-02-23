@@ -21,6 +21,7 @@ import { resolveRawFrameCapture } from '../utils/resolveRawFrameCapture';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
 import { resolveReferenceTargets, type ReferenceTargetResult } from '../utils/resolveReferenceTargets';
 import { computeReferenceToggle } from '../utils/referenceToggle';
+import { progressPercent } from '../utils/progressPercent';
 import type { ActiveReference } from '../utils/referenceToggle';
 import type { TutorialStep } from '../utils/tutorialSteps';
 import { getInitialTutorialStep, advanceOnDrawerOpen, advanceOnDrawerClose, advanceOnSubstepClick } from '../utils/tutorialSteps';
@@ -669,10 +670,10 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         {/* Row 1: Progress Bar */}
         {onStepChange && totalSteps > 0 && (
           <div className="w-full px-4 pt-1 pb-1">
-            <div className="w-full h-2 bg-[var(--color-border-base)] rounded-full overflow-hidden" role="progressbar" aria-valuenow={currentIndex + 1} aria-valuemin={1} aria-valuemax={totalSteps}>
+            <div className="w-full h-2 bg-[var(--color-border-base)] rounded-full overflow-hidden" role="progressbar" aria-valuenow={currentIndex} aria-valuemin={0} aria-valuemax={totalSteps}>
               <div
                 className="h-full bg-[var(--color-secondary)] rounded-full transition-all duration-300"
-                style={{ width: `${((currentIndex + 1) / totalSteps) * 100}%` }}
+                style={{ width: `${progressPercent(currentIndex, totalSteps)}%` }}
               />
             </div>
           </div>
