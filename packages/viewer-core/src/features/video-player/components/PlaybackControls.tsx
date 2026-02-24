@@ -104,7 +104,7 @@ export function PlaybackControls({
           <div className="flex items-center gap-0.5">
             <IconButton
               icon={<SkipBack className="h-3 w-3" />}
-              aria-label={t('shortcuts.back10Frames')}
+              aria-label={t('shortcuts.back10Frames', 'Back 10 frames')}
               variant="ghost"
               size="sm"
               onClick={() => stepFrames(-10)}
@@ -124,7 +124,7 @@ export function PlaybackControls({
             ))}
             <IconButton
               icon={<SkipForward className="h-3 w-3" />}
-              aria-label={t('shortcuts.forward10Frames')}
+              aria-label={t('shortcuts.forward10Frames', 'Forward 10 frames')}
               variant="ghost"
               size="sm"
               onClick={() => stepFrames(10)}
@@ -136,7 +136,7 @@ export function PlaybackControls({
         {/* Play/Pause */}
         <IconButton
           icon={isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          aria-label={t('shortcuts.playPause')}
+          aria-label={t('shortcuts.playPause', 'Play / Pause')}
           variant="primary"
           size="sm"
           onClick={togglePlayback}

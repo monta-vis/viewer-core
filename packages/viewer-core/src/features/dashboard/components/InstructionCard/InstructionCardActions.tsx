@@ -159,10 +159,10 @@ export function InstructionCardActions({
 
           {openDropdown === 'translate' && (
             <div className={clsx(
-              'absolute bottom-full left-0 mb-1',
+              'absolute top-full left-0 mt-1 z-50',
               GLASS_DROPDOWN,
               'py-1 min-w-[8rem]',
-              'animate-in fade-in slide-in-from-bottom-1 duration-150',
+              'animate-in fade-in slide-in-from-top-1 duration-150',
             )}>
               {onTranslate && (
                 <button
@@ -226,10 +226,10 @@ export function InstructionCardActions({
 
           {openDropdown === 'export' && (
             <div className={clsx(
-              'absolute bottom-full right-0 mb-1 z-50',
+              'absolute top-full right-0 mt-1 z-50',
               'py-1',
               'bg-[var(--color-bg-elevated)] rounded-lg shadow-xl shadow-black/30 ring-1 ring-black/10 dark:ring-white/10',
-              'animate-in fade-in-0 slide-in-from-bottom-1 duration-150',
+              'animate-in fade-in-0 slide-in-from-top-1 duration-150',
               'min-w-[10rem]',
             )}>
               {EXPORT_OPTIONS.map(({ format, icon, labelKey, fallback, descKey, descFallback }) => (

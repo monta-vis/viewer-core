@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, X, Package, Rewind, GraduationCap, Play, VideoOff } from 'lucide-react';
+import { Eye, X, Package, GraduationCap, Play, VideoOff, Plus, Trash2, Video, ImageIcon } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { Card, TutorialClickIcon } from '@/components/ui';
@@ -14,7 +14,7 @@ import type {
 import { interpolateVideoViewport, viewportToTransform } from '@/features/video-player';
 import { ShapeLayer } from '@/features/video-overlay';
 import { getVisibleVideoDrawings } from '../utils/filterSubstepDrawings';
-import { toggleCardSpeed, rewindFrame, REWIND_STEPS_PER_SEC, type CardSpeed } from '../utils/substepPlaybackControls';
+import { toggleCardSpeed, computeSkipTime, computeSeekTime, SKIP_SECONDS, type CardSpeed } from '../utils/substepPlaybackControls';
 import { VideoFrameCapture } from './VideoFrameCapture';
 import { LoupeOverlay } from './LoupeOverlay';
 import { NoteCard, getNoteSortPriority } from './NoteCard';
@@ -22,9 +22,40 @@ import type { NoteLevel } from '@/features/instruction/utils/safetyIcons';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { computeContentBounds } from '../utils/computeContentBounds';
 import { useLongPress } from '../hooks/useLongPress';
+import { useDoubleTap } from '../hooks/useDoubleTap';
 
 // Module-level: only the last card that started playing responds to ESC
 let lastPlayingCloseFn: (() => void) | null = null;
+
+/** Shared class for the circular edit-overlay buttons (video/image on top of the card image) */
+const EDIT_OVERLAY_BTN_CLASS = 'w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors cursor-pointer';
+
+/** Shared class for the small circular delete buttons */
+const DELETE_BTN_CLASS = 'w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-red-500 hover:bg-black/60 transition-colors cursor-pointer shrink-0';
+
+/** Shared class for "Add X" placeholder buttons in edit mode */
+const ADD_PLACEHOLDER_BTN_CLASS = 'flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm text-white/80 text-sm hover:bg-black/60 transition-colors cursor-pointer';
+
+/** Callbacks for inline edit controls. Only used when editMode=true. */
+export interface SubstepEditCallbacks {
+  onEditImage?: () => void;
+  onDeleteImage?: () => void;
+  onEditVideo?: () => void;
+  onDeleteVideo?: () => void;
+  onEditDescription?: (descriptionId: string) => void;
+  onDeleteDescription?: (descriptionId: string) => void;
+  onAddDescription?: () => void;
+  onEditNote?: (noteRowId: string) => void;
+  onDeleteNote?: (noteRowId: string) => void;
+  onAddNote?: () => void;
+  onEditRepeat?: () => void;
+  onDeleteRepeat?: () => void;
+  onEditReference?: (referenceIndex: number) => void;
+  onDeleteReference?: (referenceIndex: number) => void;
+  onAddReference?: () => void;
+  onEditPartTools?: () => void;
+  onDeleteSubstep?: () => void;
+}
 
 interface SubstepCardProps {
   title: string | null;
@@ -61,6 +92,12 @@ interface SubstepCardProps {
     kind: 'see' | 'tutorial';
     referenceLabel: string;
   };
+  /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
+  folderName?: string;
+  /** Show inline edit controls on all elements. Default: false */
+  editMode?: boolean;
+  /** Edit callbacks — only used when editMode=true */
+  editCallbacks?: SubstepEditCallbacks;
 }
 
 export function SubstepCard({
@@ -87,6 +124,9 @@ export function SubstepCard({
   repeatCount = 1,
   repeatLabel,
   referenceDisplay,
+  folderName,
+  editMode = false,
+  editCallbacks,
 }: SubstepCardProps) {
   const { t } = useTranslation();
 
@@ -162,12 +202,6 @@ export function SubstepCard({
   // Ref to always access current cardSpeed without re-triggering effects
   const cardSpeedRef = useRef(cardSpeed);
   cardSpeedRef.current = cardSpeed;
-
-  // Rewind state
-  const isRewindingRef = useRef(false);
-  const rewindRafRef = useRef(0);
-  const rewindTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const rewindSeekedRef = useRef<(() => void) | null>(null);
 
   // Start inline playback
   const startInlinePlay = useCallback(() => {
@@ -313,80 +347,67 @@ export function SubstepCard({
 
   // Sync cardSpeed to video playbackRate live (without restarting playback effect)
   useEffect(() => {
-    if (videoRef.current && isPlayingInline && !isRewindingRef.current) {
+    if (videoRef.current && isPlayingInline) {
       videoRef.current.playbackRate = cardSpeed;
     }
   }, [cardSpeed, isPlayingInline]);
 
-  // Rewind: hold to seek backwards frame-by-frame
-  const startRewind = useCallback(() => {
+  // Skip forward/backward by SKIP_SECONDS, clamped to section bounds.
+  // At section end: pauses. At section start: stays at start.
+  const handleSkip = useCallback((deltaSec: number) => {
     const video = videoRef.current;
     if (!video || !videoData || !isPlayingInline) return;
-    isRewindingRef.current = true;
-    video.pause();
 
     const fps = videoData.fps;
     const sections = videoData.sections ?? [{ startFrame: videoData.startFrame, endFrame: videoData.endFrame }];
-    // Find current section's start frame
-    const currentTime = video.currentTime;
-    let sectionStart = sections[0].startFrame;
+
+    // Find current section bounds
+    let sectionStartSec = sections[0].startFrame / fps;
+    let sectionEndSec = sections[sections.length - 1].endFrame / fps;
     for (const sec of sections) {
-      if (currentTime >= sec.startFrame / fps && currentTime <= sec.endFrame / fps) {
-        sectionStart = sec.startFrame;
+      if (video.currentTime >= sec.startFrame / fps && video.currentTime <= sec.endFrame / fps) {
+        sectionStartSec = sec.startFrame / fps;
+        sectionEndSec = sec.endFrame / fps;
         break;
       }
     }
 
-    // Skip ~90% of frames: show roughly 3 frames per second of video
-    const baseStep = Math.max(1, Math.round(fps / 3));
+    const newTime = computeSkipTime(video.currentTime, deltaSec, sectionStartSec, sectionEndSec);
+    video.currentTime = newTime;
+    applyViewportTransform(video, Math.round(newTime * fps));
 
-    const stepBack = () => {
-      if (!isRewindingRef.current) return;
-      const curFrame = Math.round(video.currentTime * fps);
-      // Scale step size with cardSpeed (2x speed = 2x larger steps)
-      const step = Math.max(1, Math.round(baseStep * cardSpeedRef.current));
-      const nextFrame = rewindFrame(curFrame, step, sectionStart);
-      if (nextFrame >= curFrame) return; // already at start
-      video.currentTime = nextFrame / fps;
-      applyViewportTransform(video, nextFrame);
-    };
-
-    // Throttle rewind steps to match real-time playback speed
-    const stepInterval = Math.round(1000 / REWIND_STEPS_PER_SEC);
-    const onSeeked = () => {
-      if (!isRewindingRef.current) return;
-      rewindTimerRef.current = setTimeout(() => {
-        rewindRafRef.current = requestAnimationFrame(stepBack) as number;
-      }, stepInterval);
-    };
-
-    rewindSeekedRef.current = onSeeked;
-    video.addEventListener('seeked', onSeeked);
-    stepBack(); // kick off first seek
+    // If skipped to end, pause
+    if (newTime >= sectionEndSec) {
+      video.pause();
+    }
   }, [videoData, isPlayingInline, applyViewportTransform]);
 
-  const stopRewind = useCallback(() => {
-    if (!isRewindingRef.current) return;
-    isRewindingRef.current = false;
-    if (rewindTimerRef.current) clearTimeout(rewindTimerRef.current);
-    cancelAnimationFrame(rewindRafRef.current);
+  // Double-tap to skip ±5s during inline playback
+  const { handleTap: handleDoubleTap } = useDoubleTap({
+    onDoubleTap: useCallback((side: 'left' | 'right') => {
+      handleSkip(side === 'left' ? -SKIP_SECONDS : SKIP_SECONDS);
+    }, [handleSkip]),
+  });
+
+  // Tap-to-seek on progress bar
+  const handleProgressBarSeek = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const video = videoRef.current;
-    if (video && rewindSeekedRef.current) {
-      video.removeEventListener('seeked', rewindSeekedRef.current);
-      rewindSeekedRef.current = null;
-    }
-    if (video && isPlayingInline) {
-      video.playbackRate = cardSpeedRef.current;
-      video.play().catch(() => {});
-    }
-  }, [isPlayingInline]);
+    if (!video || !videoData) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+
+    const fps = videoData.fps;
+    const sections = videoData.sections ?? [{ startFrame: videoData.startFrame, endFrame: videoData.endFrame }];
+
+    video.currentTime = computeSeekTime(pct, sections, fps);
+    applyViewportTransform(video, Math.round(video.currentTime * fps));
+  }, [videoData, applyViewportTransform]);
 
   // Cleanup on unmount
   useEffect(() => () => {
     if (endTimerRef.current) clearTimeout(endTimerRef.current);
     if (noVideoTimerRef.current) clearTimeout(noVideoTimerRef.current);
-    if (rewindTimerRef.current) clearTimeout(rewindTimerRef.current);
-    cancelAnimationFrame(rewindRafRef.current);
   }, []);
 
   // Stable close function (per-instance identity stays constant)
@@ -446,13 +467,14 @@ export function SubstepCard({
     [isPlayingInline, videoDrawings, visibleVideoDrawingIds, imageDrawings],
   );
 
-  const handleActivate = useCallback(() => {
+  const handleActivate = useCallback((e?: React.MouseEvent) => {
     // Suppress click after long press (loupe gesture)
     if (longPress.didLongPressRef.current) {
       longPress.didLongPressRef.current = false;
       return;
     }
     if (isPlayingInline) {
+      if (e) handleDoubleTap(e);
       toggleInlinePlay();
       lastPlayingCloseFn = closeInlinePlayback;
       return;
@@ -465,7 +487,7 @@ export function SubstepCard({
       if (noVideoTimerRef.current) clearTimeout(noVideoTimerRef.current);
       noVideoTimerRef.current = setTimeout(() => setShowNoVideo(false), 2000);
     }
-  }, [videoData, isPlayingInline, startInlinePlay, toggleInlinePlay, closeInlinePlayback, onClick, longPress.didLongPressRef]);
+  }, [videoData, isPlayingInline, startInlinePlay, toggleInlinePlay, closeInlinePlayback, onClick, longPress.didLongPressRef, handleDoubleTap]);
 
   return (
     <Card
@@ -558,38 +580,53 @@ export function SubstepCard({
           );
         })()}
 
-        {/* Progress bar at top during inline playback */}
+        {/* Edit mode: video-edit + image-edit overlay buttons */}
+        {editMode && !isPlayingInline && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+            <button
+              type="button"
+              aria-label={t('common.edit', 'Edit')}
+              className={EDIT_OVERLAY_BTN_CLASS}
+              onClick={(e) => { e.stopPropagation(); editCallbacks?.onEditVideo?.(); }}
+            >
+              <Video className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              aria-label={t('common.edit', 'Edit')}
+              className={EDIT_OVERLAY_BTN_CLASS}
+              onClick={(e) => { e.stopPropagation(); editCallbacks?.onEditImage?.(); }}
+            >
+              <ImageIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {/* Progress bar at top during inline playback — tall tap target, slim visual bar */}
         {isPlayingInline && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-black/30 z-20">
-            <div
-              ref={progressBarRef}
-              className="h-full bg-[var(--color-secondary)]"
-              style={{ width: '0%' }}
-            />
+          <div
+            className="absolute top-0 left-0 right-0 h-10 z-20 cursor-pointer flex items-start"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => { e.stopPropagation(); handleProgressBarSeek(e); }}
+          >
+            <div className="w-full h-1.5 bg-black/30">
+              <div
+                ref={progressBarRef}
+                className="h-full bg-[var(--color-secondary)]"
+                style={{ width: '0%' }}
+              />
+            </div>
           </div>
         )}
 
         {/* Playback controls during inline video */}
         {isPlayingInline && (
-          <div className="absolute bottom-2 left-2 right-2 flex justify-between items-end z-20 pointer-events-none">
-            {/* Rewind button (bottom-left) */}
-            <button
-              type="button"
-              aria-label="Rewind"
-              className="pointer-events-auto w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 active:bg-[var(--color-secondary)] transition-colors cursor-pointer"
-              onPointerDown={(e) => { e.stopPropagation(); startRewind(); }}
-              onPointerUp={(e) => { e.stopPropagation(); stopRewind(); }}
-              onPointerLeave={(e) => { e.stopPropagation(); stopRewind(); }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              <Rewind className="h-7 w-7" />
-            </button>
-
+          <div className="absolute bottom-2 left-2 right-2 flex justify-end items-end z-20 pointer-events-none">
             {/* Speed toggles (bottom-right) */}
             <div className="pointer-events-auto flex gap-1.5">
               <button
                 type="button"
-                aria-label="Speed 0.5x"
+                aria-label={t('instructionView.setSpeedTo', { speed: 0.5, defaultValue: 'Set speed to 0.5x' })}
                 className={clsx(
                   'w-16 h-16 rounded-full text-base font-semibold backdrop-blur-sm transition-colors cursor-pointer flex items-center justify-center',
                   cardSpeed === 0.5
@@ -602,7 +639,7 @@ export function SubstepCard({
               </button>
               <button
                 type="button"
-                aria-label="Speed 2x"
+                aria-label={t('instructionView.setSpeedTo', { speed: 2, defaultValue: 'Set speed to 2x' })}
                 className={clsx(
                   'w-16 h-16 rounded-full text-base font-semibold backdrop-blur-sm transition-colors cursor-pointer flex items-center justify-center',
                   cardSpeed === 2
@@ -644,7 +681,7 @@ export function SubstepCard({
           <div className="absolute top-2 right-2 z-20">
             <button
               type="button"
-              aria-label="Close"
+              aria-label={t('common.close', 'Close')}
               className="pointer-events-auto w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 active:bg-[var(--color-secondary)] transition-colors cursor-pointer"
               onClick={(e) => { e.stopPropagation(); closeInlinePlayback(); }}
             >
@@ -666,7 +703,7 @@ export function SubstepCard({
               {referenceDisplay && (
                 <div
                   className="w-8 h-8 rounded-full bg-[var(--color-element-reference)]/80 backdrop-blur-sm flex items-center justify-center shadow-lg"
-                  aria-label={`Reference: ${referenceDisplay.kind}`}
+                  aria-label={t('instructionView.reference', 'Reference')}
                 >
                   <GraduationCap className="h-4 w-4 text-white" />
                 </div>
@@ -699,42 +736,153 @@ export function SubstepCard({
             onClick={(e) => e.stopPropagation()}
           >
             {sortedNotes.map((noteRow) => (
-              <NoteCard
+              <div
                 key={noteRow.id}
-                level={noteRow.note.level as NoteLevel}
-                text={noteRow.note.text}
-                safetyIconId={noteRow.note.safetyIconId}
-                isExpanded={expandedNoteIds.has(noteRow.id)}
-                onToggle={handleNoteToggle}
-              />
+                data-testid={`editable-note-${noteRow.id}`}
+                className={clsx(
+                  'flex items-center gap-1',
+                  editMode && 'cursor-pointer rounded-lg hover:outline-2 hover:outline-dashed hover:outline-white/60',
+                )}
+                onClick={editMode ? (e) => { e.stopPropagation(); editCallbacks?.onEditNote?.(noteRow.id); } : undefined}
+                role={editMode ? 'button' : undefined}
+                tabIndex={editMode ? 0 : undefined}
+                onKeyDown={editMode ? (e) => { if (e.key === 'Enter') { e.stopPropagation(); editCallbacks?.onEditNote?.(noteRow.id); } } : undefined}
+              >
+                <NoteCard
+                  level={noteRow.note.level as NoteLevel}
+                  text={noteRow.note.text}
+                  safetyIconId={noteRow.note.safetyIconId}
+                  isExpanded={expandedNoteIds.has(noteRow.id)}
+                  onToggle={editMode ? () => {} : handleNoteToggle}
+                  folderName={folderName}
+                />
+                {editMode && (
+                  <button
+                    type="button"
+                    aria-label={t('common.delete', 'Delete')}
+                    className={DELETE_BTN_CLASS}
+                    onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteNote?.(noteRow.id); }}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         )}
 
+        {/* Edit mode: add note placeholder when no notes */}
+        {editMode && !isPlayingInline && sortedNotes.length === 0 && (
+          <div
+            className="absolute left-2 bottom-2 z-10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              data-testid="add-note-placeholder"
+              className={ADD_PLACEHOLDER_BTN_CLASS}
+              onClick={() => editCallbacks?.onAddNote?.()}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>{t('editorCore.addNote', 'Add note')}</span>
+            </button>
+          </div>
+        )}
+
         {/* Top right badges */}
-        {!isPlayingInline && (repeatCount > 1 || references.length > 0) && (
+        {!isPlayingInline && (repeatCount > 1 || references.length > 0 || editMode) && (
           <div
             className="absolute top-2 right-2 z-10 flex flex-col items-end gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            {repeatCount > 1 && (
-              <span
-                className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm"
-                data-testid="repeat-badge"
-              >
-                <span>×{repeatCount}</span>
-                {repeatLabel && <span className="font-normal text-white/80">({repeatLabel})</span>}
-              </span>
-            )}
-            {references.length > 0 && (
+            {/* Repeat badge — tappable in edit mode */}
+            {repeatCount > 1 ? (
+              <div className="flex items-center gap-1">
+                {editMode ? (
+                  <div
+                    data-testid="repeat-badge"
+                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm cursor-pointer hover:outline-2 hover:outline-dashed hover:outline-white/60 transition-all"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => editCallbacks?.onEditRepeat?.()}
+                    onKeyDown={(e) => { if (e.key === 'Enter') editCallbacks?.onEditRepeat?.(); }}
+                  >
+                    <span>×{repeatCount}</span>
+                    {repeatLabel && <span className="font-normal text-white/80">({repeatLabel})</span>}
+                    <button
+                      type="button"
+                      aria-label={t('common.delete', 'Delete')}
+                      className={`${DELETE_BTN_CLASS} ml-1`}
+                      onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteRepeat?.(); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <span
+                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm"
+                    data-testid="repeat-badge"
+                  >
+                    <span>×{repeatCount}</span>
+                    {repeatLabel && <span className="font-normal text-white/80">({repeatLabel})</span>}
+                  </span>
+                )}
+              </div>
+            ) : editMode && (
               <button
                 type="button"
-                className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-reference)] bg-[var(--color-element-reference)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-                onClick={(e) => { e.stopPropagation(); onReferenceClick?.(); }}
-                aria-label={references[0].label || t('instructionView.reference', 'Reference')}
+                className={ADD_PLACEHOLDER_BTN_CLASS}
+                onClick={() => editCallbacks?.onEditRepeat?.()}
               >
-                <GraduationCap className="h-7 w-7" />
-                <span>{references[0].label}</span>
+                <Plus className="h-3.5 w-3.5" />
+                <span>{t('editorCore.repeat', 'Repeat')}</span>
+              </button>
+            )}
+
+            {/* Reference badge — tappable in edit mode */}
+            {references.length > 0 ? (
+              <div className="flex items-center gap-1">
+                {editMode ? (
+                  <div
+                    data-testid="editable-reference-0"
+                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-reference)] bg-[var(--color-element-reference)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm cursor-pointer hover:outline-2 hover:outline-dashed hover:outline-white/60 transition-all"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => editCallbacks?.onEditReference?.(0)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') editCallbacks?.onEditReference?.(0); }}
+                  >
+                    <GraduationCap className="h-7 w-7" />
+                    <span>{references[0].label}</span>
+                    <button
+                      type="button"
+                      aria-label={t('common.delete', 'Delete')}
+                      className={`${DELETE_BTN_CLASS} ml-1`}
+                      onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteReference?.(0); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-reference)] bg-[var(--color-element-reference)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); onReferenceClick?.(); }}
+                    aria-label={references[0].label || t('instructionView.reference', 'Reference')}
+                  >
+                    <GraduationCap className="h-7 w-7" />
+                    <span>{references[0].label}</span>
+                  </button>
+                )}
+              </div>
+            ) : editMode && (
+              <button
+                type="button"
+                data-testid="add-reference-placeholder"
+                className={ADD_PLACEHOLDER_BTN_CLASS}
+                onClick={() => editCallbacks?.onAddReference?.()}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>{t('editorCore.addReference', 'Add reference')}</span>
               </button>
             )}
           </div>
@@ -754,20 +902,40 @@ export function SubstepCard({
         )}
 
         {/* Bottom right: parts & tools badge */}
-        {!isPlayingInline && partTools.length > 0 && (
+        {!isPlayingInline && (partTools.length > 0 || editMode) && (
           <div
-            className="absolute bottom-2 right-2 z-10"
+            className="absolute bottom-2 right-2 z-10 flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              className="flex items-center gap-2 px-4 h-14 rounded-full border-2 border-[var(--color-element-tool)] bg-[var(--color-element-tool)]/20 backdrop-blur-sm text-white text-base font-medium transition-all hover:scale-105 active:scale-95 focus:outline-none cursor-pointer"
-              onClick={onPartToolClick}
-              aria-label={`${partTools.length} ${partTools.length === 1 ? 'part/tool' : 'parts/tools'}`}
-            >
-              <Package className="h-7 w-7 text-[var(--color-element-tool)]" />
-              <span>{partTools.length}</span>
-            </button>
+            {partTools.length > 0 ? (
+              <button
+                type="button"
+                data-testid={editMode ? 'editable-parts-badge' : undefined}
+                aria-label={editMode
+                  ? t('instructionView.partsTools', 'Parts/Tools')
+                  : `${partTools.length} ${t('instructionView.partsTools', 'Parts & Tools')}`}
+                className={clsx(
+                  'flex items-center gap-2 px-4 h-14 rounded-full border-2 border-[var(--color-element-tool)] bg-[var(--color-element-tool)]/20 backdrop-blur-sm text-white text-base font-medium transition-all focus:outline-none cursor-pointer',
+                  editMode
+                    ? 'hover:outline-2 hover:outline-dashed hover:outline-white/60'
+                    : 'hover:scale-105 active:scale-95',
+                )}
+                onClick={editMode ? () => editCallbacks?.onEditPartTools?.() : onPartToolClick}
+              >
+                <Package className="h-7 w-7 text-[var(--color-element-tool)]" />
+                <span>{partTools.length}</span>
+              </button>
+            ) : editMode && (
+              <button
+                type="button"
+                data-testid="add-parts-placeholder"
+                className={ADD_PLACEHOLDER_BTN_CLASS}
+                onClick={() => editCallbacks?.onEditPartTools?.()}
+              >
+                <Plus className="h-3.5 w-3.5" />
+                <span>{t('editorCore.addPartsTools', 'Add parts/tools')}</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -800,17 +968,64 @@ export function SubstepCard({
         {descriptions.length > 0 ? (
           <div className="space-y-1">
             {descriptions.map((desc) => (
-              <div key={desc.id}>
-                <p className="text-lg text-[var(--color-text-base)] leading-relaxed">
-                  <span className="text-[var(--color-text-muted)]">&ndash;</span>{' '}
-                  {desc.text}
-                </p>
+              <div key={desc.id} className="group">
+                {editMode ? (
+                  <div
+                    data-testid="editable-description"
+                    className="flex items-center gap-1 text-lg text-[var(--color-text-base)] leading-relaxed cursor-pointer rounded px-1 -mx-1 hover:outline-2 hover:outline-dashed hover:outline-[var(--color-secondary)]/60"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => editCallbacks?.onEditDescription?.(desc.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') editCallbacks?.onEditDescription?.(desc.id); }}
+                  >
+                    <span className="flex-1">
+                      <span className="text-[var(--color-text-muted)]">&ndash;</span>{' '}
+                      {desc.text}
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t('common.delete', 'Delete')}
+                      className={DELETE_BTN_CLASS}
+                      onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteDescription?.(desc.id); }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-lg text-[var(--color-text-base)] leading-relaxed">
+                    <span className="text-[var(--color-text-muted)]">&ndash;</span>{' '}
+                    {desc.text}
+                  </p>
+                )}
               </div>
             ))}
           </div>
         ) : (
           <div className="py-2 flex items-center justify-center">
             <span className="text-sm text-[var(--color-text-subtle)]">—</span>
+          </div>
+        )}
+
+        {/* Edit mode: add buttons + delete substep */}
+        {editMode && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-sm text-[var(--color-secondary)] hover:text-[var(--color-secondary-hover)] transition-colors cursor-pointer"
+              onClick={() => editCallbacks?.onAddDescription?.()}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>{t('editorCore.addDescription', 'Add description')}</span>
+            </button>
+            <button
+              type="button"
+              aria-label={t('editorCore.deleteSubstep', 'Delete substep')}
+              className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600 transition-colors cursor-pointer ml-auto"
+              onClick={() => editCallbacks?.onDeleteSubstep?.()}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{t('editorCore.deleteSubstep', 'Delete substep')}</span>
+            </button>
           </div>
         )}
       </div>

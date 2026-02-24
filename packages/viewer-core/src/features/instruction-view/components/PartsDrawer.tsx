@@ -7,6 +7,7 @@ import { clsx } from 'clsx';
 import type { LucideIcon } from 'lucide-react';
 
 import { Drawer, TutorialClickIcon } from '@/components/ui';
+import type { TextInputSuggestion } from '@/components/ui';
 import { useClickOutside } from '@/hooks';
 import type { VideoFrameAreaRow, VideoRow } from '@/features/instruction';
 import { useViewerData } from '../context';
@@ -17,7 +18,7 @@ import {
 import { resolvePartToolImageUrl } from '../utils/resolvePartToolImageUrl';
 import { resolvePartToolFrameCapture, type FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { VideoFrameCapture } from './VideoFrameCapture';
-import { PartToolDetailModal } from './PartToolDetailModal';
+import { PartToolDetailModal, type PartToolEditCallbacks } from './PartToolDetailModal';
 
 // localStorage keys for persisting preferences (shared with fullpage mode)
 const STORAGE_KEY_START = 'montavis-parts-tools-start-step';
@@ -65,6 +66,12 @@ interface PartsDrawerProps {
   useRawVideo?: boolean;
   /** Show tutorial highlight on the close button */
   tutorialHighlight?: boolean;
+  /** Show inline edit controls. Default: false */
+  editMode?: boolean;
+  /** Edit callbacks for part tool fields — only used when editMode=true */
+  editCallbacks?: PartToolEditCallbacks;
+  /** Catalog of available parts/tools for search + swap */
+  partToolCatalog?: TextInputSuggestion[];
 }
 
 /** Step Range Selector with edit mode for manual input (used in fullpage mode) */
@@ -375,6 +382,9 @@ export function PartsDrawer({
   useBlurred,
   useRawVideo = false,
   tutorialHighlight = false,
+  editMode = false,
+  editCallbacks,
+  partToolCatalog,
 }: PartsDrawerProps) {
   const { t } = useTranslation();
   const data = useViewerData();
@@ -621,6 +631,9 @@ export function PartsDrawer({
         partToolVideoFrameAreas={data?.partToolVideoFrameAreas}
         useBlurred={useBlurred}
         videoFrameAreas={data?.videoFrameAreas}
+        editMode={editMode}
+        editCallbacks={editMode ? editCallbacks : undefined}
+        partToolCatalog={editMode ? partToolCatalog : undefined}
         frameCaptureData={
           useRawVideo && selectedItem && folderName
             ? resolvePartToolFrameCapture(

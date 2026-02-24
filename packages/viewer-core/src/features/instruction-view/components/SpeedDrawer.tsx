@@ -70,7 +70,7 @@ export function SpeedDrawer({ isOpen, onClose, panelRef, backdropRef }: SpeedDra
             onMouseUp={handleSliderEnd}
             onTouchEnd={handleSliderEnd}
             className="flex-1 h-2 rounded-full appearance-none cursor-pointer accent-[var(--color-secondary)] bg-[var(--color-border-base)]"
-            aria-label={t('instructionView.playbackSpeed')}
+            aria-label={t('instructionView.playbackSpeed', 'Playback speed')}
           />
           <span className="text-lg font-medium text-[var(--color-text-muted)] shrink-0">2.5x</span>
         </div>
@@ -85,7 +85,7 @@ export function SpeedDrawer({ isOpen, onClose, panelRef, backdropRef }: SpeedDra
                 key={preset}
                 type="button"
                 onClick={() => setPlaybackSpeed(preset)}
-                aria-label={t('instructionView.setSpeedTo', { speed: preset })}
+                aria-label={t('instructionView.setSpeedTo', { speed: preset, defaultValue: `Set speed to ${preset}x` })}
                 className={clsx(
                   'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
                   isActive

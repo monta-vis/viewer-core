@@ -17,7 +17,7 @@ export function ColorPalette({
 }: ColorPaletteProps) {
   const { t } = useTranslation();
   return (
-    <div className="flex items-center gap-2" role="radiogroup" aria-label={t('shortcuts.colorSelection')}>
+    <div className="flex items-center gap-2" role="radiogroup" aria-label={t('shortcuts.colorSelection', 'Color selection')}>
       {PALETTE_COLORS.map((color) => (
         <ColorSwatch
           key={color}

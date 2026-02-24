@@ -66,7 +66,7 @@ export function PreferencesDialog({
       <Card
         ref={panelRef}
         role="dialog"
-        aria-label={t('preferences.title')}
+        aria-label={t('preferences.title', 'Preferences')}
         variant="elevated"
         bordered
         padding="none"
@@ -75,11 +75,11 @@ export function PreferencesDialog({
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--color-border-base)]">
           <span className="text-sm font-medium text-[var(--color-text-base)]">
-            {t('preferences.title')}
+            {t('preferences.title', 'Preferences')}
           </span>
           <IconButton
             icon={<X />}
-            aria-label={t('common.close')}
+            aria-label={t('common.close', 'Close')}
             variant="ghost"
             size="sm"
             onClick={onClose}
@@ -94,7 +94,7 @@ export function PreferencesDialog({
             <div>
               <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)] mb-2">
                 <Languages className="w-3.5 h-3.5" />
-                {t('preferences.language')}
+                {t('preferences.language', 'Language')}
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 {SUPPORTED_LANGUAGES.map((lang) => (
@@ -116,7 +116,7 @@ export function PreferencesDialog({
             <div>
               <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)] mb-2">
                 {resolvedTheme === 'dark' ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-                {t('preferences.theme')}
+                {t('preferences.theme', 'Theme')}
               </label>
               <div className="grid grid-cols-2 gap-1.5">
                 <OptionButton
@@ -125,7 +125,7 @@ export function PreferencesDialog({
                   showCheck
                   icon={<Sun className="w-4 h-4" />}
                 >
-                  {t('preferences.themeLight')}
+                  {t('preferences.themeLight', 'Light')}
                 </OptionButton>
                 <OptionButton
                   active={resolvedTheme === 'dark'}
@@ -133,7 +133,7 @@ export function PreferencesDialog({
                   showCheck
                   icon={<Moon className="w-4 h-4" />}
                 >
-                  {t('preferences.themeDark')}
+                  {t('preferences.themeDark', 'Dark')}
                 </OptionButton>
               </div>
             </div>
@@ -144,7 +144,7 @@ export function PreferencesDialog({
             <div>
               <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)] mb-2">
                 <Type className="w-3.5 h-3.5" />
-                {t('preferences.fontSize')}
+                {t('preferences.fontSize', 'Font Size')}
               </label>
               <div className="grid grid-cols-3 gap-1.5">
                 {FONT_SIZES.map((opt) => (
@@ -165,7 +165,7 @@ export function PreferencesDialog({
             <div>
               <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-text-muted)] mb-2">
                 <Play className="w-3.5 h-3.5" />
-                {t('preferences.playbackSpeed')}
+                {t('preferences.playbackSpeed', 'Playback Speed')}
               </label>
               <div className="grid grid-cols-3 gap-1.5">
                 {PLAYBACK_SPEEDS.map((speed) => (

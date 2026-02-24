@@ -2,6 +2,7 @@ import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-react';
 import { getCategoryFromFilename, getCategoryPriority, safetyIconUrl, type NoteLevel } from '@/features/instruction';
+import { buildMediaUrl } from '@/lib/media';
 
 const NOTE_ICONS = {
   Critical: AlertCircle,
@@ -44,14 +45,24 @@ interface NoteCardProps {
   safetyIconId?: string | null;
   isExpanded: boolean;
   onToggle: () => void;
+  /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
+  folderName?: string;
 }
 
-export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle }: NoteCardProps) {
+export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, folderName }: NoteCardProps) {
   const { t } = useTranslation();
   const Icon = NOTE_ICONS[level];
   const styles = NOTE_STYLES[level];
   const levelLabel = t(`instructionView.noteLevel.${level.toLowerCase()}`, level);
   const hasText = text.trim().length > 0;
+
+  // Resolve safety icon URL: VFA UUID uses buildMediaUrl (Electron) or publicAsset (mweb)
+  const isLegacy = safetyIconId ? /\.(png|jpg|gif)$/i.test(safetyIconId) : false;
+  const iconUrl = safetyIconId
+    ? (isLegacy || !folderName)
+      ? safetyIconUrl(safetyIconId)
+      : buildMediaUrl(folderName, `media/frames/${safetyIconId}/image.png`)
+    : null;
 
   return (
     <button
@@ -66,9 +77,9 @@ export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle }: No
     >
       {/* Icon — fixed size, never moves or resizes */}
       <span className="flex-shrink-0 w-14 h-14 flex items-center justify-center">
-        {safetyIconId ? (
+        {iconUrl ? (
           <img
-            src={safetyIconUrl(safetyIconId)}
+            src={iconUrl}
             alt={levelLabel}
             className="w-full h-full object-contain"
           />
@@ -101,8 +112,12 @@ export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle }: No
 }
 
 /** Sort priority for notes: uses category priority from safety icon, or legacy level priority. */
-export function getNoteSortPriority(note: { level: NoteLevel; safetyIconId?: string | null }): number {
-  if (note.safetyIconId) {
+export function getNoteSortPriority(note: { level: NoteLevel; safetyIconId?: string | null; safetyIconCategory?: string | null }): number {
+  if (note.safetyIconCategory) {
+    return getCategoryPriority(note.safetyIconCategory);
+  }
+  if (note.safetyIconId && /\.(png|jpg|gif)$/i.test(note.safetyIconId)) {
+    // Legacy filename-based icon
     return getCategoryPriority(getCategoryFromFilename(note.safetyIconId));
   }
   const LEGACY: Record<NoteLevel, number> = { Critical: 0, Warning: 1, Quality: 4, Info: 6 };

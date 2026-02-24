@@ -171,6 +171,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         text: n.text,
         level: n.level as 'Info' | 'Quality' | 'Warning' | 'Critical',
         safetyIconId: n.safety_icon_id ?? null,
+        safetyIconCategory: n.safety_icon_category ?? null,
       }])
     ),
     substepImages: Object.fromEntries(

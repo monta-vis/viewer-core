@@ -85,12 +85,12 @@ export function TextInputPopover({
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={t('textInput.placeholder')}
+          placeholder={t('textInput.placeholder', 'Enter text...')}
           className="flex-1 px-2 py-1 text-sm border border-[var(--color-border-base)] rounded bg-[var(--item-bg)] text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
         />
         <IconButton
           icon={<Check className="w-4 h-4" />}
-          aria-label={t('common.confirm')}
+          aria-label={t('common.confirm', 'Confirm')}
           size="sm"
           variant="ghost"
           onClick={handleSubmit}
@@ -98,7 +98,7 @@ export function TextInputPopover({
         />
         <IconButton
           icon={<X className="w-4 h-4" />}
-          aria-label={t('common.cancel')}
+          aria-label={t('common.cancel', 'Cancel')}
           size="sm"
           variant="ghost"
           onClick={onCancel}
@@ -120,7 +120,7 @@ export function TextInputPopover({
           </button>
         ))}
         <p className="text-xs text-[var(--color-text-muted)] ml-1">
-          {t('textInput.hint')}
+          {t('textInput.hint', 'Press Enter to confirm, Escape to cancel')}
         </p>
       </div>
     </div>

@@ -160,6 +160,7 @@ export interface NoteRow {
   text: string;
   level: 'Info' | 'Quality' | 'Warning' | 'Critical';
   safetyIconId: string | null;
+  safetyIconCategory: string | null;
 }
 
 export interface SafetyIconRow {

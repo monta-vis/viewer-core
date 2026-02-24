@@ -24,7 +24,7 @@ export {
 
 // Components
 export { InstructionView } from './components/InstructionView';
-export { SubstepCard } from './components/SubstepCard';
+export { SubstepCard, type SubstepEditCallbacks } from './components/SubstepCard';
 export { StepOverview } from './components/StepOverview';
 export { StepOverviewCard } from './components/StepOverviewCard';
 export { PartsToolsBar } from './components/PartsToolsBar';
@@ -34,7 +34,7 @@ export { VideoFrameCapture } from './components/VideoFrameCapture';
 export { PartsToolsOverviewCard } from './components/PartsToolsOverviewCard';
 export { StepRangeSlider } from './components/StepRangeSlider';
 export { PartsDrawer } from './components/PartsDrawer';
-export { PartToolDetailModal } from './components/PartToolDetailModal';
+export { PartToolDetailModal, type PartToolEditCallbacks } from './components/PartToolDetailModal';
 export { NoteCard } from './components/NoteCard';
 
 // Utils

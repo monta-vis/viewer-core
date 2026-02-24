@@ -115,6 +115,7 @@ export interface SnapshotNote {
   text: string;
   level: string;
   safety_icon_id?: string;
+  safety_icon_category?: string;
 }
 
 export interface SnapshotSafetyIcon {

@@ -198,7 +198,7 @@ export function FeedbackWidget({
       setMode('form');
     } catch (err) {
       console.error('Failed to capture screenshot:', err);
-      setSubmitError(t('feedback.captureError'));
+      setSubmitError(t('feedback.captureError', 'Failed to capture screenshot'));
       setMode('form');
     } finally {
       setIsCapturing(false);
@@ -234,7 +234,7 @@ export function FeedbackWidget({
     if (!file) return;
 
     if (file.size > MAX_ATTACHMENT_BYTES) {
-      setSubmitError(t('feedback.fileTooLarge'));
+      setSubmitError(t('feedback.fileTooLarge', 'File is too large (max 5 MB)'));
       return;
     }
 
@@ -282,10 +282,10 @@ export function FeedbackWidget({
       if (result.success) {
         setSubmitSuccess(true);
       } else {
-        setSubmitError(t('feedback.error'));
+        setSubmitError(t('feedback.error', 'Something went wrong. Please try again.'));
       }
     } catch {
-      setSubmitError(t('feedback.error'));
+      setSubmitError(t('feedback.error', 'Something went wrong. Please try again.'));
     } finally {
       setIsSubmitting(false);
     }
@@ -345,14 +345,14 @@ export function FeedbackWidget({
         >
           <IconButton
             icon={<X />}
-            aria-label={t('common.cancel')}
+            aria-label={t('common.cancel', 'Cancel')}
             variant="ghost"
             size="sm"
             onClick={cancelDrawing}
           />
           <IconButton
             icon={<Eraser />}
-            aria-label={t('feedback.clear')}
+            aria-label={t('feedback.clear', 'Clear')}
             variant="ghost"
             size="sm"
             onClick={() => setStrokes([])}
@@ -360,7 +360,7 @@ export function FeedbackWidget({
           />
           <IconButton
             icon={<Check />}
-            aria-label={t('feedback.done')}
+            aria-label={t('feedback.done', 'Done')}
             variant="primary"
             size="sm"
             onClick={confirmDrawing}
@@ -417,7 +417,7 @@ export function FeedbackWidget({
               <SupportAgentIcon className="h-8 w-8 text-[hsl(27,51%,56%)]" />
             </div>
             <h2 className="font-semibold text-lg text-[var(--color-text-base)]">
-              {t('feedback.title')}
+              {t('feedback.title', 'Report a Problem')}
             </h2>
           </div>
           <IconButton
@@ -436,7 +436,7 @@ export function FeedbackWidget({
               <Check className="h-8 w-8 text-[var(--color-status-success)]" />
             </div>
             <span className="text-base font-medium text-[var(--color-text-base)] text-center">
-              {t('feedback.success')}
+              {t('feedback.success', 'Thank you! Your feedback has been sent.')}
             </span>
           </div>
         ) : (
@@ -463,7 +463,7 @@ export function FeedbackWidget({
                       'bg-black/60 hover:bg-black/80',
                       'text-white transition-colors'
                     )}
-                    aria-label={t('feedback.retake')}
+                    aria-label={t('feedback.retake', 'Retake screenshot')}
                   >
                     <Pencil className="h-4 w-4" />
                   </button>
@@ -477,8 +477,8 @@ export function FeedbackWidget({
                   )}
                 >
                   <Pencil className="h-6 w-6" />
-                  <span className="text-sm font-medium">{t('feedback.markLocation')}</span>
-                  <span className="text-xs opacity-70">Coming soon</span>
+                  <span className="text-sm font-medium">{t('feedback.markLocation', 'Mark location on screen')}</span>
+                  <span className="text-xs opacity-70">{t('feedback.comingSoon', 'Coming soon')}</span>
                 </button>
               )}
             </div>
@@ -488,7 +488,7 @@ export function FeedbackWidget({
               <textarea
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder={t('feedback.descriptionPlaceholderOptional')}
+                placeholder={t('feedback.descriptionPlaceholderOptional', 'Describe the problem (optional)...')}
                 rows={3}
                 className={clsx(
                   'flex-1 px-3 py-2.5 rounded-lg text-sm',
@@ -502,8 +502,8 @@ export function FeedbackWidget({
               <div className="flex flex-col items-center justify-start pt-1">
                 <button
                   disabled
-                  aria-label={t('feedback.recordMemo')}
-                  title="Coming soon"
+                  aria-label={t('feedback.recordMemo', 'Record voice memo')}
+                  title={t('feedback.comingSoon', 'Coming soon')}
                   className={clsx(
                     'h-10 w-10 rounded-full flex items-center justify-center',
                     'bg-[var(--color-bg-elevated)] shadow-sm',
@@ -533,11 +533,11 @@ export function FeedbackWidget({
                   )}
                 </div>
                 <span className="text-sm text-[var(--color-text-base)] flex-1 truncate">
-                  {t('feedback.attachmentAdded')} — {attachmentFile.name}
+                  {t('feedback.attachmentAdded', 'Attachment added')} — {attachmentFile.name}
                 </span>
                 <button
                   onClick={deleteAttachment}
-                  aria-label={t('feedback.deleteAttachment')}
+                  aria-label={t('feedback.deleteAttachment', 'Delete attachment')}
                   className="p-1 rounded text-[var(--color-text-muted)] hover:text-red-500 transition-colors"
                 >
                   <Trash2 className="h-4 w-4" />
@@ -546,7 +546,7 @@ export function FeedbackWidget({
             ) : (
               <button
                 disabled
-                aria-label={t('feedback.uploadAttachment')}
+                aria-label={t('feedback.uploadAttachment', 'Upload photo or video')}
                 className={clsx(
                   'w-full flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm',
                   'bg-[var(--color-bg-elevated)] shadow-sm',
@@ -554,8 +554,8 @@ export function FeedbackWidget({
                 )}
               >
                 <Camera className="h-4 w-4" />
-                <span>{t('feedback.uploadAttachment')}</span>
-                <span className="ml-auto text-xs opacity-70">Coming soon</span>
+                <span>{t('feedback.uploadAttachment', 'Upload photo or video')}</span>
+                <span className="ml-auto text-xs opacity-70">{t('feedback.comingSoon', 'Coming soon')}</span>
               </button>
             )}
 
@@ -568,7 +568,7 @@ export function FeedbackWidget({
                 type="tel"
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder={t('feedback.phoneNumberPlaceholder')}
+                placeholder={t('feedback.phoneNumberPlaceholder', 'Phone number for callback')}
                 className={clsx(
                   'w-full pl-9 pr-3 py-2.5 rounded-lg text-sm',
                   'bg-[var(--color-bg-elevated)] shadow-sm',
@@ -593,7 +593,7 @@ export function FeedbackWidget({
                 className="h-4 w-4 rounded accent-[var(--color-secondary)]"
               />
               <span className="text-sm text-[var(--color-text-base)]">
-                {t('feedback.requestCallback')}
+                {t('feedback.requestCallback', 'Request a callback')}
               </span>
             </label>
 
@@ -609,14 +609,14 @@ export function FeedbackWidget({
                     ? 'bg-[var(--color-secondary)] text-white hover:bg-[var(--color-secondary)]/90 shadow-md'
                     : 'bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] opacity-50 cursor-not-allowed'
                 )}
-                aria-label={isSubmitting ? t('feedback.sending') : t('feedback.send')}
+                aria-label={isSubmitting ? t('feedback.sending', 'Sending...') : t('feedback.send', 'Send')}
               >
                 {isSubmitting ? (
                   <Loader2 className="h-5 w-5 animate-spin" />
                 ) : (
                   <Send className="h-5 w-5" />
                 )}
-                <span>{isSubmitting ? t('feedback.sending') : t('feedback.send')}</span>
+                <span>{isSubmitting ? t('feedback.sending', 'Sending...') : t('feedback.send', 'Send')}</span>
               </button>
             </div>
           </div>

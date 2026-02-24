@@ -102,7 +102,7 @@ export function ViewPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-bg-base)]">
         <Loader2 className="w-8 h-8 text-[var(--color-text-subtle)] animate-spin" />
         <p className="mt-4 text-[var(--color-text-muted)]">
-          {t("common.loading")}
+          {t("common.loading", "Loading...")}
         </p>
       </div>
     );
@@ -115,7 +115,7 @@ export function ViewPage() {
           left={
             <IconButton
               icon={<ArrowLeft />}
-              aria-label={t("common.back")}
+              aria-label={t("common.back", "Back")}
               variant="ghost"
               onClick={() => navigate("/")}
             />
@@ -139,6 +139,29 @@ export function ViewPage() {
                   selectedStepId={selectedStepId}
                   onStepChange={setSelectedStepId}
                   onBreak={() => navigate("/")}
+                  folderName={folderName ? decodeURIComponent(folderName) : undefined}
+                  editCallbacks={{
+                    onEditImage: (id) => console.log('[edit] image', id),
+                    onDeleteImage: (id) => console.log('[edit] delete image', id),
+                    onEditDescription: (descId, subId) => console.log('[edit] desc', descId, subId),
+                    onDeleteDescription: (descId, subId) => console.log('[edit] delete desc', descId, subId),
+                    onAddDescription: (id) => console.log('[edit] add desc', id),
+                    onEditNote: (noteId, subId) => console.log('[edit] note', noteId, subId),
+                    onDeleteNote: (noteId, subId) => console.log('[edit] delete note', noteId, subId),
+                    onAddNote: (id) => console.log('[edit] add note', id),
+                    onEditRepeat: (id) => console.log('[edit] repeat', id),
+                    onEditReference: (refIdx, subId) => console.log('[edit] ref', refIdx, subId),
+                    onDeleteReference: (refIdx, subId) => console.log('[edit] delete ref', refIdx, subId),
+                    onAddReference: (id) => console.log('[edit] add ref', id),
+                    onEditPartTools: (id) => console.log('[edit] parts', id),
+                    onDeleteSubstep: (id) => console.log('[edit] delete substep', id),
+                    onAddSubstep: (stepId) => console.log('[edit] add substep', stepId),
+                    onReplacePartTool: (oldId, newId) => console.log('[edit] replace partTool', oldId, '→', newId),
+                    onCreatePartTool: (oldId, newName) => console.log('[edit] create partTool', oldId, '→', newName),
+                    onEditPartToolAmount: (partToolId, newAmount) => console.log('[edit] partTool amount', partToolId, newAmount),
+                    onEditPartToolImage: (partToolId) => console.log('[edit] partTool image', partToolId),
+                    onDeletePartTool: (partToolId) => console.log('[edit] delete partTool', partToolId),
+                  }}
                 />
               </InstructionViewContainer>
             </ViewerDataProvider>

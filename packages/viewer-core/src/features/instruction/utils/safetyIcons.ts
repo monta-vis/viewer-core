@@ -5,9 +5,18 @@
 
 import { publicAsset } from '@/lib/media';
 
-/** Resolve the public asset URL for a safety icon filename (normalizes .jpg/.gif → .png). */
-export function safetyIconUrl(filename: string): string {
-  return publicAsset(`SafetyIcons/${encodeURIComponent(filename.replace(/\.(jpg|gif)$/i, '.png'))}`);
+/**
+ * Resolve the URL for a safety icon.
+ * - Legacy filename (contains .png/.jpg/.gif) → publicAsset('SafetyIcons/...')
+ * - VFA UUID → publicAsset('media/frames/{id}/image.png')
+ */
+export function safetyIconUrl(idOrFilename: string): string {
+  if (/\.(png|jpg|gif)$/i.test(idOrFilename)) {
+    // Legacy filename
+    return publicAsset(`SafetyIcons/${encodeURIComponent(idOrFilename.replace(/\.(jpg|gif)$/i, '.png'))}`);
+  }
+  // VFA UUID — image stored in project's media/frames/
+  return publicAsset(`media/frames/${encodeURIComponent(idOrFilename)}/image.png`);
 }
 
 /** Human-readable label from safety icon filename (strip extension and replace separators). */

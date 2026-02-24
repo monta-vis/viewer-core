@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 import { Fragment, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronLeft, ChevronRight, ChevronDown, Gauge, Package, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ChevronDown, Gauge, Package, Pencil, PencilOff, Plus, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { Button, TutorialClickIcon } from '@/components/ui';
+import type { TextInputSuggestion } from '@/components/ui';
 import { isImageDrawing, isVideoDrawing, formatReferenceDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
@@ -14,6 +15,7 @@ import { useVideo } from '@/features/video-player';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
 
 import { SubstepCard } from './SubstepCard';
+import type { SubstepEditCallbacks } from './SubstepCard';
 import { StepOverview } from './StepOverview';
 import { PartsDrawer } from './PartsDrawer';
 import { SpeedDrawer } from './SpeedDrawer';
@@ -80,6 +82,35 @@ interface InstructionViewProps {
   initialPartsDrawerOpen?: boolean;
   /** Enable guided tutorial overlay (3-step walkthrough). Default: false */
   tutorial?: boolean;
+  /** Show inline edit controls on all substep cards. Default: false */
+  editMode?: boolean;
+  /** Edit callbacks per substep (substepId passed as first arg) */
+  editCallbacks?: {
+    onEditImage?: (substepId: string) => void;
+    onDeleteImage?: (substepId: string) => void;
+    onEditVideo?: (substepId: string) => void;
+    onDeleteVideo?: (substepId: string) => void;
+    onEditDescription?: (descriptionId: string, substepId: string) => void;
+    onDeleteDescription?: (descriptionId: string, substepId: string) => void;
+    onAddDescription?: (substepId: string) => void;
+    onEditNote?: (noteRowId: string, substepId: string) => void;
+    onDeleteNote?: (noteRowId: string, substepId: string) => void;
+    onAddNote?: (substepId: string) => void;
+    onEditRepeat?: (substepId: string) => void;
+    onEditReference?: (referenceIndex: number, substepId: string) => void;
+    onDeleteReference?: (referenceIndex: number, substepId: string) => void;
+    onAddReference?: (substepId: string) => void;
+    onEditPartTools?: (substepId: string) => void;
+    onDeleteSubstep?: (substepId: string) => void;
+    onAddSubstep?: (stepId: string) => void;
+    onReplacePartTool?: (oldPartToolId: string, newPartToolId: string) => void;
+    onCreatePartTool?: (oldPartToolId: string, newName: string) => void;
+    onEditPartToolAmount?: (partToolId: string, newAmount: string) => void;
+    onEditPartToolImage?: (partToolId: string) => void;
+    onDeletePartTool?: (partToolId: string) => void;
+  };
+  /** Catalog of available parts/tools for search + swap in PartToolDetailModal */
+  partToolCatalog?: TextInputSuggestion[];
 }
 
 /**
@@ -87,7 +118,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editMode = false, editCallbacks, partToolCatalog }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -209,6 +240,37 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
   // Tutorial step state (null = not active)
   const [tutorialStep, setTutorialStep] = useState<TutorialStep>(() => getInitialTutorialStep(tutorial));
+
+  // Per-step edit toggle (internal state, reset on step change)
+  const [isEditing, setIsEditing] = useState(false);
+  useEffect(() => { setIsEditing(false); }, [step?.id]);
+  const effectiveEditMode = editMode || isEditing;
+
+  // Stable factory for per-substep edit callbacks (avoids creating N objects per render tick)
+  const makeSubstepEditCallbacks = useCallback(
+    (substepId: string): SubstepEditCallbacks | undefined => {
+      if (!effectiveEditMode || !editCallbacks) return undefined;
+      return {
+        onEditImage: () => editCallbacks.onEditImage?.(substepId),
+        onDeleteImage: () => editCallbacks.onDeleteImage?.(substepId),
+        onEditVideo: () => editCallbacks.onEditVideo?.(substepId),
+        onDeleteVideo: () => editCallbacks.onDeleteVideo?.(substepId),
+        onEditDescription: (descId) => editCallbacks.onEditDescription?.(descId, substepId),
+        onDeleteDescription: (descId) => editCallbacks.onDeleteDescription?.(descId, substepId),
+        onAddDescription: () => editCallbacks.onAddDescription?.(substepId),
+        onEditNote: (noteRowId) => editCallbacks.onEditNote?.(noteRowId, substepId),
+        onDeleteNote: (noteRowId) => editCallbacks.onDeleteNote?.(noteRowId, substepId),
+        onAddNote: () => editCallbacks.onAddNote?.(substepId),
+        onEditRepeat: () => editCallbacks.onEditRepeat?.(substepId),
+        onEditReference: (refIdx) => editCallbacks.onEditReference?.(refIdx, substepId),
+        onDeleteReference: (refIdx) => editCallbacks.onDeleteReference?.(refIdx, substepId),
+        onAddReference: () => editCallbacks.onAddReference?.(substepId),
+        onEditPartTools: () => editCallbacks.onEditPartTools?.(substepId),
+        onDeleteSubstep: () => editCallbacks.onDeleteSubstep?.(substepId),
+      };
+    },
+    [effectiveEditMode, editCallbacks],
+  );
 
   // State for viewed substeps (eye icons)
   const [viewedSubstepIds, setViewedSubstepIds] = useState<Set<string>>(new Set());
@@ -763,6 +825,18 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
           {/* Right: Feedback + Close */}
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            {/* Edit toggle — only visible when editCallbacks provided */}
+            {editCallbacks && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-12 sm:h-14 px-2 sm:px-3 py-0 rounded-lg hover:bg-[var(--color-bg-elevated)]"
+                onClick={() => setIsEditing((prev) => !prev)}
+                aria-label={isEditing ? t('instructionView.exitEditMode', 'Exit edit mode') : t('instructionView.enterEditMode', 'Enter edit mode')}
+              >
+                {isEditing ? <PencilOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Pencil className="h-5 w-5 sm:h-6 sm:w-6" />}
+              </Button>
+            )}
             {/* Playback speed toggle */}
             <Button
               variant="ghost"
@@ -909,6 +983,9 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                               setIsPartsDrawerOpen(true);
                             }}
                             referenceDisplay={substepReferenceDisplayMap.get(substep.id)}
+                            folderName={folderName}
+                            editMode={effectiveEditMode}
+                            editCallbacks={makeSubstepEditCallbacks(substep.id)}
                           />
                         </div>
 
@@ -970,6 +1047,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                               frameCaptureData={targetFrameCapture}
                               descriptions={targetDescriptions}
                               notes={targetNotes}
+                              folderName={folderName}
                               imageDrawings={targetImgDrawings}
                               videoDrawings={targetVidDrawings}
                               videoData={activeRefVideoData.get(targetId)}
@@ -983,6 +1061,21 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                   })}
                 </div>
               )}
+
+            {/* Edit mode: Add substep button */}
+            {effectiveEditMode && editCallbacks?.onAddSubstep && step && (
+              <div className="pt-4 px-2">
+                <button
+                  type="button"
+                  aria-label={t('editorCore.addSubstep', 'Add substep')}
+                  className="w-full h-24 rounded-xl border-2 border-dashed border-[var(--color-border-base)] hover:border-[var(--color-secondary)] flex items-center justify-center gap-2 text-[var(--color-text-muted)] hover:text-[var(--color-secondary)] transition-colors cursor-pointer"
+                  onClick={() => editCallbacks.onAddSubstep?.(step.id)}
+                >
+                  <Plus className="h-5 w-5" />
+                  <span className="text-base font-medium">{t('editorCore.addSubstep', 'Add substep')}</span>
+                </button>
+              </div>
+            )}
 
             {/* Next Step button at bottom of scrollable area (single-column / mobile only) */}
             {nextStep && onStepChange && gridColumns === 1 && (
@@ -1054,6 +1147,15 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         useBlurred={useBlurred}
         tutorialHighlight={tutorialStep === 1}
         useRawVideo={useRawVideo}
+        editMode={effectiveEditMode}
+        editCallbacks={effectiveEditMode && editCallbacks ? {
+          onReplacePartTool: editCallbacks.onReplacePartTool,
+          onCreatePartTool: editCallbacks.onCreatePartTool,
+          onEditPartToolAmount: editCallbacks.onEditPartToolAmount,
+          onEditPartToolImage: editCallbacks.onEditPartToolImage,
+          onDeletePartTool: editCallbacks.onDeletePartTool,
+        } : undefined}
+        partToolCatalog={effectiveEditMode ? partToolCatalog : undefined}
       />
 
       <SpeedDrawer

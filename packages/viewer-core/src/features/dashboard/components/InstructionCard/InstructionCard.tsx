@@ -188,7 +188,7 @@ export function InstructionCard(props: InstructionCardProps) {
         padding="none"
         selected={props.selected}
         className={clsx(
-          'group relative cursor-pointer overflow-hidden',
+          'group relative cursor-pointer',
           'bg-[var(--color-bg-elevated)]',
           'shadow-lg shadow-black/15',
           'hover:shadow-2xl hover:shadow-black/25',
