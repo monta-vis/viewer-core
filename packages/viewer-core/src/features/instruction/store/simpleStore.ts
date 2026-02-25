@@ -10,7 +10,6 @@ import type {
   Substep,
   Assembly,
   Video,
-  ImageRow,
   SubstepImageRow,
   SubstepPartToolRow,
   SubstepNoteRow,
@@ -96,7 +95,6 @@ export interface InstructionData {
   substepVideoSections: Record<string, SubstepVideoSectionRow>;
   partToolVideoFrameAreas: Record<string, PartToolVideoFrameAreaRow>;
   drawings: Record<string, DrawingRow>;
-  images: Record<string, ImageRow>;
   substepReferences: Record<string, SubstepReferenceRow>;
   safetyIcons: Record<string, SafetyIconRow>;
 }
@@ -174,7 +172,6 @@ interface StoreState {
     substepVideoSections: ChangeTracking;
     partToolVideoFrameAreas: ChangeTracking;
     drawings: ChangeTracking;
-    images: ChangeTracking;
     substepReferences: ChangeTracking;
   };
 }
@@ -272,10 +269,6 @@ interface StoreActions {
   deletePartToolVideoFrameArea(id: string): void;
   updatePartToolVideoFrameArea(id: string, updates: Partial<PartToolVideoFrameAreaRow>): void;
 
-  // Images
-  addImage(image: ImageRow): void;
-  updateImage(id: string, updates: Partial<ImageRow>): void;
-  deleteImage(id: string): void;
 
   // Drawings
   addDrawing(drawing: DrawingRow): void;
@@ -341,7 +334,6 @@ const initialChanges = () => ({
   substepVideoSections: createEmptyTracking(),
   partToolVideoFrameAreas: createEmptyTracking(),
   drawings: createEmptyTracking(),
-  images: createEmptyTracking(),
   substepReferences: createEmptyTracking(),
 });
 
@@ -401,7 +393,7 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
         'assemblies', 'steps', 'substeps', 'videoSections', 'videoFrameAreas',
         'viewportKeyframes', 'partTools', 'notes', 'substepImages', 'substepPartTools',
         'substepNotes', 'substepDescriptions', 'substepVideoSections',
-        'partToolVideoFrameAreas', 'drawings', 'images', 'substepReferences',
+        'partToolVideoFrameAreas', 'drawings', 'substepReferences',
       ] as const;
 
       for (const key of entityKeys) {
@@ -1329,26 +1321,6 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
       s.changes.partToolVideoFrameAreas.changed.add(id);
     }),
 
-    // Images
-    addImage: (image) => set((s) => {
-      if (!s.data) return;
-      s.data.images[image.id] = image;
-      s.changes.images.changed.add(image.id);
-    }),
-
-    updateImage: (id, updates) => set((s) => {
-      if (!s.data?.images[id]) return;
-      Object.assign(s.data.images[id], updates);
-      s.changes.images.changed.add(id);
-    }),
-
-    deleteImage: (id) => set((s) => {
-      if (!s.data?.images[id]) return;
-      delete s.data.images[id];
-      s.changes.images.changed.delete(id);
-      s.changes.images.deleted.add(id);
-    }),
-
     // Drawings
     addDrawing: (drawing) => set((s) => {
       if (!s.data) return;
@@ -1651,7 +1623,6 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
       collect('substepVideoSections', 'substep_video_sections', data.substepVideoSections, changes.substepVideoSections);
       collect('partToolVideoFrameAreas', 'part_tool_video_frame_areas', data.partToolVideoFrameAreas, changes.partToolVideoFrameAreas);
       collect('drawings', 'drawings', data.drawings, changes.drawings);
-      collect('images', 'images', data.images, changes.images);
       collect('substepReferences', 'substep_references', data.substepReferences, changes.substepReferences);
 
       return { changed, deleted };

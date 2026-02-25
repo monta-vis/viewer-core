@@ -20,7 +20,6 @@ export type {
   SubstepVideoSectionRow,
   PartToolVideoFrameAreaRow,
   DrawingRow,
-  ImageRow,
   ProxyStatus,
 
   // Enriched types (with grouped relation IDs)

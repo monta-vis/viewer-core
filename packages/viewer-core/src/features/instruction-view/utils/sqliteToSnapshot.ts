@@ -41,7 +41,7 @@ type ElectronProjectData = {
   substepVideoSections: Record<string, unknown>[];
   partToolVideoFrameAreas: Record<string, unknown>[];
   branding: Record<string, unknown>[];
-  images: Record<string, unknown>[];
+
   substepReferences?: Record<string, unknown>[];
   safetyIcons?: Record<string, unknown>[];
   translations?: Record<string, unknown>[];
@@ -209,7 +209,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
   }
 
   // Build video frame areas with mvis-media:// URLs
-  const frameFile = useBlurred ? 'image_blurred.jpg' : 'image.jpg';
+  const frameFile = useBlurred ? 'image_blurred' : 'image';
   const videoFrameAreas: InstructionSnapshot['videoFrameAreas'] = {};
   for (const row of data.videoFrameAreas) {
     const r = row as {
@@ -231,20 +231,6 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       url_720p: buildMediaUrl(folderName, `media/frames/${r.id}/${frameFile}`),
       url_1080p: '',
       url_480p: '',
-    };
-  }
-
-  // Build images
-  const images: InstructionSnapshot['images'] = {};
-  for (const row of (data.images || [])) {
-    const r = row as { id: string; instruction_id: string; original_path: string | null; width: number | null; height: number | null; order: number };
-    images[r.id] = {
-      id: r.id,
-      instruction_id: r.instruction_id,
-      original_path: r.original_path,
-      width: r.width,
-      height: r.height,
-      order: r.order,
     };
   }
 
@@ -310,7 +296,6 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
     videoSections,
     videoFrameAreas,
     viewportKeyframes: keyById(data.viewportKeyframes),
-    images,
     drawings,
     notes: keyById(data.notes),
     partTools: keyById(data.partTools),

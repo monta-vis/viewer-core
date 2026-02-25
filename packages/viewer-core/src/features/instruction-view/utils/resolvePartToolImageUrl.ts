@@ -42,7 +42,7 @@ export function resolvePartToolImageUrl(
   const areaId = sorted[0].videoFrameAreaId;
 
   if (folderName) {
-    const fileName = useBlurred ? 'image_blurred.jpg' : 'image.jpg';
+    const fileName = useBlurred ? 'image_blurred' : 'image';
     return buildMediaUrl(folderName, `media/frames/${areaId}/${fileName}`);
   }
 

@@ -3,6 +3,18 @@ import path from "path";
 import fs from "fs";
 import Database from "better-sqlite3";
 
+/** Image extensions to search for, in priority order. */
+const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'];
+
+/** Find an image file in a directory by base name, regardless of extension. */
+function findImageInDir(dir: string, baseName: string): string | null {
+  for (const ext of IMAGE_EXTENSIONS) {
+    const candidate = path.join(dir, baseName + ext);
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -69,7 +81,24 @@ export function resolveMediaPath(
 
   const filePath = path.join(getProjectsBasePath(), folderName, relativePath);
   if (!isInsideBasePath(filePath)) return null;
-  if (!fs.existsSync(filePath)) return null;
+
+  if (!fs.existsSync(filePath)) {
+    const ext = path.extname(filePath).toLowerCase();
+    const dir = path.dirname(filePath);
+    // Extensionless path (e.g. "media/frames/{id}/image") — find any image
+    if (!ext) {
+      const base = path.basename(filePath);
+      const found = findImageInDir(dir, base);
+      if (found && isInsideBasePath(found)) return found;
+    }
+    // Image extension present but wrong (e.g. requested .jpg but file is .png)
+    if (IMAGE_EXTENSIONS.includes(ext)) {
+      const base = path.basename(filePath, ext);
+      const found = findImageInDir(dir, base);
+      if (found && isInsideBasePath(found)) return found;
+    }
+    return null;
+  }
 
   return filePath;
 }
@@ -244,18 +273,14 @@ export function listProjects(): ProjectListItem[] {
         // DB not migrated — skip cover image
       }
 
-      // Fallback: check for processed frame file on disk
+      // Fallback: check for processed frame file on disk (any image extension)
       if (coverImageAreaId && !coverImagePath) {
-        const framePath = path.join(
-          basePath,
-          entry.name,
-          "media",
-          "frames",
-          coverImageAreaId,
-          "image.jpg",
+        const coverImg = findImageInDir(
+          path.join(basePath, entry.name, "media", "frames", coverImageAreaId),
+          "image",
         );
-        if (fs.existsSync(framePath)) {
-          coverImagePath = framePath;
+        if (coverImg) {
+          coverImagePath = coverImg;
         }
       }
 

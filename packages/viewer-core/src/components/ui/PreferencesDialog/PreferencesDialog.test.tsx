@@ -1,14 +1,17 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { PreferencesDialog } from './PreferencesDialog';
+import { InstructionViewProvider } from '@/features/instruction-view';
 
 afterEach(cleanup);
+
+const mockChangeLanguage = vi.fn();
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
     t: (key: string) => key,
-    i18n: { language: 'en', changeLanguage: vi.fn() },
+    i18n: { language: 'en', changeLanguage: mockChangeLanguage },
   }),
 }));
 
@@ -121,5 +124,41 @@ describe('PreferencesDialog', () => {
     // Theme section should have light and dark buttons with icons
     expect(screen.getByText('preferences.themeLight')).toBeInTheDocument();
     expect(screen.getByText('preferences.themeDark')).toBeInTheDocument();
+  });
+
+  it('works without InstructionViewProvider (no crash)', () => {
+    // Should render without throwing when outside provider
+    render(<PreferencesDialog {...defaultProps} />);
+    const deutschButton = screen.getByText('Deutsch');
+    fireEvent.click(deutschButton);
+    expect(mockChangeLanguage).toHaveBeenCalledWith('de');
+  });
+
+  it('calls InstructionViewContext.setLanguage when inside provider', () => {
+    const onLanguageChange = vi.fn();
+    render(
+      <InstructionViewProvider defaultLanguage="en" onLanguageChange={onLanguageChange}>
+        <PreferencesDialog {...defaultProps} />
+      </InstructionViewProvider>
+    );
+    const deutschButton = screen.getByText('Deutsch');
+    fireEvent.click(deutschButton);
+    // Should call both i18n.changeLanguage AND context setLanguage (which triggers onLanguageChange)
+    expect(mockChangeLanguage).toHaveBeenCalledWith('de');
+    expect(onLanguageChange).toHaveBeenCalledWith('de');
+  });
+
+  it('language change updates both i18n and context language', () => {
+    const onLanguageChange = vi.fn();
+    render(
+      <InstructionViewProvider defaultLanguage="en" onLanguageChange={onLanguageChange}>
+        <PreferencesDialog {...defaultProps} />
+      </InstructionViewProvider>
+    );
+    // Click French
+    const frenchButton = screen.getByText('Français');
+    fireEvent.click(frenchButton);
+    expect(mockChangeLanguage).toHaveBeenCalledWith('fr');
+    expect(onLanguageChange).toHaveBeenCalledWith('fr');
   });
 });

@@ -96,7 +96,6 @@ export interface VideoFrameArea {
   versionId: string;
   videoId: string | null;
   frameNumber: number | null;
-  imageId: string | null;
   x: number | null;
   y: number | null;
   width: number | null;

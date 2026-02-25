@@ -94,6 +94,8 @@ interface SubstepCardProps {
   };
   /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
   folderName?: string;
+  /** VideoFrameArea records for localPath fallback (mweb context). */
+  videoFrameAreas?: Record<string, { localPath?: string | null }>;
   /** Show inline edit controls on all elements. Default: false */
   editMode?: boolean;
   /** Edit callbacks — only used when editMode=true */
@@ -125,6 +127,7 @@ export function SubstepCard({
   repeatLabel,
   referenceDisplay,
   folderName,
+  videoFrameAreas,
   editMode = false,
   editCallbacks,
 }: SubstepCardProps) {
@@ -755,6 +758,7 @@ export function SubstepCard({
                   isExpanded={expandedNoteIds.has(noteRow.id)}
                   onToggle={editMode ? () => {} : handleNoteToggle}
                   folderName={folderName}
+                  videoFrameAreas={videoFrameAreas}
                 />
                 {editMode && (
                   <button

@@ -109,7 +109,6 @@ export interface VideoFrameAreaRow {
   versionId: string;
   videoId: string | null;
   frameNumber: number | null;
-  imageId: string | null;
   x: number | null;
   y: number | null;
   width: number | null;
@@ -117,15 +116,6 @@ export interface VideoFrameAreaRow {
   type: 'SubstepImage' | 'PreviewImage' | 'PartToolScan' | 'TextScan' | 'CodeScan' | 'Viewport';
   /** Pre-exported image URL (for standalone/snapshot mode) */
   localPath?: string | null;
-}
-
-export interface ImageRow {
-  id: string;
-  instructionId: string;
-  originalPath: string | null;
-  width: number | null;
-  height: number | null;
-  order: number;
 }
 
 export interface SubstepImageRow {

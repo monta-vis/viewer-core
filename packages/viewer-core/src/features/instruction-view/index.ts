@@ -7,9 +7,6 @@
  * Has its own theme and language, independent of the Creator app.
  */
 
-// Styles (must be imported for CSS variables to work)
-import './styles/instruction-view.css';
-
 // Context & Provider
 export {
   InstructionViewProvider,

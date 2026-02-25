@@ -82,7 +82,7 @@ export function InstructionCardImage({
           <div className="flex flex-col items-center gap-2 text-[var(--color-primary)]">
             <Upload className="h-12 w-12" />
             <span className="text-sm font-medium">
-              {t('instruction.dropImageHere', 'Bild hier ablegen')}
+              {t('instruction.dropImageHere')}
             </span>
           </div>
         </div>
@@ -112,7 +112,7 @@ export function InstructionCardImage({
                     'p-3 rounded-full bg-[var(--color-primary)] text-white',
                     'hover:bg-[var(--color-primary)]/80 transition-colors'
                   )}
-                  title={t('instruction.changeImage', 'Change image')}
+                  title={t('instruction.changeImage')}
                 >
                   <Upload className="h-5 w-5" />
                 </button>
@@ -123,7 +123,7 @@ export function InstructionCardImage({
                     'p-3 rounded-full bg-[var(--color-error)] text-white',
                     'hover:bg-[var(--color-error)]/80 transition-colors'
                   )}
-                  title={t('instruction.deleteImage', 'Delete image')}
+                  title={t('instruction.deleteImage')}
                 >
                   <Trash2 className="h-5 w-5" />
                 </button>
@@ -146,10 +146,10 @@ export function InstructionCardImage({
             <>
               <Upload className="h-12 w-12 text-[var(--color-secondary)]/40" />
               <span className="text-sm text-[var(--color-text-muted)]">
-                {t('instruction.uploadImage', 'Bild hochladen')}
+                {t('instruction.uploadImage')}
               </span>
               <span className="text-xs text-[var(--color-text-subtle)]">
-                {t('instruction.orDragAndDrop', 'oder per Drag & Drop')}
+                {t('instruction.orDragAndDrop')}
               </span>
             </>
           )}

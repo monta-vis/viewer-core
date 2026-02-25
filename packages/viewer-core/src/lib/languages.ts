@@ -28,6 +28,7 @@ export function getLanguageLabel(code: string): string {
 
 /** Map i18n language codes to our supported languages */
 export function mapToSupportedLanguage(lang: string): LanguageCode {
+  if (!lang) return 'en';
   const normalized = lang.toLowerCase().split('-')[0];
   const found = SUPPORTED_LANGUAGES.find(l => l.code === normalized);
   return found?.code ?? 'en';

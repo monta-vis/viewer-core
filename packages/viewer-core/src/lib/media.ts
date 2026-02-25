@@ -25,9 +25,8 @@ export const MediaPaths = {
   sectionBlurred: (sectionId: string) => `media/sections/${sectionId}/video_blurred.mp4`,
   substepVideo: (substepId: string) => `media/substeps/${substepId}/video.mp4`,
   substepVideoBlurred: (substepId: string) => `media/substeps/${substepId}/video_blurred.mp4`,
-  frame: (frameAreaId: string) => `media/frames/${frameAreaId}/image.jpg`,
-  frameBlurred: (frameAreaId: string) => `media/frames/${frameAreaId}/image_blurred.jpg`,
-  image: (imageId: string) => `media/images/${imageId}/image.jpg`,
+  frame: (frameAreaId: string) => `media/frames/${frameAreaId}/image`,
+  frameBlurred: (frameAreaId: string) => `media/frames/${frameAreaId}/image_blurred`,
 } as const;
 
 /**

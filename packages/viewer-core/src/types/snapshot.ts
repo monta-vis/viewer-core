@@ -142,19 +142,6 @@ export interface SnapshotPartTool {
 }
 
 // ============================================
-// Images
-// ============================================
-
-export interface SnapshotImage {
-  id: string;
-  instruction_id: string;
-  original_path: string | null;
-  width: number | null;
-  height: number | null;
-  order: number;
-}
-
-// ============================================
 // Drawings
 // ============================================
 
@@ -276,7 +263,7 @@ export interface InstructionSnapshot {
   videoSections: Record<string, SnapshotVideoSection>;
   videoFrameAreas: Record<string, SnapshotVideoFrameArea>;
   viewportKeyframes: Record<string, SnapshotViewportKeyframe>;
-  images: Record<string, SnapshotImage>;
+
   drawings: Record<string, SnapshotDrawing>;
   notes: Record<string, SnapshotNote>;
   partTools: Record<string, SnapshotPartTool>;

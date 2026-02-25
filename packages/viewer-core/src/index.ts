@@ -8,6 +8,9 @@
 // Shared design system (CSS variables, base styles, scrollbar, animations)
 import './styles/theme.css';
 
+// Instruction view theme (dark/light CSS variables for InstructionViewContainer)
+import './features/instruction-view/styles/instruction-view.css';
+
 // Instruction View (main feature — components, context, hooks, utils)
 export * from './features/instruction-view';
 

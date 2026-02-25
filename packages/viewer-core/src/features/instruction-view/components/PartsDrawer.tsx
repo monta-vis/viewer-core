@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Package, Wrench, ChevronDown, Pencil, Filter } from 'lucide-react';
+import { X, Package, Wrench, ChevronDown, Pencil, Filter, Box, Ruler } from 'lucide-react';
 import { catalogAssetUrl } from '@/lib/media';
 import { clsx } from 'clsx';
 
@@ -728,7 +728,7 @@ function PartToolSection({
  * - Colored left border (yellow for parts, orange for tools)
  * - Shows substep-specific amount when highlighted
  */
-function PartToolCard({
+export function PartToolCard({
   item,
   size,
   onClick,
@@ -879,6 +879,27 @@ function PartToolCard({
           )}>
             #{item.partTool.partNumber}
           </span>
+        )}
+
+        {/* Material / Dimension */}
+        {(item.partTool.material || item.partTool.dimension) && (
+          <div className={clsx(
+            'flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[var(--color-text-muted)] w-full',
+            isLarge ? 'text-xs' : 'text-[0.65rem]'
+          )}>
+            {item.partTool.material && (
+              <span className="flex items-center gap-0.5 truncate">
+                <Box className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
+                <span className="truncate">{item.partTool.material}</span>
+              </span>
+            )}
+            {item.partTool.dimension && (
+              <span className="flex items-center gap-0.5 truncate">
+                <Ruler className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
+                <span className="truncate">{item.partTool.dimension}</span>
+              </span>
+            )}
+          </div>
         )}
 
         {/* Quantity badge - IKEA style */}

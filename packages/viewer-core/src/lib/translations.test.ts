@@ -105,12 +105,40 @@ describe('viewerCoreTranslations', () => {
     }
   });
 
+  it('includes instructionView.start for all languages', () => {
+    for (const code of allLanguageCodes) {
+      const lang = viewerCoreTranslations[code as LanguageCode];
+      const iv = lang.instructionView as Record<string, unknown>;
+      expect(iv.start, `${code} missing instructionView.start`).toEqual(expect.any(String));
+      expect((iv.start as string).length, `${code} instructionView.start is empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it('includes common.error for all languages', () => {
+    for (const code of allLanguageCodes) {
+      const lang = viewerCoreTranslations[code as LanguageCode];
+      const common = lang.common as Record<string, unknown>;
+      expect(common.error, `${code} missing common.error`).toEqual(expect.any(String));
+      expect((common.error as string).length, `${code} common.error is empty`).toBeGreaterThan(0);
+    }
+  });
+
+  it('includes mweb.poweredBy for all languages', () => {
+    for (const code of allLanguageCodes) {
+      const lang = viewerCoreTranslations[code as LanguageCode];
+      const mweb = lang.mweb as Record<string, unknown>;
+      expect(mweb, `${code} missing mweb namespace`).toBeDefined();
+      expect(mweb.poweredBy, `${code} missing mweb.poweredBy`).toEqual(expect.any(String));
+      expect((mweb.poweredBy as string).length, `${code} mweb.poweredBy is empty`).toBeGreaterThan(0);
+    }
+  });
+
   // Keep existing English-specific tests
   it('exports all expected top-level namespaces', () => {
     const expectedNamespaces = [
       'preferences', 'common', 'instructionView', 'editorCore',
       'feedback', 'rating', 'hierarchy', 'shortcuts', 'textInput',
-      'export', 'instruction',
+      'export', 'instruction', 'editor', 'dashboard', 'mweb',
     ];
     for (const ns of expectedNamespaces) {
       expect(en).toHaveProperty(ns);

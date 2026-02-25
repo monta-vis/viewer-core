@@ -6,6 +6,7 @@ import { Card } from '../Card';
 import { IconButton } from '../IconButton';
 import { useTheme, usePlaybackSpeed, type PlaybackSpeed, useFontSize, type FontSize } from '@/hooks';
 import { SUPPORTED_LANGUAGES } from '@/lib/languages';
+import { useInstructionViewOptional, type InstructionLanguage } from '@/features/instruction-view';
 
 type HideableSection = 'language' | 'theme' | 'fontSize' | 'playbackSpeed';
 
@@ -35,6 +36,7 @@ export function PreferencesDialog({
   const { resolvedTheme, setTheme } = useTheme();
   const { playbackSpeed, setPlaybackSpeed } = usePlaybackSpeed();
   const { fontSize, setFontSize } = useFontSize();
+  const instructionView = useInstructionViewOptional();
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Close on Escape
@@ -101,7 +103,10 @@ export function PreferencesDialog({
                   <OptionButton
                     key={lang.code}
                     active={i18n.language === lang.code}
-                    onClick={() => i18n.changeLanguage(lang.code)}
+                    onClick={() => {
+                      i18n.changeLanguage(lang.code);
+                      instructionView?.setLanguage(lang.code as InstructionLanguage);
+                    }}
                     showCheck
                   >
                     {lang.native}

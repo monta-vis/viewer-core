@@ -47,21 +47,25 @@ interface NoteCardProps {
   onToggle: () => void;
   /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
   folderName?: string;
+  /** VideoFrameArea records for localPath fallback (mweb context without folderName). */
+  videoFrameAreas?: Record<string, { localPath?: string | null }>;
 }
 
-export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, folderName }: NoteCardProps) {
+export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, folderName, videoFrameAreas }: NoteCardProps) {
   const { t } = useTranslation();
   const Icon = NOTE_ICONS[level];
   const styles = NOTE_STYLES[level];
   const levelLabel = t(`instructionView.noteLevel.${level.toLowerCase()}`, level);
   const hasText = text.trim().length > 0;
 
-  // Resolve safety icon URL: VFA UUID uses buildMediaUrl (Electron) or publicAsset (mweb)
+  // Resolve safety icon URL: VFA UUID uses buildMediaUrl (Electron) or localPath (mweb)
   const isLegacy = safetyIconId ? /\.(png|jpg|gif)$/i.test(safetyIconId) : false;
   const iconUrl = safetyIconId
-    ? (isLegacy || !folderName)
+    ? isLegacy
       ? safetyIconUrl(safetyIconId)
-      : buildMediaUrl(folderName, `media/frames/${safetyIconId}/image.png`)
+      : folderName
+        ? buildMediaUrl(folderName, `media/frames/${safetyIconId}/image.png`)
+        : videoFrameAreas?.[safetyIconId]?.localPath ?? null
     : null;
 
   return (

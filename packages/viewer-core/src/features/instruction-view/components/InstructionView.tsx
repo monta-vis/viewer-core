@@ -984,6 +984,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                             }}
                             referenceDisplay={substepReferenceDisplayMap.get(substep.id)}
                             folderName={folderName}
+                            videoFrameAreas={data.videoFrameAreas}
                             editMode={effectiveEditMode}
                             editCallbacks={makeSubstepEditCallbacks(substep.id)}
                           />
@@ -1048,6 +1049,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                               descriptions={targetDescriptions}
                               notes={targetNotes}
                               folderName={folderName}
+                              videoFrameAreas={data.videoFrameAreas}
                               imageDrawings={targetImgDrawings}
                               videoDrawings={targetVidDrawings}
                               videoData={activeRefVideoData.get(targetId)}

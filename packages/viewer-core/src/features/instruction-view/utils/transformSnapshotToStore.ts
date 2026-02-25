@@ -120,7 +120,6 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         versionId,
         videoId: vfa.video_id,
         frameNumber: vfa.frame_number,
-        imageId: vfa.image_id,
         x: vfa.x,
         y: vfa.y,
         width: vfa.width,
@@ -251,16 +250,6 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         fontSize: d.font_size,
         points: d.points,
         order: d.order,
-      }])
-    ),
-    images: Object.fromEntries(
-      Object.values(snapshot.images).map(img => [img.id, {
-        id: img.id,
-        instructionId: img.instruction_id,
-        originalPath: img.original_path,
-        width: img.width,
-        height: img.height,
-        order: img.order,
       }])
     ),
     substepReferences: Object.fromEntries(

@@ -6,7 +6,7 @@ import {
   viewportToVideoFrameAreaCoords,
   type InstructionData
 } from './simpleStore';
-import type { Step, Substep, VideoFrameAreaRow, ImageRow } from '../types/enriched';
+import type { Step, Substep, VideoFrameAreaRow } from '../types/enriched';
 
 // Helper to create mock instruction data
 function createMockInstructionData(): InstructionData {
@@ -486,7 +486,6 @@ describe('useSimpleStore', () => {
         versionId: 'ver-1',
         videoId: 'video-1',
         frameNumber: 100,
-        imageId: null,
         x: 0,
         y: 0,
         width: 100,
@@ -510,8 +509,7 @@ describe('useSimpleStore', () => {
           versionId: 'ver-1',
           videoId: 'video-1',
           frameNumber: 100,
-          imageId: null,
-          x: 0,
+            x: 0,
           y: 0,
           width: 100,
           height: 100,
@@ -600,7 +598,6 @@ describe('videoFrameAreaToViewport', () => {
       versionId: 'ver-1',
       videoId: 'video-1',
       frameNumber: 100,
-      imageId: null,
       x: 10,
       y: 20,
       width: 100,
@@ -632,7 +629,6 @@ describe('videoFrameAreaToViewport', () => {
       versionId: 'ver-1',
       videoId: 'video-1',
       frameNumber: 100,
-      imageId: null,
       x: null,
       y: 20,
       width: 100,
@@ -649,7 +645,6 @@ describe('videoFrameAreaToViewport', () => {
       versionId: 'ver-1',
       videoId: 'video-1',
       frameNumber: 100,
-      imageId: null,
       x: 10,
       y: null,
       width: 100,
@@ -666,7 +661,6 @@ describe('videoFrameAreaToViewport', () => {
       versionId: 'ver-1',
       videoId: 'video-1',
       frameNumber: 100,
-      imageId: null,
       x: 10,
       y: 20,
       width: null,
@@ -683,7 +677,6 @@ describe('videoFrameAreaToViewport', () => {
       versionId: 'ver-1',
       videoId: 'video-1',
       frameNumber: 100,
-      imageId: null,
       x: 10,
       y: 20,
       width: 100,
@@ -2050,7 +2043,7 @@ describe('useSimpleStore - Extended Tests', () => {
       const { result } = renderHook(() => useSimpleStore());
       const mockData = createMockInstructionData();
       mockData.videoFrameAreas = {
-        'vfa-1': { id: 'vfa-1', versionId: 'ver-1', videoId: 'v-1', frameNumber: 0, imageId: null, x: 0, y: 0, width: 100, height: 100, type: 'SubstepImage' },
+        'vfa-1': { id: 'vfa-1', versionId: 'ver-1', videoId: 'v-1', frameNumber: 0, x: 0, y: 0, width: 100, height: 100, type: 'SubstepImage' },
       };
 
       act(() => {
@@ -2270,120 +2263,4 @@ describe('useSimpleStore - Extended Tests', () => {
     });
   });
 
-  describe('Images CRUD', () => {
-    it('addImage adds a new image', () => {
-      const { result } = renderHook(() => useSimpleStore());
-      const mockData = createMockInstructionData();
-
-      act(() => {
-        result.current.setData(mockData);
-      });
-
-      const newImage: ImageRow = {
-        id: 'image-1',
-        instructionId: 'inst-1',
-        originalPath: 'C:\\Photos\\photo.jpg',
-        width: 1920,
-        height: 1080,
-        order: 0,
-      };
-
-      act(() => {
-        result.current.addImage(newImage);
-      });
-
-      expect(result.current.data?.images['image-1']).toEqual(newImage);
-      expect(result.current.hasChanges()).toBe(true);
-    });
-
-    it('updateImage updates an existing image', () => {
-      const { result } = renderHook(() => useSimpleStore());
-      const mockData = createMockInstructionData();
-      mockData.images = {
-        'image-1': {
-          id: 'image-1',
-          instructionId: 'inst-1',
-          originalPath: 'C:\\Photos\\photo.jpg',
-          width: 1920,
-          height: 1080,
-          order: 0,
-        },
-      };
-
-      act(() => {
-        result.current.setData(mockData);
-        result.current.updateImage('image-1', { order: 1 });
-      });
-
-      expect(result.current.data?.images['image-1'].order).toBe(1);
-      expect(result.current.hasChanges()).toBe(true);
-    });
-
-    it('deleteImage removes an image', () => {
-      const { result } = renderHook(() => useSimpleStore());
-      const mockData = createMockInstructionData();
-      mockData.images = {
-        'image-1': {
-          id: 'image-1',
-          instructionId: 'inst-1',
-          originalPath: null,
-          width: 800,
-          height: 600,
-          order: 0,
-        },
-      };
-
-      act(() => {
-        result.current.setData(mockData);
-        result.current.deleteImage('image-1');
-      });
-
-      expect(result.current.data?.images['image-1']).toBeUndefined();
-      expect(result.current.hasChanges()).toBe(true);
-    });
-
-    it('getChangedData includes images changes', () => {
-      const { result } = renderHook(() => useSimpleStore());
-      const mockData = createMockInstructionData();
-
-      act(() => {
-        result.current.setData(mockData);
-        result.current.addImage({
-          id: 'image-1',
-          instructionId: 'inst-1',
-          originalPath: null,
-          width: 800,
-          height: 600,
-          order: 0,
-        });
-      });
-
-      const { changed } = result.current.getChangedData();
-      expect(changed.images).toBeDefined();
-      expect(changed.images).toHaveLength(1);
-    });
-
-    it('getChangedData includes deleted images', () => {
-      const { result } = renderHook(() => useSimpleStore());
-      const mockData = createMockInstructionData();
-      mockData.images = {
-        'image-1': {
-          id: 'image-1',
-          instructionId: 'inst-1',
-          originalPath: null,
-          width: 800,
-          height: 600,
-          order: 0,
-        },
-      };
-
-      act(() => {
-        result.current.setData(mockData);
-        result.current.deleteImage('image-1');
-      });
-
-      const { deleted } = result.current.getChangedData();
-      expect(deleted.images_ids).toContain('image-1');
-    });
-  });
 });
