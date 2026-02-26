@@ -1,7 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Package, Wrench, ChevronDown, Pencil, Filter, Box, Ruler } from 'lucide-react';
-import { catalogAssetUrl } from '@/lib/media';
 import { clsx } from 'clsx';
 
 import type { LucideIcon } from 'lucide-react';
@@ -767,7 +766,6 @@ export function PartToolCard({
     partToolVideoFrameAreas ?? {},
     useBlurred,
     videoFrameAreas,
-    item.partTool,
   );
 
   // Compute raw frame capture data for Editor preview
@@ -842,12 +840,6 @@ export function PartToolCard({
             src={previewImageUrl}
             alt={item.partTool.name}
             className="w-full h-full object-contain"
-          />
-        ) : item.partTool.iconId && item.partTool.iconId.includes('/') ? (
-          <img
-            src={catalogAssetUrl('PartToolIcons', item.partTool.iconId.split('/')[0], item.partTool.iconId.split('/')[1])}
-            alt={item.partTool.name}
-            className={clsx('object-contain', isLarge ? 'w-16 h-16' : 'w-12 h-12')}
           />
         ) : (
           <Icon className={clsx(

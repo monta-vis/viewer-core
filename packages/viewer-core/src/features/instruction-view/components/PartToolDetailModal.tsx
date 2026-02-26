@@ -117,7 +117,6 @@ export function PartToolDetailModal({ item, onClose, folderName, partToolVideoFr
     partToolVideoFrameAreas ?? {},
     useBlurred,
     videoFrameAreas,
-    item.partTool,
   );
 
   const partToolId = item.partTool.id;

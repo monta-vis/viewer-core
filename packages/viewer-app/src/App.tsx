@@ -43,6 +43,18 @@ interface ProjectListItem {
 declare global {
   interface Window {
     electronAPI?: {
+      catalogs: {
+        getSafetyIcons: () => Promise<Array<{
+          name: string;
+          assetsDir: string;
+          categories: Array<{ id: string; label: Record<string, string> }>;
+          entries: Array<{
+            filename: string;
+            category: string;
+            label: Record<string, string>;
+          }>;
+        }>>;
+      };
       projects: {
         list: () => Promise<ProjectListItem[]>;
         getData: (folderName: string) => Promise<Record<string, unknown>>;
@@ -50,6 +62,18 @@ declare global {
           folderName: string,
           relativePath: string,
         ) => Promise<string>;
+        saveData: (
+          folderName: string,
+          changes: {
+            changed: Record<string, Record<string, unknown>[]>;
+            deleted: Record<string, string[]>;
+          },
+        ) => Promise<{ success: boolean; error?: string }>;
+        uploadPartToolImage: (
+          folderName: string,
+          partToolId: string,
+          imagePath: string,
+        ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
       };
     };
   }

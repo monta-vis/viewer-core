@@ -104,3 +104,20 @@ export const LEGACY_LEVEL_TO_ICON: Record<string, string> = {
 
 /** Note severity level. Shared between editor and instruction-view. */
 export type NoteLevel = 'Critical' | 'Warning' | 'Quality' | 'Info';
+
+/** Map a safety icon category to a note severity level (for backward compat). */
+const CATEGORY_TO_LEVEL: Record<SafetyIconCategory, NoteLevel> = {
+  Verbotszeichen:        'Critical',
+  Warnzeichen:           'Warning',
+  Gefahrstoffe:          'Critical',
+  Brandschutz:           'Critical',
+  Gebotszeichen:         'Quality',
+  'Piktogramme-Leitern': 'Info',
+  Rettungszeichen:       'Info',
+  Sonstige:              'Info',
+};
+
+/** Derive the note level from a safety icon category. */
+export function categoryToNoteLevel(category: SafetyIconCategory): NoteLevel {
+  return CATEGORY_TO_LEVEL[category] ?? 'Info';
+}

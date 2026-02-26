@@ -1,9 +1,8 @@
-import { buildMediaUrl, catalogAssetUrl } from '@/lib/media';
+import { buildMediaUrl } from '@/lib/media';
 
 /**
  * Resolve the first area image URL for a PartTool.
- * Prefers catalog icon when iconIsPreview is true, then preview images (sorted by order),
- * then falls back to the first regular area.
+ * Prefers preview images (sorted by order), then falls back to the first regular area.
  *
  * When folderName is available, builds a mvis-media:// URL (Electron context).
  * When folderName is missing but videoFrameAreas is provided, falls back to
@@ -15,19 +14,7 @@ export function resolvePartToolImageUrl(
   partToolVideoFrameAreas: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>,
   useBlurred?: boolean,
   videoFrameAreas?: Record<string, { localPath?: string | null }>,
-  partTool?: { iconId?: string | null; iconIsPreview?: boolean },
 ): string | null {
-  // Catalog icon as preview takes priority
-  if (partTool?.iconIsPreview && partTool.iconId && partTool.iconId.includes('/')) {
-    const slashIdx = partTool.iconId.indexOf('/');
-    const catalogName = partTool.iconId.substring(0, slashIdx);
-    const filename = partTool.iconId.substring(slashIdx + 1);
-    // Electron context: mvis-catalog:// URL; mweb context: relative path
-    if (folderName) {
-      return catalogAssetUrl('PartToolIcons', catalogName, filename);
-    }
-    return `./media/icons/${catalogName}/${filename}`;
-  }
   const areas = Object.values(partToolVideoFrameAreas)
     .filter((a) => a.partToolId === partToolId);
 

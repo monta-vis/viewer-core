@@ -1,6 +1,7 @@
 import { app } from "electron";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import Database from "better-sqlite3";
 
 /** Image extensions to search for, in priority order. */
@@ -49,6 +50,19 @@ export function getProjectsBasePath(): string {
   return path.join(app.getPath("documents"), "Montavis");
 }
 
+/** Verify that a resolved path stays within the Montavis directory tree (projects + catalogs). */
+function isInsideMontavisPath(filePath: string): boolean {
+  const normalize =
+    process.platform === "win32"
+      ? (p: string) => path.resolve(p).toLowerCase()
+      : (p: string) => path.resolve(p);
+  const resolved = normalize(filePath);
+  const montavisBase = normalize(
+    path.join(app.getPath("documents"), "Montavis"),
+  );
+  return resolved.startsWith(montavisBase + path.sep) || resolved === montavisBase;
+}
+
 /** Verify that a resolved path stays within the Montavis base directory. */
 export function isInsideBasePath(filePath: string): boolean {
   const normalize =
@@ -69,8 +83,10 @@ export function resolveMediaPath(
   relativePath: string,
 ): string | null {
   // Handle absolute paths (prefixed with "absolute:")
+  // Restricted to the Montavis directory tree for security.
   if (relativePath.startsWith("absolute:")) {
     const absPath = relativePath.slice("absolute:".length);
+    if (!isInsideMontavisPath(absPath)) return null;
     const ext = path.extname(absPath).toLowerCase();
     if (!ALLOWED_MEDIA_EXTENSIONS.has(ext)) return null;
     if (!fs.existsSync(absPath)) return null;
@@ -158,6 +174,38 @@ const ALLOWED_TABLES: Record<string, keyof ElectronProjectData> = {
 };
 
 // ---------------------------------------------------------------------------
+// Save types & constants
+// ---------------------------------------------------------------------------
+
+/** Generic changes format — matches getChangedData() output from the Zustand store. */
+export interface ProjectChanges {
+  changed: Record<string, Record<string, unknown>[]>;
+  deleted: Record<string, string[]>;
+}
+
+/** Whitelist of tables that may be written to via the generic save path. */
+const SAVE_ALLOWED_TABLES = new Set([
+  "assemblies", "steps", "substeps", "videos", "video_sections",
+  "video_frame_areas", "viewport_keyframes", "drawings", "notes",
+  "part_tools", "substep_descriptions", "substep_notes", "substep_part_tools",
+  "substep_images", "substep_video_sections", "part_tool_video_frame_areas",
+  "branding", "translations", "substep_references",
+]);
+
+/** Delete order: child/junction tables first, then parents (FK-safe). */
+const DELETE_ORDER: string[] = [
+  // Leaf / junction tables
+  "substep_references", "substep_notes", "substep_part_tools",
+  "substep_images", "substep_video_sections", "substep_descriptions",
+  "part_tool_video_frame_areas", "viewport_keyframes", "translations",
+  "drawings", "branding",
+  // Mid-level
+  "video_frame_areas", "video_sections", "notes", "part_tools",
+  // Parent tables
+  "videos", "substeps", "steps", "assemblies",
+];
+
+// ---------------------------------------------------------------------------
 // Get full project data (read-only)
 // ---------------------------------------------------------------------------
 
@@ -212,7 +260,7 @@ export function getProjectData(folderName: string): ElectronProjectData {
     for (const [tableName, key] of Object.entries(ALLOWED_TABLES)) {
       try {
         const rows = db
-          .prepare(`SELECT * FROM ${tableName}`)
+          .prepare(`SELECT * FROM "${tableName}"`)
           .all() as Record<string, unknown>[];
         result[key] = rows;
       } catch {
@@ -341,4 +389,216 @@ export function listProjects(): ProjectListItem[] {
   }
 
   return projects;
+}
+
+// ---------------------------------------------------------------------------
+// Save project data (read-write)
+// ---------------------------------------------------------------------------
+
+/**
+ * Save changes to a project's SQLite database.
+ * Accepts the format from getChangedData() — arrays of snake_case row objects
+ * keyed by table name, plus deleted IDs keyed as `{table}_ids`.
+ */
+export function saveProjectData(
+  folderName: string,
+  changes: ProjectChanges,
+): { success: boolean; error?: string } {
+  const basePath = getProjectsBasePath();
+  const dbPath = path.join(basePath, folderName, "montavis.db");
+
+  if (!isInsideBasePath(dbPath)) {
+    return { success: false, error: "Invalid folder name" };
+  }
+  if (!fs.existsSync(dbPath)) {
+    return { success: false, error: `Project DB not found: ${folderName}` };
+  }
+
+  try {
+    const db = new Database(dbPath);
+    db.pragma("foreign_keys = ON");
+    db.exec("BEGIN TRANSACTION");
+
+    try {
+      // Cache column + primary key info per table
+      const tableInfoCache: Record<string, { columns: Set<string>; pkColumns: string[] }> = {};
+      function getTableInfo(table: string) {
+        if (!tableInfoCache[table]) {
+          const info = db.pragma(`table_info("${table}")`) as Array<{ name: string; pk: number }>;
+          tableInfoCache[table] = {
+            columns: new Set(info.map((c) => c.name)),
+            pkColumns: info.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name),
+          };
+        }
+        return tableInfoCache[table];
+      }
+
+      // ── UPSERT changed rows ──
+      for (const [key, rows] of Object.entries(changes.changed)) {
+        const targetTable = key === "instruction" ? "instructions" : key;
+        if (!SAVE_ALLOWED_TABLES.has(key) && key !== "instruction") continue;
+
+        const { columns: tableColumns, pkColumns } = getTableInfo(targetTable);
+        if (tableColumns.size === 0) continue;
+
+        for (const row of rows) {
+          const cols = Object.keys(row).filter((k) => tableColumns.has(k));
+          if (cols.length === 0) continue;
+
+          const quotedCols = cols.map((c) => `"${c}"`);
+          const placeholders = cols.map(() => "?");
+          const pkSet = new Set(pkColumns);
+          const updateSet = cols
+            .filter((c) => !pkSet.has(c))
+            .map((c) => `"${c}" = excluded."${c}"`);
+
+          const conflictTarget = pkColumns.map((c) => `"${c}"`).join(", ");
+          const sql =
+            updateSet.length > 0 && pkColumns.length > 0
+              ? `INSERT INTO "${targetTable}" (${quotedCols.join(", ")}) VALUES (${placeholders.join(", ")}) ON CONFLICT(${conflictTarget}) DO UPDATE SET ${updateSet.join(", ")}`
+              : `INSERT OR IGNORE INTO "${targetTable}" (${quotedCols.join(", ")}) VALUES (${placeholders.join(", ")})`;
+
+          const values = cols.map((c) => {
+            const val = row[c];
+            if (typeof val === "boolean") return val ? 1 : 0;
+            return val ?? null;
+          });
+
+          db.prepare(sql).run(...values);
+        }
+
+        // Update updated_at for instructions
+        if (key === "instruction") {
+          db.prepare("UPDATE instructions SET updated_at = datetime('now')").run();
+        }
+      }
+
+      // ── DELETE rows ──
+      // Keys are formatted as `{table_name}_ids`
+      const deletedEntries = Object.entries(changes.deleted);
+      // Sort by DELETE_ORDER so FK constraints aren't violated
+      deletedEntries.sort((a, b) => {
+        const tA = a[0].replace(/_ids$/, "");
+        const tB = b[0].replace(/_ids$/, "");
+        const iA = DELETE_ORDER.indexOf(tA);
+        const iB = DELETE_ORDER.indexOf(tB);
+        return (iA === -1 ? 999 : iA) - (iB === -1 ? 999 : iB);
+      });
+
+      for (const [key, ids] of deletedEntries) {
+        const table = key.replace(/_ids$/, "");
+        if (!SAVE_ALLOWED_TABLES.has(table)) continue;
+
+        const deleteStmt = db.prepare(`DELETE FROM "${table}" WHERE "id" = ?`);
+        // Also clean up associated translations
+        const deleteTranslationsStmt = db.prepare(
+          "DELETE FROM translations WHERE entity_id = ?",
+        );
+
+        for (const id of ids) {
+          deleteStmt.run(id);
+          try {
+            deleteTranslationsStmt.run(id);
+          } catch {
+            // translations table may not exist — skip
+          }
+        }
+      }
+
+      db.exec("COMMIT");
+      db.close();
+      return { success: true };
+    } catch (txErr) {
+      db.exec("ROLLBACK");
+      db.close();
+      throw txErr;
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Upload part tool image
+// ---------------------------------------------------------------------------
+
+/**
+ * Copy an image to the project's media folder and create the necessary DB rows.
+ * Returns the new video_frame_area ID on success.
+ */
+export function uploadPartToolImage(
+  folderName: string,
+  partToolId: string,
+  sourceImagePath: string,
+): { success: boolean; vfaId?: string; error?: string } {
+  const basePath = getProjectsBasePath();
+  const dbPath = path.join(basePath, folderName, "montavis.db");
+
+  if (!isInsideBasePath(dbPath) || !fs.existsSync(dbPath)) {
+    return { success: false, error: "Project not found" };
+  }
+  if (!fs.existsSync(sourceImagePath)) {
+    return { success: false, error: "Source image not found" };
+  }
+
+  const ext = path.extname(sourceImagePath).toLowerCase();
+  if (!ALLOWED_MEDIA_EXTENSIONS.has(ext)) {
+    return { success: false, error: "Unsupported file type" };
+  }
+
+  const vfaId = crypto.randomUUID();
+  const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
+  const destFile = path.join(destDir, `image${ext}`);
+
+  try {
+    // Copy image to media folder
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(sourceImagePath, destFile);
+
+    // Create DB rows
+    const db = new Database(dbPath);
+    db.pragma("foreign_keys = ON");
+    db.exec("BEGIN TRANSACTION");
+
+    try {
+      const now = new Date().toISOString();
+
+      // Insert video_frame_areas row
+      db.prepare(
+        `INSERT INTO video_frame_areas (id, x, y, width, height, created_at, updated_at)
+         VALUES (?, 0, 0, 1, 1, ?, ?)`,
+      ).run(vfaId, now, now);
+
+      // Insert junction row
+      db.prepare(
+        `INSERT INTO part_tool_video_frame_areas (id, part_tool_id, video_frame_area_id, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).run(crypto.randomUUID(), partToolId, vfaId, now, now);
+
+      // Update part_tool preview_image_id
+      db.prepare(
+        `UPDATE part_tools SET preview_image_id = ? WHERE id = ?`,
+      ).run(vfaId, partToolId);
+
+      db.exec("COMMIT");
+      db.close();
+      return { success: true, vfaId };
+    } catch (txErr) {
+      db.exec("ROLLBACK");
+      db.close();
+      // Clean up copied file on failure
+      try {
+        fs.rmSync(destDir, { recursive: true });
+      } catch { /* ignore cleanup errors */ }
+      throw txErr;
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
 }

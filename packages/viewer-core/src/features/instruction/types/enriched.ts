@@ -139,7 +139,9 @@ export interface PartToolRow {
   unit: string | null;
   material: string | null;
   dimension: string | null;
+  /** @deprecated Kept for backwards compat with editor writes; not used in resolution */
   iconId: string | null;
+  /** @deprecated Kept for backwards compat with editor writes; not used in resolution */
   iconIsPreview?: boolean;
 }
 

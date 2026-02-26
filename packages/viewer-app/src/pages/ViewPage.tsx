@@ -1,7 +1,7 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save, Undo2, Redo2 } from "lucide-react";
 import {
   sqliteToSnapshot,
   transformSnapshotToStore,
@@ -13,9 +13,34 @@ import {
   ViewerDataProvider,
   VideoProvider,
   IconButton,
+  Button,
   Navbar,
+  useSimpleStore,
 } from "@monta-vis/viewer-core";
-import type { InstructionData, InstructionSnapshot } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot, NoteLevel } from "@monta-vis/viewer-core";
+import { useHistoryStore, useHistorySync } from "../stores/historyStore";
+import { TextEditDialog } from "../components/TextEditDialog";
+import { NoteEditDialog } from "../components/NoteEditDialog";
+
+// ── Dialog state types ──
+
+interface DescriptionDialog {
+  type: "description";
+  title: string;
+  initialValue: string;
+  onSave: (text: string) => void;
+}
+
+interface NoteDialog {
+  type: "note";
+  title: string;
+  initialText: string;
+  initialSafetyIconId: string | null;
+  initialSafetyIconCategory: string | null;
+  onSave: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
+}
+
+type EditDialog = DescriptionDialog | NoteDialog;
 
 /** Apply content translations for a language to base (untranslated) data. */
 function translateData(
@@ -29,6 +54,10 @@ function translateData(
   return applyTranslationsToStore(base, rows);
 }
 
+function generateId(): string {
+  return crypto.randomUUID();
+}
+
 export function ViewPage() {
   const { folderName } = useParams<{ folderName: string }>();
   const navigate = useNavigate();
@@ -37,6 +66,20 @@ export function ViewPage() {
   const [data, setData] = useState<InstructionData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  // Dialog state for editing descriptions/notes
+  const [editDialog, setEditDialog] = useState<EditDialog | null>(null);
+
+  // Subscribe to store change tracking
+  const hasChanges = useSimpleStore((s) => s.hasChanges());
+  const storeData = useSimpleStore((s) => s.data);
+
+  // Undo/redo
+  useHistorySync();
+  const canUndo = useHistoryStore((s) => s.canUndo());
+  const canRedo = useHistoryStore((s) => s.canRedo());
 
   // Refs for snapshot and base data — used by language effect without triggering it
   const snapshotRef = useRef<InstructionSnapshot | null>(null);
@@ -45,7 +88,7 @@ export function ViewPage() {
   // ── Load project data from SQLite (once per folderName) ──
   useEffect(() => {
     if (!folderName || !window.electronAPI) {
-      setError("Unable to load project");
+      setError(t("common.unableToLoadProject", "Unable to load project"));
       setIsLoading(false);
       return;
     }
@@ -58,6 +101,9 @@ export function ViewPage() {
 
         snapshotRef.current = snap;
         baseDataRef.current = base;
+
+        // Hydrate the Zustand store for change tracking
+        useSimpleStore.getState().setData(base);
 
         // Apply translations for current i18n language
         setData(translateData(snap, base, i18n.language));
@@ -72,30 +118,317 @@ export function ViewPage() {
   }, [folderName]);
 
   // ── Re-apply translations when global i18n language changes ──
-  // PreferencesDialog calls i18n.changeLanguage(), so we listen here.
   useEffect(() => {
     if (!snapshotRef.current || !baseDataRef.current) return;
     setData(translateData(snapshotRef.current, baseDataRef.current, i18n.language));
   }, [i18n.language]);
 
-  // Derive the first step ID from the loaded data
+  // Use store data when available (reflects edits), fallback to local state
+  const viewerData = storeData ?? data;
+
+  // Derive the first step ID from the initial loaded data (not store data)
   const firstStepId = useMemo(() => {
     if (!data) return null;
     const steps = Object.values(data.steps);
     if (steps.length === 0) return null;
-    // Sort by step_number to get the first step
-    steps.sort((a, b) => a.stepNumber - b.stepNumber);
-    return steps[0].id;
+    return [...steps].sort((a, b) => a.stepNumber - b.stepNumber)[0].id;
   }, [data]);
 
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
 
-  // Set initial selected step when data loads
   useEffect(() => {
     if (firstStepId && !selectedStepId) {
       setSelectedStepId(firstStepId);
     }
   }, [firstStepId, selectedStepId]);
+
+  // ── Save handler ──
+  const decodedFolderName = useMemo(
+    () => (folderName ? decodeURIComponent(folderName) : undefined),
+    [folderName],
+  );
+
+  const handleSave = useCallback(async () => {
+    if (!decodedFolderName || !window.electronAPI) return;
+
+    setIsSaving(true);
+    setSaveMessage(null);
+
+    try {
+      const changes = useSimpleStore.getState().getChangedData() as {
+        changed: Record<string, Record<string, unknown>[]>;
+        deleted: Record<string, string[]>;
+      };
+      const result = await window.electronAPI.projects.saveData(decodedFolderName, changes);
+
+      if (result.success) {
+        useSimpleStore.getState().clearChanges();
+        setSaveMessage({ type: "success", text: t("common.saved", "Saved successfully") });
+      } else {
+        setSaveMessage({ type: "error", text: result.error ?? t("common.saveError", "Save failed") });
+      }
+    } catch (err) {
+      setSaveMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : t("common.saveError", "Save failed"),
+      });
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => setSaveMessage(null), 3000);
+    }
+  }, [decodedFolderName, t]);
+
+  // ── Helper: get versionId from store ──
+  const getVersionId = useCallback(() => {
+    const d = useSimpleStore.getState().data;
+    return d?.currentVersionId ?? d?.instructionId ?? "";
+  }, []);
+
+  // ── Helper: get instructionId from store ──
+  const getInstructionId = useCallback(() => {
+    return useSimpleStore.getState().data?.instructionId ?? "";
+  }, []);
+
+  // ── Edit callbacks ──
+
+  // --- Description operations ---
+  const onEditDescription = useCallback((descId: string) => {
+    const store = useSimpleStore.getState();
+    const desc = store.data?.substepDescriptions[descId];
+    if (!desc) return;
+
+    setEditDialog({
+      type: "description",
+      title: t("edit.editDescription", "Edit Description"),
+      initialValue: desc.text,
+      onSave: (text) => {
+        useSimpleStore.getState().updateSubstepDescription(descId, { text });
+      },
+    });
+  }, [t]);
+
+  const onAddDescription = useCallback((substepId: string) => {
+    setEditDialog({
+      type: "description",
+      title: t("edit.addDescription", "Add Description"),
+      initialValue: "",
+      onSave: (text) => {
+        const store = useSimpleStore.getState();
+        const existingDescs = Object.values(store.data?.substepDescriptions ?? {})
+          .filter((d) => d.substepId === substepId);
+        const maxOrder = existingDescs.reduce((max, d) => Math.max(max, d.order), -1);
+
+        useSimpleStore.getState().addSubstepDescription({
+          id: generateId(),
+          substepId,
+          text,
+          order: maxOrder + 1,
+          versionId: getVersionId(),
+        });
+      },
+    });
+  }, [t, getVersionId]);
+
+  const onDeleteDescription = useCallback((descId: string) => {
+    useSimpleStore.getState().deleteSubstepDescription(descId);
+  }, []);
+
+  // --- Note operations ---
+  const onEditNote = useCallback((noteRowId: string) => {
+    const store = useSimpleStore.getState();
+    const substepNote = store.data?.substepNotes[noteRowId];
+    if (!substepNote) return;
+
+    const note = store.data?.notes[substepNote.noteId];
+    if (!note) return;
+
+    setEditDialog({
+      type: "note",
+      title: t("edit.editNote", "Edit Note"),
+      initialText: note.text,
+      initialSafetyIconId: note.safetyIconId,
+      initialSafetyIconCategory: note.safetyIconCategory,
+      onSave: (text, level, safetyIconId, safetyIconCategory) => {
+        useSimpleStore.getState().updateNote(substepNote.noteId, {
+          text,
+          level,
+          safetyIconId,
+          safetyIconCategory,
+        });
+      },
+    });
+  }, [t]);
+
+  const onAddNote = useCallback((substepId: string) => {
+    setEditDialog({
+      type: "note",
+      title: t("edit.addNote", "Add Note"),
+      initialText: "",
+      initialSafetyIconId: null,
+      initialSafetyIconCategory: null,
+      onSave: (text, level, safetyIconId, safetyIconCategory) => {
+        const noteId = generateId();
+        const substepNoteId = generateId();
+        const versionId = getVersionId();
+        const instructionId = getInstructionId();
+
+        const store = useSimpleStore.getState();
+        const existingNotes = Object.values(store.data?.substepNotes ?? {})
+          .filter((sn) => sn.substepId === substepId);
+        const maxOrder = existingNotes.reduce((max, sn) => Math.max(max, sn.order), -1);
+
+        // Create the note entity
+        store.addNote({
+          id: noteId,
+          versionId,
+          instructionId,
+          text,
+          level,
+          safetyIconId,
+          safetyIconCategory,
+        });
+
+        // Create the junction row
+        store.addSubstepNote({
+          id: substepNoteId,
+          versionId,
+          substepId,
+          noteId,
+          order: maxOrder + 1,
+        });
+      },
+    });
+  }, [t, getVersionId, getInstructionId]);
+
+  const onDeleteNote = useCallback((noteRowId: string) => {
+    const store = useSimpleStore.getState();
+    const substepNote = store.data?.substepNotes[noteRowId];
+    if (!substepNote) return;
+
+    // Delete the junction row and the note itself
+    store.deleteSubstepNote(noteRowId);
+    store.deleteNote(substepNote.noteId);
+  }, []);
+
+  // --- Delete operations (direct store calls) ---
+  const onDeleteSubstep = useCallback((substepId: string) => {
+    useSimpleStore.getState().deleteSubstep(substepId);
+  }, []);
+
+  const onDeleteImage = useCallback((substepId: string) => {
+    const store = useSimpleStore.getState();
+    const substep = store.data?.substeps[substepId];
+    if (!substep) return;
+
+    for (const imageId of substep.imageRowIds) {
+      store.deleteSubstepImage(imageId);
+    }
+  }, []);
+
+  const onDeleteReference = useCallback((refIdx: number, substepId: string) => {
+    const store = useSimpleStore.getState();
+    const substep = store.data?.substeps[substepId];
+    if (!substep) return;
+
+    const refId = substep.referenceRowIds[refIdx];
+    if (refId) {
+      store.deleteSubstepReference(refId);
+    }
+  }, []);
+
+  const onDeletePartTool = useCallback((partToolId: string) => {
+    const store = useSimpleStore.getState();
+    // Find and delete all substep_part_tool junction rows for this partTool
+    const sptRows = Object.values(store.data?.substepPartTools ?? {})
+      .filter((spt) => spt.partToolId === partToolId);
+    for (const spt of sptRows) {
+      store.deleteSubstepPartTool(spt.id);
+    }
+  }, []);
+
+  // ── Memoized edit callbacks ──
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  const noop = useCallback(() => {}, []);
+  const editCallbacks = useMemo(() => ({
+    // --- Wired: description ---
+    onEditDescription,
+    onDeleteDescription,
+    onAddDescription,
+    // --- Wired: notes ---
+    onEditNote,
+    onDeleteNote,
+    onAddNote,
+    // --- Wired: delete operations ---
+    onDeleteSubstep,
+    onDeleteImage,
+    onDeleteReference,
+    onDeletePartTool,
+    // --- Deferred: complex UI needed ---
+    onEditImage: noop,
+    onEditVideo: noop,
+    onEditRepeat: noop,
+    onEditReference: noop,
+    onAddReference: noop,
+    onEditPartTools: noop,
+    onAddSubstep: noop,
+    onReplacePartTool: noop,
+    onCreatePartTool: noop,
+    onEditPartToolAmount: noop,
+    onEditPartToolImage: noop,
+  }), [
+    onEditDescription, onDeleteDescription, onAddDescription,
+    onEditNote, onDeleteNote, onAddNote,
+    onDeleteSubstep, onDeleteImage, onDeleteReference, onDeletePartTool,
+    noop,
+  ]);
+
+  // ── Navbar extras (save, undo, redo) ──
+  const editNavbarExtra = useMemo(() => (
+    <div className="flex items-center gap-1">
+      <IconButton
+        icon={<Undo2 />}
+        onClick={() => useHistoryStore.getState().undo()}
+        disabled={!canUndo}
+        variant="ghost"
+        aria-label={t("edit.undo", "Undo")}
+      />
+      <IconButton
+        icon={<Redo2 />}
+        onClick={() => useHistoryStore.getState().redo()}
+        disabled={!canRedo}
+        variant="ghost"
+        aria-label={t("edit.redo", "Redo")}
+      />
+      <Button
+        variant="primary"
+        size="sm"
+        onClick={handleSave}
+        disabled={!hasChanges || isSaving}
+        className={`h-12 sm:h-14 px-2 sm:px-3 ${hasChanges && !isSaving ? "animate-pulse" : ""}`}
+        aria-label={t("common.save", "Save")}
+      >
+        {isSaving ? (
+          <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
+        ) : (
+          <Save className="h-5 w-5 sm:h-6 sm:w-6" />
+        )}
+      </Button>
+      {saveMessage && (
+        <span
+          className={`text-xs px-2 py-1 rounded-lg ${
+            saveMessage.type === "success"
+              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+          }`}
+        >
+          {saveMessage.text}
+        </span>
+      )}
+    </div>
+  ), [canUndo, canRedo, hasChanges, isSaving, saveMessage, handleSave, t]);
+
+  // ── Dialog close handler ──
+  const closeDialog = useCallback(() => setEditDialog(null), []);
 
   if (isLoading) {
     return (
@@ -133,41 +466,43 @@ export function ViewPage() {
       <div className="flex-1 overflow-hidden">
         <VideoProvider>
           <InstructionViewProvider>
-            <ViewerDataProvider data={data}>
+            <ViewerDataProvider data={viewerData}>
               <InstructionViewContainer>
                 <InstructionView
                   selectedStepId={selectedStepId}
                   onStepChange={setSelectedStepId}
                   onBreak={() => navigate("/")}
-                  folderName={folderName ? decodeURIComponent(folderName) : undefined}
-                  editCallbacks={{
-                    onEditImage: (id) => console.log('[edit] image', id),
-                    onDeleteImage: (id) => console.log('[edit] delete image', id),
-                    onEditDescription: (descId, subId) => console.log('[edit] desc', descId, subId),
-                    onDeleteDescription: (descId, subId) => console.log('[edit] delete desc', descId, subId),
-                    onAddDescription: (id) => console.log('[edit] add desc', id),
-                    onEditNote: (noteId, subId) => console.log('[edit] note', noteId, subId),
-                    onDeleteNote: (noteId, subId) => console.log('[edit] delete note', noteId, subId),
-                    onAddNote: (id) => console.log('[edit] add note', id),
-                    onEditRepeat: (id) => console.log('[edit] repeat', id),
-                    onEditReference: (refIdx, subId) => console.log('[edit] ref', refIdx, subId),
-                    onDeleteReference: (refIdx, subId) => console.log('[edit] delete ref', refIdx, subId),
-                    onAddReference: (id) => console.log('[edit] add ref', id),
-                    onEditPartTools: (id) => console.log('[edit] parts', id),
-                    onDeleteSubstep: (id) => console.log('[edit] delete substep', id),
-                    onAddSubstep: (stepId) => console.log('[edit] add substep', stepId),
-                    onReplacePartTool: (oldId, newId) => console.log('[edit] replace partTool', oldId, '→', newId),
-                    onCreatePartTool: (oldId, newName) => console.log('[edit] create partTool', oldId, '→', newName),
-                    onEditPartToolAmount: (partToolId, newAmount) => console.log('[edit] partTool amount', partToolId, newAmount),
-                    onEditPartToolImage: (partToolId) => console.log('[edit] partTool image', partToolId),
-                    onDeletePartTool: (partToolId) => console.log('[edit] delete partTool', partToolId),
-                  }}
+                  folderName={decodedFolderName}
+                  editNavbarExtra={editNavbarExtra}
+                  editCallbacks={editCallbacks}
                 />
               </InstructionViewContainer>
             </ViewerDataProvider>
           </InstructionViewProvider>
         </VideoProvider>
       </div>
+
+      {/* Edit dialogs */}
+      {editDialog?.type === "description" && (
+        <TextEditDialog
+          open
+          title={editDialog.title}
+          initialValue={editDialog.initialValue}
+          onSave={editDialog.onSave}
+          onClose={closeDialog}
+        />
+      )}
+      {editDialog?.type === "note" && (
+        <NoteEditDialog
+          open
+          initialText={editDialog.initialText}
+          initialSafetyIconId={editDialog.initialSafetyIconId}
+          initialSafetyIconCategory={editDialog.initialSafetyIconCategory}
+          folderName={decodedFolderName}
+          onSave={editDialog.onSave}
+          onClose={closeDialog}
+        />
+      )}
     </div>
   );
 }

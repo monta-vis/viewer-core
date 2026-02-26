@@ -73,6 +73,7 @@ export {
   getCategoryFromFilename,
   getCategoryPriority,
   getCategoryColor,
+  categoryToNoteLevel,
   safetyIconUrl,
   safetyIconLabel,
   isLegacyLevel,

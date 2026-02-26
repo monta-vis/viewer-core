@@ -137,7 +137,9 @@ export interface SnapshotPartTool {
   unit?: string;
   material?: string;
   dimension?: string;
+  /** @deprecated Inert — kept for backwards compat with old exports */
   icon_id?: string | null;
+  /** @deprecated Inert — kept for backwards compat with old exports */
   icon_is_preview?: number;
 }
 

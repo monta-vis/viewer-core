@@ -3,7 +3,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createReadStream, existsSync, statSync } from "fs";
 import { extname } from "path";
-import { listProjects, getProjectData, resolveMediaPath } from "./projects.js";
+import {
+  listProjects,
+  getProjectData,
+  saveProjectData,
+  uploadPartToolImage,
+  resolveMediaPath,
+} from "./projects.js";
+import type { ProjectChanges } from "./projects.js";
+import { getSafetyIconCatalogs } from "./catalogs.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -125,6 +133,20 @@ function registerIpcHandlers(): void {
       return `mvis-media://${encodeURIComponent(folderName)}/${encodeURIComponent(relativePath)}`;
     },
   );
+
+  ipcMain.handle(
+    "projects:save-data",
+    (_event, folderName: string, changes: ProjectChanges) =>
+      saveProjectData(folderName, changes),
+  );
+
+  ipcMain.handle(
+    "projects:upload-parttool-image",
+    (_event, folderName: string, partToolId: string, imagePath: string) =>
+      uploadPartToolImage(folderName, partToolId, imagePath),
+  );
+
+  ipcMain.handle("catalogs:get-safety-icons", () => getSafetyIconCatalogs());
 }
 
 // ---------------------------------------------------------------------------

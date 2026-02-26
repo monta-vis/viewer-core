@@ -111,6 +111,8 @@ interface InstructionViewProps {
   };
   /** Catalog of available parts/tools for search + swap in PartToolDetailModal */
   partToolCatalog?: TextInputSuggestion[];
+  /** Extra content rendered in the navbar (right side) when edit mode is active. Use for save/undo/redo buttons. */
+  editNavbarExtra?: React.ReactNode;
 }
 
 /**
@@ -118,7 +120,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editMode = false, editCallbacks, partToolCatalog }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editMode = false, editCallbacks, partToolCatalog, editNavbarExtra }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -825,6 +827,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
           {/* Right: Feedback + Close */}
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
+            {/* Consumer-provided edit navbar extras (save, undo/redo) */}
+            {effectiveEditMode && editNavbarExtra}
             {/* Edit toggle — only visible when editCallbacks provided */}
             {editCallbacks && (
               <Button

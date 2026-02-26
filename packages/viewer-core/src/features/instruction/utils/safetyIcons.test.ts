@@ -3,9 +3,11 @@ import {
   getCategoryFromFilename,
   getCategoryColor,
   getCategoryPriority,
+  categoryToNoteLevel,
   isLegacyLevel,
   SAFETY_ICON_CATEGORIES,
   LEGACY_LEVEL_TO_ICON,
+  type SafetyIconCategory,
 } from './safetyIcons';
 
 describe('getCategoryFromFilename', () => {
@@ -130,6 +132,44 @@ describe('LEGACY_LEVEL_TO_ICON', () => {
 
   it('maps Info to E003', () => {
     expect(LEGACY_LEVEL_TO_ICON.Info).toBe('E003-Erste-Hilfe.png');
+  });
+});
+
+describe('categoryToNoteLevel', () => {
+  it('maps Verbotszeichen to Critical', () => {
+    expect(categoryToNoteLevel('Verbotszeichen')).toBe('Critical');
+  });
+
+  it('maps Warnzeichen to Warning', () => {
+    expect(categoryToNoteLevel('Warnzeichen')).toBe('Warning');
+  });
+
+  it('maps Gefahrstoffe to Critical', () => {
+    expect(categoryToNoteLevel('Gefahrstoffe')).toBe('Critical');
+  });
+
+  it('maps Brandschutz to Critical', () => {
+    expect(categoryToNoteLevel('Brandschutz')).toBe('Critical');
+  });
+
+  it('maps Gebotszeichen to Quality', () => {
+    expect(categoryToNoteLevel('Gebotszeichen')).toBe('Quality');
+  });
+
+  it('maps Piktogramme-Leitern to Info', () => {
+    expect(categoryToNoteLevel('Piktogramme-Leitern')).toBe('Info');
+  });
+
+  it('maps Rettungszeichen to Info', () => {
+    expect(categoryToNoteLevel('Rettungszeichen')).toBe('Info');
+  });
+
+  it('maps Sonstige to Info', () => {
+    expect(categoryToNoteLevel('Sonstige')).toBe('Info');
+  });
+
+  it('returns Info for unknown categories', () => {
+    expect(categoryToNoteLevel('Unknown' as SafetyIconCategory)).toBe('Info');
   });
 });
 

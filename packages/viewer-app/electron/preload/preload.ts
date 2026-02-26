@@ -1,12 +1,30 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const electronAPI = {
+  catalogs: {
+    getSafetyIcons: () => ipcRenderer.invoke("catalogs:get-safety-icons"),
+  },
   projects: {
     list: () => ipcRenderer.invoke("projects:list"),
     getData: (folderName: string) =>
       ipcRenderer.invoke("projects:get-data", folderName),
     getMediaUrl: (folderName: string, relativePath: string) =>
       ipcRenderer.invoke("projects:get-media-url", folderName, relativePath),
+    saveData: (
+      folderName: string,
+      changes: { changed: Record<string, Record<string, unknown>[]>; deleted: Record<string, string[]> },
+    ) => ipcRenderer.invoke("projects:save-data", folderName, changes),
+    uploadPartToolImage: (
+      folderName: string,
+      partToolId: string,
+      imagePath: string,
+    ) =>
+      ipcRenderer.invoke(
+        "projects:upload-parttool-image",
+        folderName,
+        partToolId,
+        imagePath,
+      ),
   },
 };
 
