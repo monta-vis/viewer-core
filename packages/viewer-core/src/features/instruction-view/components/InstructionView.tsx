@@ -9,7 +9,7 @@ import type { TextInputSuggestion } from '@/components/ui';
 import { isImageDrawing, isVideoDrawing, formatReferenceDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
-import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, ViewportKeyframeRow, SubstepRow, RichReferenceDisplay } from '@/features/instruction';
+import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, SubstepDescriptionRow, ViewportKeyframeRow, SubstepRow, RichReferenceDisplay } from '@/features/instruction';
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
@@ -113,6 +113,20 @@ interface InstructionViewProps {
   partToolCatalog?: TextInputSuggestion[];
   /** Extra content rendered in the navbar (right side) when edit mode is active. Use for save/undo/redo buttons. */
   editNavbarExtra?: React.ReactNode;
+  /** Render function for the edit popover (provided by editor-core via app shell). Passed through to SubstepCard. */
+  renderEditPopover?: (props: {
+    open: boolean;
+    onClose: () => void;
+    callbacks: SubstepEditCallbacks;
+    descriptions: SubstepDescriptionRow[];
+    notes: EnrichedSubstepNote[];
+    partTools: EnrichedSubstepPartTool[];
+    repeatCount: number;
+    repeatLabel?: string | null;
+    references: Array<{ kind: string; label: string }>;
+    hasImage: boolean;
+    hasVideo: boolean;
+  }) => ReactNode;
 }
 
 /**
@@ -120,7 +134,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editMode = false, editCallbacks, partToolCatalog, editNavbarExtra }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editMode = false, editCallbacks, partToolCatalog, editNavbarExtra, renderEditPopover }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -356,9 +370,9 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     }
 
     return () => {
-      links.forEach(link => document.head.removeChild(link));
+      links.forEach(link => link.remove());
     };
-  }, [data, substeps, useRawVideo, folderName, resolveSourceVideoUrl]);
+  }, [substeps, data?.substepVideoSections, data?.videoSections, data?.videos, useRawVideo, folderName, resolveSourceVideoUrl]);
 
   // Pre-compute drawing maps indexed by substep image / substep id
   // so we avoid O(n*m) filtering inside the render loop.
@@ -991,6 +1005,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                             videoFrameAreas={data.videoFrameAreas}
                             editMode={effectiveEditMode}
                             editCallbacks={makeSubstepEditCallbacks(substep.id)}
+                            renderEditPopover={renderEditPopover}
                           />
                         </div>
 

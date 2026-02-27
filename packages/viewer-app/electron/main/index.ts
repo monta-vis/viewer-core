@@ -12,9 +12,66 @@ import {
 } from "./projects.js";
 import type { ProjectChanges } from "./projects.js";
 import { getSafetyIconCatalogs } from "./catalogs.js";
+import { importMvisFromPath } from "./import-mvis.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
+
+// ---------------------------------------------------------------------------
+// Single-instance lock & .mvis file open handling
+// ---------------------------------------------------------------------------
+
+let mainWindow: BrowserWindow | null = null;
+let pendingMvisPath: string | null = null;
+
+/** Extract the first .mvis path from an argv array. */
+function findMvisArg(argv: string[]): string | null {
+  return argv.find((arg) => arg.toLowerCase().endsWith(".mvis")) ?? null;
+}
+
+/** Import a .mvis file and navigate the renderer to the project. */
+async function handleOpenMvisFile(filePath: string): Promise<void> {
+  const result = await importMvisFromPath(filePath);
+  if (result.success && result.folderName && mainWindow) {
+    mainWindow.webContents.send("navigate", `/view/${encodeURIComponent(result.folderName)}`);
+  }
+}
+
+// Request single-instance lock — if we're a second instance, forward args and quit
+const gotLock = app.requestSingleInstanceLock();
+if (!gotLock) {
+  app.quit();
+} else {
+  app.on("second-instance", (_event, argv) => {
+    // Focus existing window
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+
+    // Handle .mvis arg from second instance
+    const mvisPath = findMvisArg(argv);
+    if (mvisPath) {
+      void handleOpenMvisFile(mvisPath);
+    }
+  });
+
+  // macOS: file opened while app is running or before ready
+  app.on("open-file", (event, filePath) => {
+    event.preventDefault();
+    if (mainWindow) {
+      void handleOpenMvisFile(filePath);
+    } else {
+      pendingMvisPath = filePath;
+    }
+  });
+
+  // Windows/Linux: check argv on first launch
+  const argMvis = findMvisArg(process.argv);
+  if (argMvis) {
+    pendingMvisPath = argMvis;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Custom protocol registration (must happen before app.ready)
@@ -86,6 +143,11 @@ function registerProtocol(): void {
       "application/octet-stream";
     const rangeHeader = request.headers.get("Range");
 
+    // Add CSP to disable script execution in SVG files
+    const securityHeaders: Record<string, string> = mimeType === "image/svg+xml"
+      ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" }
+      : {};
+
     if (rangeHeader) {
       const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
       if (match) {
@@ -100,6 +162,7 @@ function registerProtocol(): void {
             "Content-Range": `bytes ${start}-${end}/${fileSize}`,
             "Content-Length": String(chunkSize),
             "Accept-Ranges": "bytes",
+            ...securityHeaders,
           },
         });
       }
@@ -112,6 +175,7 @@ function registerProtocol(): void {
         "Content-Type": mimeType,
         "Content-Length": String(fileSize),
         "Accept-Ranges": "bytes",
+        ...securityHeaders,
       },
     });
   });
@@ -173,6 +237,12 @@ function createWindow() {
     },
   });
 
+  mainWindow = win;
+
+  win.on("closed", () => {
+    mainWindow = null;
+  });
+
   if (isDev && process.env["VITE_DEV_SERVER_URL"]) {
     void win.loadURL(process.env["VITE_DEV_SERVER_URL"]);
 
@@ -186,6 +256,15 @@ function createWindow() {
   } else {
     void win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
+
+  // Process pending .mvis file after the page has loaded
+  win.webContents.on("did-finish-load", () => {
+    if (pendingMvisPath) {
+      const mvisPath = pendingMvisPath;
+      pendingMvisPath = null;
+      void handleOpenMvisFile(mvisPath);
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------

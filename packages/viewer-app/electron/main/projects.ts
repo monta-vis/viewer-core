@@ -540,13 +540,30 @@ export function uploadPartToolImage(
   if (!isInsideBasePath(dbPath) || !fs.existsSync(dbPath)) {
     return { success: false, error: "Project not found" };
   }
-  if (!fs.existsSync(sourceImagePath)) {
+
+  // Resolve and validate source path to prevent arbitrary file reads
+  const resolvedSource = path.resolve(sourceImagePath);
+  if (!fs.existsSync(resolvedSource)) {
     return { success: false, error: "Source image not found" };
   }
 
-  const ext = path.extname(sourceImagePath).toLowerCase();
-  if (!ALLOWED_MEDIA_EXTENSIONS.has(ext)) {
+  // Only allow image extensions (no videos or other media)
+  const ext = path.extname(resolvedSource).toLowerCase();
+  const ALLOWED_IMAGE_EXTENSIONS = new Set([
+    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff",
+  ]);
+  if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
     return { success: false, error: "Unsupported file type" };
+  }
+
+  // Verify the file is within a user-accessible directory (not system paths)
+  const userHome = app.getPath("home");
+  const normalizeForCheck =
+    process.platform === "win32"
+      ? (p: string) => path.resolve(p).toLowerCase()
+      : (p: string) => path.resolve(p);
+  if (!normalizeForCheck(resolvedSource).startsWith(normalizeForCheck(userHome))) {
+    return { success: false, error: "Source path is outside user directory" };
   }
 
   const vfaId = crypto.randomUUID();
@@ -556,7 +573,7 @@ export function uploadPartToolImage(
   try {
     // Copy image to media folder
     fs.mkdirSync(destDir, { recursive: true });
-    fs.copyFileSync(sourceImagePath, destFile);
+    fs.copyFileSync(resolvedSource, destFile);
 
     // Create DB rows
     const db = new Database(dbPath);

@@ -1,12 +1,13 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
-  useSimpleStore,
   videoFrameAreaToViewport,
-  viewportToVideoFrameAreaCoords,
-  type InstructionData
-} from './simpleStore';
-import type { Step, Substep, VideoFrameAreaRow } from '../types/enriched';
+  type InstructionData,
+  type Step,
+  type Substep,
+  type VideoFrameAreaRow,
+} from '@monta-vis/viewer-core';
+import { useEditorStore } from './editorStore';
 
 // Helper to create mock instruction data
 function createMockInstructionData(): InstructionData {
@@ -71,10 +72,10 @@ function createMockInstructionData(): InstructionData {
   };
 }
 
-describe('useSimpleStore', () => {
+describe('useEditorStore', () => {
   beforeEach(() => {
     // Reset store before each test
-    const { result } = renderHook(() => useSimpleStore());
+    const { result } = renderHook(() => useEditorStore());
     act(() => {
       result.current.reset();
     });
@@ -82,7 +83,7 @@ describe('useSimpleStore', () => {
 
   describe('initial state', () => {
     it('has null data initially', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       expect(result.current.data).toBeNull();
       expect(result.current.isLoading).toBe(false);
       expect(result.current.error).toBeNull();
@@ -91,7 +92,7 @@ describe('useSimpleStore', () => {
 
   describe('setData', () => {
     it('sets instruction data', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -104,7 +105,7 @@ describe('useSimpleStore', () => {
     });
 
     it('clears changes when setting data', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -124,7 +125,7 @@ describe('useSimpleStore', () => {
 
   describe('setLoading', () => {
     it('sets loading state', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       act(() => {
         result.current.setLoading(true);
@@ -142,7 +143,7 @@ describe('useSimpleStore', () => {
 
   describe('setError', () => {
     it('sets error and clears loading', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       act(() => {
         result.current.setLoading(true);
@@ -156,7 +157,7 @@ describe('useSimpleStore', () => {
 
   describe('reset', () => {
     it('resets store to initial state', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -177,7 +178,7 @@ describe('useSimpleStore', () => {
 
   describe('Steps CRUD', () => {
     it('addStep adds a new step', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -206,7 +207,7 @@ describe('useSimpleStore', () => {
     });
 
     it('updateStep updates existing step', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -222,7 +223,7 @@ describe('useSimpleStore', () => {
     });
 
     it('deleteStep removes step', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -238,7 +239,7 @@ describe('useSimpleStore', () => {
     });
 
     it('deleteStep unassigns its substeps', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -255,7 +256,7 @@ describe('useSimpleStore', () => {
     });
 
     it('deleteStep unassigns multiple substeps', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       // Add two more substeps to step-1
       mockData.substeps['substep-2'] = {
@@ -305,7 +306,7 @@ describe('useSimpleStore', () => {
     });
 
     it('deleteStep with empty substepIds still works', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       // step-1 has substepIds: ['substep-1'], override to empty
       mockData.steps['step-1'].substepIds = [];
@@ -320,7 +321,7 @@ describe('useSimpleStore', () => {
     });
 
     it('updateStep does nothing when data is null', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       act(() => {
         result.current.updateStep('step-1', { title: 'Test' });
@@ -332,7 +333,7 @@ describe('useSimpleStore', () => {
 
   describe('Substeps CRUD', () => {
     it('addSubstep adds substep and updates step reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -366,7 +367,7 @@ describe('useSimpleStore', () => {
     });
 
     it('deleteSubstep removes substep and updates step reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -384,7 +385,7 @@ describe('useSimpleStore', () => {
 
   describe('Change tracking', () => {
     it('hasChanges returns false initially', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -395,7 +396,7 @@ describe('useSimpleStore', () => {
     });
 
     it('hasChanges returns true after modifications', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -407,7 +408,7 @@ describe('useSimpleStore', () => {
     });
 
     it('getChangedData returns changed items', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -423,7 +424,7 @@ describe('useSimpleStore', () => {
     });
 
     it('getChangedData includes repeat_count and repeat_label for substeps', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -439,7 +440,7 @@ describe('useSimpleStore', () => {
     });
 
     it('getChangedData returns deleted items', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -454,7 +455,7 @@ describe('useSimpleStore', () => {
     });
 
     it('clearChanges resets change tracking', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -474,7 +475,7 @@ describe('useSimpleStore', () => {
 
   describe('VideoFrameAreas CRUD', () => {
     it('addVideoFrameArea adds area', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -501,7 +502,7 @@ describe('useSimpleStore', () => {
     });
 
     it('updateVideoFrameArea updates area', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videoFrameAreas = {
         'area-1': {
@@ -531,7 +532,7 @@ describe('useSimpleStore', () => {
 
   describe('PartTools CRUD', () => {
     it('adds and tracks part tool changes', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -560,7 +561,7 @@ describe('useSimpleStore', () => {
 
   describe('Notes CRUD', () => {
     it('adds and deletes notes', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -688,51 +689,13 @@ describe('videoFrameAreaToViewport', () => {
   });
 });
 
-describe('viewportToVideoFrameAreaCoords', () => {
-  it('returns x, y, width, height directly (identity)', () => {
-    const viewport = {
-      x: 10,
-      y: 20,
-      width: 100,
-      height: 80,
-    };
-
-    const result = viewportToVideoFrameAreaCoords(viewport);
-
-    expect(result).toEqual({
-      x: 10,
-      y: 20,
-      width: 100,
-      height: 80,
-    });
-  });
-
-  it('handles zero values', () => {
-    const viewport = {
-      x: 0,
-      y: 0,
-      width: 50,
-      height: 50,
-    };
-
-    const result = viewportToVideoFrameAreaCoords(viewport);
-
-    expect(result).toEqual({
-      x: 0,
-      y: 0,
-      width: 50,
-      height: 50,
-    });
-  });
-});
-
 // ============================================
 // Extended tests for simpleStore
 // ============================================
 
-describe('useSimpleStore - Extended Tests', () => {
+describe('useEditorStore - Extended Tests', () => {
   beforeEach(() => {
-    const { result } = renderHook(() => useSimpleStore());
+    const { result } = renderHook(() => useEditorStore());
     act(() => {
       result.current.reset();
     });
@@ -740,7 +703,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('Instruction updates', () => {
     it('updateInstructionName updates the instruction name', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -753,7 +716,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateInstructionName does nothing when data is null', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       act(() => {
         result.current.updateInstructionName('New Name');
@@ -763,7 +726,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateInstructionDescription updates the description', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -776,7 +739,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateInstructionPreviewImageId updates the preview image', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -791,7 +754,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('Assembly CRUD', () => {
     it('addAssembly adds a new assembly', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -818,7 +781,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateAssembly updates an existing assembly', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.assemblies = {
         'asm-1': {
@@ -842,7 +805,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateAssembly does nothing for non-existent assembly', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -854,7 +817,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteAssembly removes assembly and unassigns steps', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.assemblies = {
         'asm-1': {
@@ -882,7 +845,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('Assignment actions', () => {
     it('assignStepToAssembly assigns step to assembly', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.assemblies = {
         'asm-1': {
@@ -907,7 +870,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('assignStepToAssembly removes step from old assembly', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.assemblies = {
         'asm-1': {
@@ -943,7 +906,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('assignSubstepToStep moves substep to new step', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.steps['step-2'] = {
         id: 'step-2',
@@ -969,7 +932,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('assignSubstepToStep handles null stepId', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -984,7 +947,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('VideoSections CRUD', () => {
     it('addVideoSection adds section and updates video reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videos = {
         'video-1': {
@@ -1026,7 +989,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteVideoSection removes section and cleans up references', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videos = {
         'video-1': {
@@ -1066,7 +1029,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('splitVideoSection splits section at frame', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videos = {
         'video-1': {
@@ -1112,7 +1075,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('splitVideoSection returns null for invalid split frame', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videoSections = {
         'section-1': {
@@ -1141,7 +1104,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('SubstepElements CRUD', () => {
     it('addSubstepImage adds image and updates substep reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1165,7 +1128,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteSubstepImage removes image and updates substep reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepImages = {
         'img-row-1': {
@@ -1188,7 +1151,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('addSubstepDescription adds description and updates substep reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1212,7 +1175,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('addSubstepPartTool adds part/tool and updates substep reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1237,7 +1200,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('addSubstepNote adds note and updates substep reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1261,7 +1224,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('addSubstepVideoSection adds video section and updates substep reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1287,7 +1250,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('ViewportKeyframes CRUD', () => {
     it('addViewportKeyframe adds keyframe and updates video reference', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videos = {
         'video-1': {
@@ -1331,7 +1294,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteViewportKeyframe removes keyframe but not frame 0', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videos = {
         'video-1': {
@@ -1394,7 +1357,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('Drawings CRUD', () => {
     it('addDrawing adds a drawing', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1431,7 +1394,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteDrawing removes drawing', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.drawings = {
         'draw-1': {
@@ -1468,7 +1431,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('PartToolVideoFrameAreas CRUD', () => {
     it('addPartToolVideoFrameArea adds row', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1492,7 +1455,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deletePartToolVideoFrameArea removes row', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.partToolVideoFrameAreas = {
         'ptvfa-1': {
@@ -1516,7 +1479,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('Event recording', () => {
     it('setEventRecordCallback sets the callback', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const callback = vi.fn();
 
       act(() => {
@@ -1527,7 +1490,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('addStep calls event record callback', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const callback = vi.fn();
       const mockData = createMockInstructionData();
 
@@ -1562,7 +1525,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteStep calls event record callback', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const callback = vi.fn();
       const mockData = createMockInstructionData();
 
@@ -1583,7 +1546,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('Progressive step loading', () => {
     it('setStepLoadingState sets loading state', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       act(() => {
         result.current.setStepLoadingState({
@@ -1603,7 +1566,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('appendSteps appends step data to store', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1653,7 +1616,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('getChangedData instruction changes', () => {
     it('includes instruction changes in getChangedData', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1671,7 +1634,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('deleteSubstep cascade', () => {
     it('deleteSubstep cascades deletion to all linked elements', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       // Set up linked elements
@@ -1708,7 +1671,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('reorderSubstepElement', () => {
     it('reorders image elements', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepImages = {
         'img-1': { id: 'img-1', versionId: 'ver-1', substepId: 'substep-1', videoFrameAreaId: 'a1', order: 0 },
@@ -1729,7 +1692,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('reorders description elements', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepDescriptions = {
         'desc-1': { id: 'desc-1', versionId: 'ver-1', substepId: 'substep-1', text: 'A', order: 0 },
@@ -1747,7 +1710,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('does nothing for same index', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepImages = {
         'img-1': { id: 'img-1', versionId: 'ver-1', substepId: 'substep-1', videoFrameAreaId: 'a1', order: 0 },
@@ -1767,7 +1730,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('does nothing when data is null', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       act(() => {
         result.current.reorderSubstepElement('img-1', 1, 'image');
@@ -1777,7 +1740,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('does nothing for unknown element type', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -1791,7 +1754,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('Update operations', () => {
     it('updateSubstepImage updates image row', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepImages = {
         'img-1': { id: 'img-1', versionId: 'ver-1', substepId: 'substep-1', videoFrameAreaId: 'a1', order: 0 },
@@ -1806,7 +1769,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateSubstepDescription updates description', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepDescriptions = {
         'desc-1': { id: 'desc-1', versionId: 'ver-1', substepId: 'substep-1', text: 'A', order: 0 },
@@ -1821,7 +1784,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteSubstepDescription removes from substep', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepDescriptions = {
         'desc-1': { id: 'desc-1', versionId: 'ver-1', substepId: 'substep-1', text: 'A', order: 0 },
@@ -1838,7 +1801,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateSubstepPartTool updates part/tool row', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepPartTools = {
         'spt-1': { id: 'spt-1', versionId: 'ver-1', substepId: 'substep-1', partToolId: 'pt-1', amount: 1, order: 0 },
@@ -1853,7 +1816,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteSubstepPartTool removes from substep', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepPartTools = {
         'spt-1': { id: 'spt-1', versionId: 'ver-1', substepId: 'substep-1', partToolId: 'pt-1', amount: 1, order: 0 },
@@ -1869,7 +1832,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateSubstepNote updates note row', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepNotes = {
         'sn-1': { id: 'sn-1', versionId: 'ver-1', substepId: 'substep-1', noteId: 'n-1', order: 0 },
@@ -1884,7 +1847,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteSubstepNote removes from substep', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepNotes = {
         'sn-1': { id: 'sn-1', versionId: 'ver-1', substepId: 'substep-1', noteId: 'n-1', order: 0 },
@@ -1900,7 +1863,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateSubstepVideoSection updates video section row', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepVideoSections = {
         'svs-1': { id: 'svs-1', versionId: 'ver-1', substepId: 'substep-1', videoSectionId: 'vs-1', order: 0 },
@@ -1915,7 +1878,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteSubstepVideoSection removes from substep', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.substepVideoSections = {
         'svs-1': { id: 'svs-1', versionId: 'ver-1', substepId: 'substep-1', videoSectionId: 'vs-1', order: 0 },
@@ -1931,7 +1894,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateVideoSection updates section', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videoSections = {
         'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, localPath: null },
@@ -1946,7 +1909,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateNote updates note', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.notes = {
         'n-1': { id: 'n-1', versionId: 'ver-1', text: 'Old', level: 'Info' },
@@ -1961,7 +1924,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updatePartTool updates part/tool', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.partTools = {
         'pt-1': { id: 'pt-1', versionId: 'ver-1', instructionId: 'i-1', name: 'Screw', type: 'Part', partNumber: 'P1', amount: 10, description: '' },
@@ -1976,7 +1939,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deletePartTool removes part/tool', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.partTools = {
         'pt-1': { id: 'pt-1', versionId: 'ver-1', instructionId: 'i-1', name: 'Screw', type: 'Part', partNumber: 'P1', amount: 10, description: '' },
@@ -1991,7 +1954,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateDrawing updates drawing', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.drawings = {
         'd-1': {
@@ -2010,7 +1973,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updateViewportKeyframe updates keyframe', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.viewportKeyframes = {
         'kf-1': { id: 'kf-1', videoId: 'v-1', versionId: 'ver-1', frameNumber: 0, x: 0, y: 0, width: 1, height: 1 },
@@ -2025,7 +1988,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('updatePartToolVideoFrameArea updates row', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.partToolVideoFrameAreas = {
         'ptvfa-1': { id: 'ptvfa-1', versionId: 'ver-1', partToolId: 'pt-1', videoFrameAreaId: 'vfa-1', order: 0, isPreviewImage: false },
@@ -2040,7 +2003,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('deleteVideoFrameArea removes area', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videoFrameAreas = {
         'vfa-1': { id: 'vfa-1', versionId: 'ver-1', videoId: 'v-1', frameNumber: 0, x: 0, y: 0, width: 100, height: 100, type: 'SubstepImage' },
@@ -2057,7 +2020,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('getChangedData snake_case conversion', () => {
     it('converts camelCase keys to snake_case', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -2083,7 +2046,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('includes deleted IDs in snake_case format', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videoSections = {
         'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, localPath: null },
@@ -2103,7 +2066,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('returns empty objects when data is null', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       const { changed, deleted } = result.current.getChangedData();
 
@@ -2114,7 +2077,7 @@ describe('useSimpleStore - Extended Tests', () => {
 
   describe('restoreData', () => {
     it('restoreData with same data results in no changes', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -2130,7 +2093,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('restoreData with modified entity marks only that entity changed', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -2150,7 +2113,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('restoreData detects deleted entities', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -2170,7 +2133,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('restoreData detects new entities', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -2201,7 +2164,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('restoreData detects instruction-level changes', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -2220,7 +2183,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('clearChanges updates lastSavedData baseline', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
       act(() => {
@@ -2244,7 +2207,7 @@ describe('useSimpleStore - Extended Tests', () => {
     });
 
     it('restoreData with no lastSavedData marks everything changed', () => {
-      const { result } = renderHook(() => useSimpleStore());
+      const { result } = renderHook(() => useEditorStore());
 
       // Reset to truly clean state (no lastSavedData)
       act(() => {

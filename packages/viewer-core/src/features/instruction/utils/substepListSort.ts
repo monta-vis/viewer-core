@@ -5,7 +5,7 @@ import type {
   SubstepImageRow,
   Video,
 } from '../types';
-import type { InstructionData } from '../store/simpleStore';
+import type { InstructionData } from '../types/data';
 
 // ============================================
 // Substep Video+Frame Sorting

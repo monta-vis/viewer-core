@@ -1,10 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 
-import { useVideo } from '@/features/video-player';
-import { useSimpleStore } from '@/features/instruction';
-import type { AreaData, Rectangle } from '../types';
-import { rectToNormalized, normalizedToRect } from '../utils/coordinates';
+import { useVideo, type AreaData, type Rectangle, rectToNormalized, normalizedToRect } from '@monta-vis/viewer-core';
+import { useEditorStore } from '../store';
 
 // Re-export for backwards compatibility
 export type VideoFrameAreaData = AreaData;
@@ -71,8 +69,8 @@ export function useVideoFrameAreaManager({
   selectedSubstepId,
 }: UseVideoFrameAreaManagerProps): UseVideoFrameAreaManagerReturn {
   const { currentFrame, seekFrame } = useVideo();
+  const videoFrameAreas = useEditorStore((s) => s.data?.videoFrameAreas);
   const {
-    data,
     addVideoFrameArea,
     updateVideoFrameArea,
     deleteVideoFrameArea,
@@ -80,7 +78,7 @@ export function useVideoFrameAreaManager({
     deleteSubstepImage,
     addPartToolVideoFrameArea,
     deletePartToolVideoFrameArea,
-  } = useSimpleStore();
+  } = useEditorStore();
 
   const [selectedAreaId, setSelectedAreaId] = useState<string | null>(null);
 
@@ -88,28 +86,28 @@ export function useVideoFrameAreaManager({
   // Build frame-to-areas index for O(1) lookup
   // ========================================
   const frameToAreaIds = useMemo(() => {
-    if (!data || !videoId) return {};
+    if (!videoFrameAreas || !videoId) return {};
 
     const index: Record<number, string[]> = {};
-    for (const area of Object.values(data.videoFrameAreas)) {
+    for (const area of Object.values(videoFrameAreas)) {
       if (area.videoId !== videoId || area.frameNumber == null) continue;
       const frame = area.frameNumber;
       if (!index[frame]) index[frame] = [];
       index[frame].push(area.id);
     }
     return index;
-  }, [data?.videoFrameAreas, videoId]);
+  }, [videoFrameAreas, videoId]);
 
   // ========================================
   // Get areas for current frame as display format
   // ========================================
   const areasForCurrentFrame = useMemo((): VideoFrameAreaData[] => {
-    if (!data) return [];
+    if (!videoFrameAreas) return [];
 
     const areaIds = frameToAreaIds[currentFrame] ?? [];
 
     return areaIds
-      .map((id) => data.videoFrameAreas[id])
+      .map((id) => videoFrameAreas[id])
       .filter(Boolean)
       .map((area) => {
         const rect = normalizedToRect({
@@ -128,13 +126,14 @@ export function useVideoFrameAreaManager({
           type: area.type as VideoFrameAreaData['type'],
         };
       });
-  }, [data, frameToAreaIds, currentFrame]);
+  }, [videoFrameAreas, frameToAreaIds, currentFrame]);
 
   // ========================================
   // Create SubstepImage area
   // ========================================
   const createImageArea = useCallback(
     (rect: Rectangle): CreateAreaResult | null => {
+      const data = useEditorStore.getState().data;
       if (!selectedSubstepId || !videoId || !data) {
         console.warn('Cannot create image area: no substep selected or no video');
         return null;
@@ -179,7 +178,6 @@ export function useVideoFrameAreaManager({
     [
       selectedSubstepId,
       videoId,
-      data,
       currentFrame,
       versionId,
       addVideoFrameArea,
@@ -192,6 +190,7 @@ export function useVideoFrameAreaManager({
   // ========================================
   const createPartToolScanArea = useCallback(
     (rect: Rectangle, partToolId: string): CreateAreaResult | null => {
+      const data = useEditorStore.getState().data;
       if (!videoId || !data) {
         console.warn('Cannot create part/tool area: no video');
         return null;
@@ -239,7 +238,6 @@ export function useVideoFrameAreaManager({
     },
     [
       videoId,
-      data,
       currentFrame,
       versionId,
       addVideoFrameArea,
@@ -252,7 +250,7 @@ export function useVideoFrameAreaManager({
   // ========================================
   const createPartToolAreaOnly = useCallback(
     (rect: Rectangle): CreateAreaResult | null => {
-      if (!videoId || !data) {
+      if (!videoId) {
         console.warn('Cannot create part/tool area: no video');
         return null;
       }
@@ -281,7 +279,7 @@ export function useVideoFrameAreaManager({
 
       return { areaId };
     },
-    [videoId, data, currentFrame, versionId, addVideoFrameArea]
+    [videoId, currentFrame, versionId, addVideoFrameArea]
   );
 
   // ========================================
@@ -315,12 +313,13 @@ export function useVideoFrameAreaManager({
   // ========================================
   const getAreaFrameNumber = useCallback(
     (areaId: string): number | null => {
+      const data = useEditorStore.getState().data;
       if (!data) return null;
 
       const area = data.videoFrameAreas[areaId];
       return area?.frameNumber ?? null;
     },
-    [data]
+    []
   );
 
   // ========================================
@@ -328,6 +327,7 @@ export function useVideoFrameAreaManager({
   // ========================================
   const deleteArea = useCallback(
     (areaId: string) => {
+      const data = useEditorStore.getState().data;
       if (!data) return;
 
       const area = data.videoFrameAreas[areaId];
@@ -360,7 +360,7 @@ export function useVideoFrameAreaManager({
         setSelectedAreaId(null);
       }
     },
-    [data, selectedAreaId, deleteVideoFrameArea, deleteSubstepImage, deletePartToolVideoFrameArea]
+    [selectedAreaId, deleteVideoFrameArea, deleteSubstepImage, deletePartToolVideoFrameArea]
   );
 
   // ========================================
@@ -368,6 +368,7 @@ export function useVideoFrameAreaManager({
   // ========================================
   const jumpToAreaFrame = useCallback(
     (areaId: string) => {
+      const data = useEditorStore.getState().data;
       if (!data) return;
 
       const area = data.videoFrameAreas[areaId];
@@ -376,7 +377,7 @@ export function useVideoFrameAreaManager({
       seekFrame(area.frameNumber);
       setSelectedAreaId(areaId);
     },
-    [data, seekFrame]
+    [seekFrame]
   );
 
   return {

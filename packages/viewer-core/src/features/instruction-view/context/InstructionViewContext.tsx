@@ -31,10 +31,6 @@ interface InstructionViewContextValue {
   language: InstructionLanguage;
   setLanguage: (language: InstructionLanguage) => void;
 
-  // Track Changes
-  showChanges: boolean;
-  setShowChanges: (show: boolean) => void;
-
   // Viewer Mode (simplified viewer preview - what workers see)
   viewerMode: boolean;
   setViewerMode: (mode: boolean) => void;
@@ -73,7 +69,6 @@ export function InstructionViewProvider({
 }: InstructionViewProviderProps) {
   const [theme, setThemeState] = useState<InstructionTheme>(defaultTheme);
   const [language, setLanguageState] = useState<InstructionLanguage>(defaultLanguage);
-  const [showChanges, setShowChanges] = useState(false);
   const [viewerMode, setViewerMode] = useState(false);
 
   const setTheme = useCallback((newTheme: InstructionTheme) => {
@@ -106,13 +101,11 @@ export function InstructionViewProvider({
       isDark: theme === 'dark',
       language,
       setLanguage,
-      showChanges,
-      setShowChanges,
       viewerMode,
       setViewerMode,
       toggleViewerMode,
     }),
-    [theme, setTheme, toggleTheme, language, setLanguage, showChanges, viewerMode, toggleViewerMode]
+    [theme, setTheme, toggleTheme, language, setLanguage, viewerMode, toggleViewerMode]
   );
 
   return (

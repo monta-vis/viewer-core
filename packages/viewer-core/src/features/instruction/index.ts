@@ -7,13 +7,10 @@
  * - Hooks: Single responsibility for data access
  */
 
-// Store
+// Data types & helpers (store moved to @monta-vis/editor-core)
 export {
-  useSimpleStore,
   videoFrameAreaToViewport,
-  viewportToVideoFrameAreaCoords,
   type InstructionData,
-  type EventRecordCallback,
 } from './store';
 
 // Hooks

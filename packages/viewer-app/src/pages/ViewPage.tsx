@@ -15,9 +15,10 @@ import {
   IconButton,
   Button,
   Navbar,
-  useSimpleStore,
 } from "@monta-vis/viewer-core";
 import type { InstructionData, InstructionSnapshot, NoteLevel } from "@monta-vis/viewer-core";
+import { useEditorStore, SubstepEditPopover, type ProjectChanges } from "@monta-vis/editor-core";
+import { createElectronAdapter } from "../persistence/electronAdapter";
 import { useHistoryStore, useHistorySync } from "../stores/historyStore";
 import { TextEditDialog } from "../components/TextEditDialog";
 import { NoteEditDialog } from "../components/NoteEditDialog";
@@ -72,9 +73,15 @@ export function ViewPage() {
   // Dialog state for editing descriptions/notes
   const [editDialog, setEditDialog] = useState<EditDialog | null>(null);
 
+  // Ref for save message timeout cleanup
+  const saveMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Subscribe to store change tracking
-  const hasChanges = useSimpleStore((s) => s.hasChanges());
-  const storeData = useSimpleStore((s) => s.data);
+  const hasChanges = useEditorStore((s) => s.hasChanges());
+  const storeData = useEditorStore((s) => s.data);
+
+  // Persistence adapter
+  const adapter = useMemo(() => createElectronAdapter(), []);
 
   // Undo/redo
   useHistorySync();
@@ -84,6 +91,11 @@ export function ViewPage() {
   // Refs for snapshot and base data — used by language effect without triggering it
   const snapshotRef = useRef<InstructionSnapshot | null>(null);
   const baseDataRef = useRef<InstructionData | null>(null);
+
+  // Cleanup save message timer on unmount
+  useEffect(() => () => {
+    if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
+  }, []);
 
   // ── Load project data from SQLite (once per folderName) ──
   useEffect(() => {
@@ -96,6 +108,9 @@ export function ViewPage() {
     window.electronAPI.projects
       .getData(decodeURIComponent(folderName))
       .then((projectData) => {
+        if (!projectData || typeof projectData !== 'object') {
+          throw new Error('Invalid project data');
+        }
         const snap = sqliteToSnapshot(projectData as Parameters<typeof sqliteToSnapshot>[0]);
         const base = transformSnapshotToStore(snap);
 
@@ -103,7 +118,7 @@ export function ViewPage() {
         baseDataRef.current = base;
 
         // Hydrate the Zustand store for change tracking
-        useSimpleStore.getState().setData(base);
+        useEditorStore.getState().setData(base);
 
         // Apply translations for current i18n language
         setData(translateData(snap, base, i18n.language));
@@ -149,20 +164,17 @@ export function ViewPage() {
   );
 
   const handleSave = useCallback(async () => {
-    if (!decodedFolderName || !window.electronAPI) return;
+    if (!decodedFolderName) return;
 
     setIsSaving(true);
     setSaveMessage(null);
 
     try {
-      const changes = useSimpleStore.getState().getChangedData() as {
-        changed: Record<string, Record<string, unknown>[]>;
-        deleted: Record<string, string[]>;
-      };
-      const result = await window.electronAPI.projects.saveData(decodedFolderName, changes);
+      const changes = useEditorStore.getState().getChangedData() as ProjectChanges;
+      const result = await adapter.saveChanges(decodedFolderName, changes);
 
       if (result.success) {
-        useSimpleStore.getState().clearChanges();
+        useEditorStore.getState().clearChanges();
         setSaveMessage({ type: "success", text: t("common.saved", "Saved successfully") });
       } else {
         setSaveMessage({ type: "error", text: result.error ?? t("common.saveError", "Save failed") });
@@ -174,26 +186,27 @@ export function ViewPage() {
       });
     } finally {
       setIsSaving(false);
-      setTimeout(() => setSaveMessage(null), 3000);
+      if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
+      saveMessageTimerRef.current = setTimeout(() => setSaveMessage(null), 3000);
     }
-  }, [decodedFolderName, t]);
+  }, [decodedFolderName, adapter, t]);
 
   // ── Helper: get versionId from store ──
   const getVersionId = useCallback(() => {
-    const d = useSimpleStore.getState().data;
+    const d = useEditorStore.getState().data;
     return d?.currentVersionId ?? d?.instructionId ?? "";
   }, []);
 
   // ── Helper: get instructionId from store ──
   const getInstructionId = useCallback(() => {
-    return useSimpleStore.getState().data?.instructionId ?? "";
+    return useEditorStore.getState().data?.instructionId ?? "";
   }, []);
 
   // ── Edit callbacks ──
 
   // --- Description operations ---
   const onEditDescription = useCallback((descId: string) => {
-    const store = useSimpleStore.getState();
+    const store = useEditorStore.getState();
     const desc = store.data?.substepDescriptions[descId];
     if (!desc) return;
 
@@ -202,7 +215,7 @@ export function ViewPage() {
       title: t("edit.editDescription", "Edit Description"),
       initialValue: desc.text,
       onSave: (text) => {
-        useSimpleStore.getState().updateSubstepDescription(descId, { text });
+        useEditorStore.getState().updateSubstepDescription(descId, { text });
       },
     });
   }, [t]);
@@ -213,12 +226,12 @@ export function ViewPage() {
       title: t("edit.addDescription", "Add Description"),
       initialValue: "",
       onSave: (text) => {
-        const store = useSimpleStore.getState();
+        const store = useEditorStore.getState();
         const existingDescs = Object.values(store.data?.substepDescriptions ?? {})
           .filter((d) => d.substepId === substepId);
         const maxOrder = existingDescs.reduce((max, d) => Math.max(max, d.order), -1);
 
-        useSimpleStore.getState().addSubstepDescription({
+        useEditorStore.getState().addSubstepDescription({
           id: generateId(),
           substepId,
           text,
@@ -230,12 +243,12 @@ export function ViewPage() {
   }, [t, getVersionId]);
 
   const onDeleteDescription = useCallback((descId: string) => {
-    useSimpleStore.getState().deleteSubstepDescription(descId);
+    useEditorStore.getState().deleteSubstepDescription(descId);
   }, []);
 
   // --- Note operations ---
   const onEditNote = useCallback((noteRowId: string) => {
-    const store = useSimpleStore.getState();
+    const store = useEditorStore.getState();
     const substepNote = store.data?.substepNotes[noteRowId];
     if (!substepNote) return;
 
@@ -249,7 +262,7 @@ export function ViewPage() {
       initialSafetyIconId: note.safetyIconId,
       initialSafetyIconCategory: note.safetyIconCategory,
       onSave: (text, level, safetyIconId, safetyIconCategory) => {
-        useSimpleStore.getState().updateNote(substepNote.noteId, {
+        useEditorStore.getState().updateNote(substepNote.noteId, {
           text,
           level,
           safetyIconId,
@@ -272,7 +285,7 @@ export function ViewPage() {
         const versionId = getVersionId();
         const instructionId = getInstructionId();
 
-        const store = useSimpleStore.getState();
+        const store = useEditorStore.getState();
         const existingNotes = Object.values(store.data?.substepNotes ?? {})
           .filter((sn) => sn.substepId === substepId);
         const maxOrder = existingNotes.reduce((max, sn) => Math.max(max, sn.order), -1);
@@ -301,7 +314,7 @@ export function ViewPage() {
   }, [t, getVersionId, getInstructionId]);
 
   const onDeleteNote = useCallback((noteRowId: string) => {
-    const store = useSimpleStore.getState();
+    const store = useEditorStore.getState();
     const substepNote = store.data?.substepNotes[noteRowId];
     if (!substepNote) return;
 
@@ -312,11 +325,11 @@ export function ViewPage() {
 
   // --- Delete operations (direct store calls) ---
   const onDeleteSubstep = useCallback((substepId: string) => {
-    useSimpleStore.getState().deleteSubstep(substepId);
+    useEditorStore.getState().deleteSubstep(substepId);
   }, []);
 
   const onDeleteImage = useCallback((substepId: string) => {
-    const store = useSimpleStore.getState();
+    const store = useEditorStore.getState();
     const substep = store.data?.substeps[substepId];
     if (!substep) return;
 
@@ -326,7 +339,7 @@ export function ViewPage() {
   }, []);
 
   const onDeleteReference = useCallback((refIdx: number, substepId: string) => {
-    const store = useSimpleStore.getState();
+    const store = useEditorStore.getState();
     const substep = store.data?.substeps[substepId];
     if (!substep) return;
 
@@ -337,7 +350,7 @@ export function ViewPage() {
   }, []);
 
   const onDeletePartTool = useCallback((partToolId: string) => {
-    const store = useSimpleStore.getState();
+    const store = useEditorStore.getState();
     // Find and delete all substep_part_tool junction rows for this partTool
     const sptRows = Object.values(store.data?.substepPartTools ?? {})
       .filter((spt) => spt.partToolId === partToolId);
@@ -346,41 +359,29 @@ export function ViewPage() {
     }
   }, []);
 
-  // ── Memoized edit callbacks ──
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  const noop = useCallback(() => {}, []);
+  // ── Memoized edit callbacks (unimplemented callbacks are omitted) ──
   const editCallbacks = useMemo(() => ({
-    // --- Wired: description ---
     onEditDescription,
     onDeleteDescription,
     onAddDescription,
-    // --- Wired: notes ---
     onEditNote,
     onDeleteNote,
     onAddNote,
-    // --- Wired: delete operations ---
     onDeleteSubstep,
     onDeleteImage,
     onDeleteReference,
     onDeletePartTool,
-    // --- Deferred: complex UI needed ---
-    onEditImage: noop,
-    onEditVideo: noop,
-    onEditRepeat: noop,
-    onEditReference: noop,
-    onAddReference: noop,
-    onEditPartTools: noop,
-    onAddSubstep: noop,
-    onReplacePartTool: noop,
-    onCreatePartTool: noop,
-    onEditPartToolAmount: noop,
-    onEditPartToolImage: noop,
   }), [
     onEditDescription, onDeleteDescription, onAddDescription,
     onEditNote, onDeleteNote, onAddNote,
     onDeleteSubstep, onDeleteImage, onDeleteReference, onDeletePartTool,
-    noop,
   ]);
+
+  // ── Edit popover render function ──
+  const renderEditPopover = useCallback(
+    (props: Parameters<typeof SubstepEditPopover>[0]) => <SubstepEditPopover {...props} />,
+    [],
+  );
 
   // ── Navbar extras (save, undo, redo) ──
   const editNavbarExtra = useMemo(() => (
@@ -475,6 +476,7 @@ export function ViewPage() {
                   folderName={decodedFolderName}
                   editNavbarExtra={editNavbarExtra}
                   editCallbacks={editCallbacks}
+                  renderEditPopover={renderEditPopover}
                 />
               </InstructionViewContainer>
             </ViewerDataProvider>

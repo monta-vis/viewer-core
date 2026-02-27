@@ -2,6 +2,7 @@ node_modules/
 dist/
 packages/*/dist/
 dist-electron/
+release/
 *.tsbuildinfo
 .vite/
 --db-path

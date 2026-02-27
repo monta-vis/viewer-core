@@ -1,6 +1,11 @@
 const { contextBridge, ipcRenderer } = require("electron");
 
 const electronAPI = {
+  onNavigate: (callback: (path: string) => void) => {
+    const handler = (_event: unknown, navPath: string) => callback(navPath);
+    ipcRenderer.on("navigate", handler);
+    return () => { ipcRenderer.removeListener("navigate", handler); };
+  },
   catalogs: {
     getSafetyIcons: () => ipcRenderer.invoke("catalogs:get-safety-icons"),
   },

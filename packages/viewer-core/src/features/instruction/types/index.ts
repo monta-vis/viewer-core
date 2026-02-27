@@ -46,3 +46,9 @@ export { isVideoDrawing, isImageDrawing } from './enriched';
 
 // Type alias for backwards compatibility
 export type { DrawingRow as AnnotationRow } from './enriched';
+
+// Data shape & helpers (used by ViewerDataProvider and editor-core)
+export {
+  type InstructionData,
+  videoFrameAreaToViewport,
+} from './data';

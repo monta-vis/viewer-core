@@ -8,11 +8,16 @@
     "dev": "vite",
     "dev:electron": "vite --mode electron",
     "build": "tsc -b && vite build",
+    "rebuild:native": "npx electron-rebuild --module-dir ../.. -o better-sqlite3",
+    "build:electron": "npm run rebuild:native && vite build --mode electron && electron-builder",
+    "build:electron:dir": "npm run rebuild:native && vite build --mode electron && electron-builder --dir",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@monta-vis/editor-core": "*",
     "@monta-vis/viewer-core": "*",
     "better-sqlite3": "^11.0.0",
+    "extract-zip": "^2.0.1",
     "i18next": "^25.0.0",
     "lucide-react": ">=0.400.0",
     "react": "^19.0.0",
@@ -21,16 +26,75 @@
     "react-router-dom": "^7.13.0"
   },
   "devDependencies": {
+    "@electron/rebuild": "^4.0.0",
     "@tailwindcss/vite": "^4.0.0",
     "@types/better-sqlite3": "^7.6.0",
+    "@types/extract-zip": "^2.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.0.0",
     "electron": "^35.0.0",
+    "electron-builder": "^24.13.3",
     "tailwindcss": "^4.0.0",
     "typescript": "^5.7.0",
     "vite": "^7.0.0",
     "vite-plugin-electron": "^0.29.0",
     "vite-plugin-electron-renderer": "^0.14.6"
+  },
+  "build": {
+    "electronVersion": "35.7.5",
+    "appId": "com.montavis.viewer",
+    "productName": "Montavis Viewer",
+    "directories": {
+      "output": "release"
+    },
+    "npmRebuild": false,
+    "fileAssociations": [
+      {
+        "ext": "mvis",
+        "name": "Montavis Instruction",
+        "description": "Montavis Viewer Instruction File",
+        "icon": "resources/mvis-file.ico",
+        "role": "Viewer"
+      }
+    ],
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "resources/icon.ico",
+      "resources/mvis-file.ico",
+      {
+        "from": "../../node_modules/better-sqlite3",
+        "to": "node_modules/better-sqlite3",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../../node_modules/bindings",
+        "to": "node_modules/bindings",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../../node_modules/file-uri-to-path",
+        "to": "node_modules/file-uri-to-path",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "publish": null
   }
 }

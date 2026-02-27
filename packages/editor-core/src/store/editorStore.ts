@@ -5,140 +5,36 @@ import { enableMapSet } from 'immer';
 // Enable Map and Set support in Immer (required for change tracking with Sets)
 enableMapSet();
 
-import type {
-  Step,
-  Substep,
-  Assembly,
-  Video,
-  SubstepImageRow,
-  SubstepPartToolRow,
-  SubstepNoteRow,
-  SubstepDescriptionRow,
-  SubstepReferenceRow,
-  SubstepVideoSectionRow,
-  VideoFrameAreaRow,
-  VideoSectionRow,
-  ViewportKeyframe,
-  ViewportKeyframeRow,
-  PartToolRow,
-  NoteRow,
-  SafetyIconRow,
-  PartToolVideoFrameAreaRow,
-  DrawingRow,
-} from '../types/enriched';
-
-// ============================================
-// Helpers
-// ============================================
-
-/**
- * Convert a VideoFrameArea to a ViewportKeyframe.
- * VideoFrameArea now uses x, y, width, height directly (same as ViewportKeyframe).
- * Returns null if any coordinate is missing.
- */
-export function videoFrameAreaToViewport(
-  area: VideoFrameAreaRow | null | undefined
-): ViewportKeyframe | null {
-  if (!area) return null;
-  const { x, y, width, height } = area;
-  if (x == null || y == null || width == null || height == null) {
-    return null;
-  }
-  return { x, y, width, height };
-}
-
-/**
- * Convert a ViewportKeyframe to VideoFrameArea coordinates.
- * Identity function — both use x, y, width, height.
- */
-export function viewportToVideoFrameAreaCoords(
-  viewport: ViewportKeyframe
-): { x: number; y: number; width: number; height: number } {
-  return {
-    x: viewport.x,
-    y: viewport.y,
-    width: viewport.width,
-    height: viewport.height,
-  };
-}
+import {
+  type Step,
+  type Substep,
+  type Assembly,
+  type Video,
+  type SubstepImageRow,
+  type SubstepPartToolRow,
+  type SubstepNoteRow,
+  type SubstepDescriptionRow,
+  type SubstepReferenceRow,
+  type SubstepVideoSectionRow,
+  type VideoFrameAreaRow,
+  type VideoSectionRow,
+  type ViewportKeyframeRow,
+  type PartToolRow,
+  type NoteRow,
+  type PartToolVideoFrameAreaRow,
+  type DrawingRow,
+  type InstructionData,
+} from '@monta-vis/viewer-core';
+import { v4 as uuidv4 } from 'uuid';
+import type { EventRecordCallback, StepLoadingState, StepChunkData } from '../types';
 
 // ============================================
 // Types
 // ============================================
 
-export interface InstructionData {
-  instructionId: string;
-  instructionName: string;
-  instructionDescription: string | null;
-  instructionPreviewImageId: string | null;
-  coverImageAreaId: string | null;
-  articleNumber: string | null;
-  estimatedDuration: number | null;
-  sourceLanguage: string;
-  useBlurred: boolean;
-  currentVersionId: string;
-  liteSubstepLimit: number | null;  // Max new substeps for Editor Lite users
-
-  assemblies: Record<string, Assembly>;
-  steps: Record<string, Step>;
-  substeps: Record<string, Substep>;
-  videos: Record<string, Video>;
-  videoSections: Record<string, VideoSectionRow>;
-  videoFrameAreas: Record<string, VideoFrameAreaRow>;
-  viewportKeyframes: Record<string, ViewportKeyframeRow>;  // Per-Video viewport keyframes
-  partTools: Record<string, PartToolRow>;
-  notes: Record<string, NoteRow>;
-  substepImages: Record<string, SubstepImageRow>;
-  substepPartTools: Record<string, SubstepPartToolRow>;
-  substepNotes: Record<string, SubstepNoteRow>;
-  substepDescriptions: Record<string, SubstepDescriptionRow>;
-  substepVideoSections: Record<string, SubstepVideoSectionRow>;
-  partToolVideoFrameAreas: Record<string, PartToolVideoFrameAreaRow>;
-  drawings: Record<string, DrawingRow>;
-  substepReferences: Record<string, SubstepReferenceRow>;
-  safetyIcons: Record<string, SafetyIconRow>;
-}
-
 interface ChangeTracking {
   changed: Set<string>;
   deleted: Set<string>;
-}
-
-/**
- * Callback for recording entity change events for sync.
- * Called after each mutation with entity info.
- */
-export type EventRecordCallback = (
-  entityType: string,
-  entityId: string,
-  operation: 'create' | 'update' | 'delete',
-  data: Record<string, unknown>,
-  changedFields?: string[]
-) => void;
-
-/**
- * Step loading state for progressive loading.
- */
-export interface StepLoadingState {
-  totalSteps: number;
-  loadedCount: number;
-  isLoadingMore: boolean;
-  allLoaded: boolean;
-}
-
-/**
- * Data chunk for progressive step loading (matches StepChunkResponse from API).
- */
-export interface StepChunkData {
-  steps: Step[];
-  substeps: Substep[];
-  substepImages: SubstepImageRow[];
-  substepPartTools: SubstepPartToolRow[];
-  substepNotes: SubstepNoteRow[];
-  substepDescriptions: SubstepDescriptionRow[];
-  substepVideoSections: SubstepVideoSectionRow[];
-  drawings: DrawingRow[];
-  hasMore: boolean;
 }
 
 interface StoreState {
@@ -352,16 +248,14 @@ const initialState: StoreState = {
 // Store
 // ============================================
 
-export const useSimpleStore = create<StoreState & StoreActions>()(
+export const useEditorStore = create<StoreState & StoreActions>()(
   immer((set, get) => ({
     ...initialState,
 
     setData: (data) => {
-      // Clone outside Immer draft (structuredClone can't handle proxies)
-      const savedSnapshot = JSON.parse(JSON.stringify(data)) as InstructionData;
       set((s) => {
         s.data = data;
-        s.lastSavedData = savedSnapshot;
+        s.lastSavedData = data;
         s.isLoading = false;
         s.error = null;
         s.instructionChanged = false;
@@ -369,52 +263,56 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
       });
     },
 
-    restoreData: (data) => set((s) => {
-      s.data = data;
-      const saved = s.lastSavedData;
-      if (!saved) {
-        s.instructionChanged = true;
-        s.changes = initialChanges();
-        return;
-      }
+    restoreData: (data) => {
+      // Read lastSavedData outside the Immer draft to get frozen objects
+      const saved = get().lastSavedData;
 
-      // Instruction-level diff
-      s.instructionChanged = (
-        data.instructionName !== saved.instructionName ||
-        data.instructionDescription !== saved.instructionDescription ||
-        data.instructionPreviewImageId !== saved.instructionPreviewImageId ||
-        data.coverImageAreaId !== saved.coverImageAreaId ||
-        data.articleNumber !== saved.articleNumber ||
-        data.estimatedDuration !== saved.estimatedDuration
-      );
+      set((s) => {
+        s.data = data;
+        if (!saved) {
+          s.instructionChanged = true;
+          s.changes = initialChanges();
+          return;
+        }
 
-      // Entity-level diff: compare JSON of each row
-      const entityKeys = [
-        'assemblies', 'steps', 'substeps', 'videoSections', 'videoFrameAreas',
-        'viewportKeyframes', 'partTools', 'notes', 'substepImages', 'substepPartTools',
-        'substepNotes', 'substepDescriptions', 'substepVideoSections',
-        'partToolVideoFrameAreas', 'drawings', 'substepReferences',
-      ] as const;
+        // Instruction-level diff
+        s.instructionChanged = (
+          data.instructionName !== saved.instructionName ||
+          data.instructionDescription !== saved.instructionDescription ||
+          data.instructionPreviewImageId !== saved.instructionPreviewImageId ||
+          data.coverImageAreaId !== saved.coverImageAreaId ||
+          data.articleNumber !== saved.articleNumber ||
+          data.estimatedDuration !== saved.estimatedDuration
+        );
 
-      for (const key of entityKeys) {
-        const currentDict = data[key] as Record<string, unknown>;
-        const savedDict = saved[key] as Record<string, unknown>;
-        const tracking = s.changes[key];
-        tracking.changed.clear();
-        tracking.deleted.clear();
+        // Entity-level diff: reference equality (Immer structural sharing)
+        const entityKeys = [
+          'assemblies', 'steps', 'substeps', 'videoSections', 'videoFrameAreas',
+          'viewportKeyframes', 'partTools', 'notes', 'substepImages', 'substepPartTools',
+          'substepNotes', 'substepDescriptions', 'substepVideoSections',
+          'partToolVideoFrameAreas', 'drawings', 'substepReferences',
+        ] as const;
 
-        for (const id of Object.keys(currentDict)) {
-          if (!savedDict[id] || JSON.stringify(currentDict[id]) !== JSON.stringify(savedDict[id])) {
-            tracking.changed.add(id);
+        for (const key of entityKeys) {
+          const currentDict = data[key] as Record<string, unknown>;
+          const savedDict = saved[key] as Record<string, unknown>;
+          const tracking = s.changes[key];
+          tracking.changed.clear();
+          tracking.deleted.clear();
+
+          for (const id of Object.keys(currentDict)) {
+            if (!savedDict[id] || currentDict[id] !== savedDict[id]) {
+              tracking.changed.add(id);
+            }
+          }
+          for (const id of Object.keys(savedDict)) {
+            if (!currentDict[id]) {
+              tracking.deleted.add(id);
+            }
           }
         }
-        for (const id of Object.keys(savedDict)) {
-          if (!currentDict[id]) {
-            tracking.deleted.add(id);
-          }
-        }
-      }
-    }),
+      });
+    },
 
     setLoading: (loading) => set((s) => { s.isLoading = loading; }),
     setError: (error) => set((s) => { s.error = error; s.isLoading = false; }),
@@ -1176,7 +1074,7 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
       }
 
       // Generate new section ID
-      const newSectionId = `vs-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const newSectionId = uuidv4();
 
       set((s) => {
         if (!s.data) return;
@@ -1214,7 +1112,7 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
           .filter(svs => svs.videoSectionId === sectionId);
 
         linkedRows.forEach(svs => {
-          const newSvsId = `svs-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+          const newSvsId = uuidv4();
           const newSvs: SubstepVideoSectionRow = {
             id: newSvsId,
             versionId: svs.versionId,
@@ -1557,8 +1455,7 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
       const camelToSnake = (str: string): string =>
         str.replace(/[A-Z]/g, (letter) => `_${letter.toLowerCase()}`);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const toSnakeCase = (obj: any): Record<string, unknown> => {
+      const toSnakeCase = (obj: Record<string, unknown>): Record<string, unknown> => {
         const result: Record<string, unknown> = {};
         for (const [key, value] of Object.entries(obj)) {
           // Skip enriched relation arrays (not part of the DB schema)
@@ -1567,10 +1464,10 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
           // Recursively convert nested arrays and objects
           if (Array.isArray(value)) {
             result[camelToSnake(key)] = value.map(item =>
-              typeof item === 'object' && item !== null ? toSnakeCase(item) : item
+              typeof item === 'object' && item !== null ? toSnakeCase(item as Record<string, unknown>) : item
             );
           } else if (typeof value === 'object' && value !== null) {
-            result[camelToSnake(key)] = toSnakeCase(value);
+            result[camelToSnake(key)] = toSnakeCase(value as Record<string, unknown>);
           } else {
             result[camelToSnake(key)] = value;
           }
@@ -1588,7 +1485,7 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
           changed[apiKey] = Array.from(tracking.changed)
             .map((id) => dict[id])
             .filter(Boolean)
-            .map(toSnakeCase);
+            .map((item) => toSnakeCase(item as Record<string, unknown>));
         }
         if (tracking.deleted.size > 0) {
           deleted[camelToSnake(key) + '_ids'] = Array.from(tracking.deleted);
@@ -1629,13 +1526,11 @@ export const useSimpleStore = create<StoreState & StoreActions>()(
     },
 
     clearChanges: () => {
-      // Clone outside Immer draft (structuredClone can't handle proxies)
       const currentData = get().data;
-      const savedSnapshot = currentData ? JSON.parse(JSON.stringify(currentData)) as InstructionData : null;
       set((s) => {
         s.instructionChanged = false;
         s.changes = initialChanges();
-        if (savedSnapshot) s.lastSavedData = savedSnapshot;
+        if (currentData) s.lastSavedData = currentData;
       });
     },
 

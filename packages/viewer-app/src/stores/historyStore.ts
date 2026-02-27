@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { useEffect, useRef } from 'react';
-import { useSimpleStore, type InstructionData } from '@monta-vis/viewer-core';
+import { useEditorStore } from '@monta-vis/editor-core';
+import type { InstructionData } from '@monta-vis/viewer-core';
 
 /**
  * History Store for Undo/Redo functionality
@@ -51,8 +52,8 @@ export const useHistoryStore = create<HistoryState & HistoryActions>((set, get) 
 
     set((state) => {
       const newPast = state.past.length >= MAX_HISTORY_SIZE
-        ? [...state.past.slice(-(MAX_HISTORY_SIZE - 1)), structuredClone(data)]
-        : [...state.past, structuredClone(data)];
+        ? [...state.past.slice(-(MAX_HISTORY_SIZE - 1)), data]
+        : [...state.past, data];
 
       return {
         past: newPast,
@@ -69,7 +70,7 @@ export const useHistoryStore = create<HistoryState & HistoryActions>((set, get) 
     const { past, future } = get();
     if (past.length === 0) return;
 
-    const simpleStore = useSimpleStore.getState();
+    const simpleStore = useEditorStore.getState();
     const currentData = simpleStore.data;
     if (!currentData) return;
 
@@ -78,18 +79,18 @@ export const useHistoryStore = create<HistoryState & HistoryActions>((set, get) 
 
     set({
       past: newPast,
-      future: [structuredClone(currentData), ...future],
+      future: [currentData, ...future],
       isUndoRedoAction: true,
     });
 
-    simpleStore.restoreData(structuredClone(previousData));
+    simpleStore.restoreData(previousData);
   },
 
   redo: () => {
     const { past, future } = get();
     if (future.length === 0) return;
 
-    const simpleStore = useSimpleStore.getState();
+    const simpleStore = useEditorStore.getState();
     const currentData = simpleStore.data;
     if (!currentData) return;
 
@@ -97,12 +98,12 @@ export const useHistoryStore = create<HistoryState & HistoryActions>((set, get) 
     const newFuture = future.slice(1);
 
     set({
-      past: [...past, structuredClone(currentData)],
+      past: [...past, currentData],
       future: newFuture,
       isUndoRedoAction: true,
     });
 
-    simpleStore.restoreData(structuredClone(nextData));
+    simpleStore.restoreData(nextData);
   },
 
   clear: () => {
@@ -117,7 +118,7 @@ export const useHistoryStore = create<HistoryState & HistoryActions>((set, get) 
  * Debounces snapshot pushes so rapid edits group into one history entry.
  */
 export function useHistorySync() {
-  const data = useSimpleStore((state) => state.data);
+  const data = useEditorStore((state) => state.data);
   const previousDataRef = useRef<InstructionData | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 

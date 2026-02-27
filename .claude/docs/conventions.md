@@ -5,7 +5,10 @@
 ```typescript
 // GOOD — from feature barrel or component index
 import { Button } from "@/components/ui";
-import { useSimpleStore } from "@/features/instruction";
+import { InstructionData } from "@/features/instruction";
+
+// GOOD — editing imports from editor-core
+import { useEditorStore, useEditCallbacks } from "@monta-vis/editor-core";
 
 // BAD — deep import into feature internals
 import { SubstepCard } from "@/features/instruction-view/components/SubstepCard";
@@ -20,13 +23,22 @@ import { SubstepCard } from "@/features/instruction-view/components/SubstepCard"
 - CSS variables for theming (light/dark)
 - `aria-label` on all icon-only buttons
 
-## viewer-core is a Component Library
+## Package Boundaries
 
-- No routes, no pages, no Electron, no SQLite
-- Exports components, hooks, stores, types, utilities
+### viewer-core = Read-Only Component Library
+- No routes, no pages, no Electron, no SQLite, no mutation logic
+- Exports components, hooks, types, utilities
 - Consumed via `import { ... } from '@monta-vis/viewer-core'`
-- CSS exported via `@monta-vis/viewer-core/styles.css`
-- Electron-specific code belongs in `packages/viewer-app/` only
+
+### editor-core = Editing Layer
+- Depends on viewer-core, adds mutation store + persistence adapter
+- `useEditorStore` for all data mutations + change tracking
+- `PersistenceAdapter` interface for platform-agnostic save/load
+- Consumed via `import { ... } from '@monta-vis/editor-core'`
+
+### viewer-app = Electron Shell
+- Electron-specific code (IPC, SQLite, main process)
+- Implements `createElectronAdapter()` for persistence
 
 ## VideoContext = Single Source of Truth
 

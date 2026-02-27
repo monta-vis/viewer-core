@@ -43,6 +43,7 @@ interface ProjectListItem {
 declare global {
   interface Window {
     electronAPI?: {
+      onNavigate: (callback: (path: string) => void) => (() => void);
       catalogs: {
         getSafetyIcons: () => Promise<Array<{
           name: string;
@@ -296,12 +297,31 @@ function DashboardPage() {
 }
 
 // ---------------------------------------------------------------------------
+// IPC navigation listener (must be inside Router)
+// ---------------------------------------------------------------------------
+
+function NavigateListener() {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!window.electronAPI) return;
+    const cleanup = window.electronAPI.onNavigate((path) => {
+      navigate(path);
+    });
+    return cleanup;
+  }, [navigate]);
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // App (Router)
 // ---------------------------------------------------------------------------
 
 export function App() {
   return (
     <HashRouter>
+      <NavigateListener />
       <Routes>
         <Route path="/" element={<DashboardPage />} />
         <Route path="/view/:folderName" element={<ViewPage />} />

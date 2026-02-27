@@ -1,6 +1,7 @@
+import type { ReactNode } from 'react';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, X, Package, GraduationCap, Play, VideoOff, Plus, Trash2, Video, ImageIcon } from 'lucide-react';
+import { Eye, X, Package, GraduationCap, Play, VideoOff, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { Card, TutorialClickIcon } from '@/components/ui';
@@ -18,7 +19,7 @@ import { toggleCardSpeed, computeSkipTime, computeSeekTime, SKIP_SECONDS, type C
 import { VideoFrameCapture } from './VideoFrameCapture';
 import { LoupeOverlay } from './LoupeOverlay';
 import { NoteCard, getNoteSortPriority } from './NoteCard';
-import type { NoteLevel } from '@/features/instruction/utils/safetyIcons';
+import type { NoteLevel } from '@/features/instruction';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { computeContentBounds } from '../utils/computeContentBounds';
 import { useLongPress } from '../hooks/useLongPress';
@@ -27,16 +28,7 @@ import { useDoubleTap } from '../hooks/useDoubleTap';
 // Module-level: only the last card that started playing responds to ESC
 let lastPlayingCloseFn: (() => void) | null = null;
 
-/** Shared class for the circular edit-overlay buttons (video/image on top of the card image) */
-const EDIT_OVERLAY_BTN_CLASS = 'w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors cursor-pointer';
-
-/** Shared class for the small circular delete buttons */
-const DELETE_BTN_CLASS = 'w-7 h-7 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center text-red-500 hover:bg-black/60 transition-colors cursor-pointer shrink-0';
-
-/** Shared class for "Add X" placeholder buttons in edit mode */
-const ADD_PLACEHOLDER_BTN_CLASS = 'flex items-center gap-1 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-sm text-white/80 text-sm hover:bg-black/60 transition-colors cursor-pointer';
-
-/** Callbacks for inline edit controls. Only used when editMode=true. */
+/** Callbacks for edit controls. Only used when editMode=true. */
 export interface SubstepEditCallbacks {
   onEditImage?: () => void;
   onDeleteImage?: () => void;
@@ -96,10 +88,24 @@ interface SubstepCardProps {
   folderName?: string;
   /** VideoFrameArea records for localPath fallback (mweb context). */
   videoFrameAreas?: Record<string, { localPath?: string | null }>;
-  /** Show inline edit controls on all elements. Default: false */
+  /** Show edit pencil icon. Default: false */
   editMode?: boolean;
   /** Edit callbacks — only used when editMode=true */
   editCallbacks?: SubstepEditCallbacks;
+  /** Render function for the edit popover (provided by editor-core via app shell) */
+  renderEditPopover?: (props: {
+    open: boolean;
+    onClose: () => void;
+    callbacks: SubstepEditCallbacks;
+    descriptions: SubstepDescriptionRow[];
+    notes: EnrichedSubstepNote[];
+    partTools: EnrichedSubstepPartTool[];
+    repeatCount: number;
+    repeatLabel?: string | null;
+    references: Array<{ kind: string; label: string }>;
+    hasImage: boolean;
+    hasVideo: boolean;
+  }) => ReactNode;
 }
 
 export function SubstepCard({
@@ -130,8 +136,12 @@ export function SubstepCard({
   videoFrameAreas,
   editMode = false,
   editCallbacks,
+  renderEditPopover,
 }: SubstepCardProps) {
   const { t } = useTranslation();
+
+  // Edit popover state
+  const [editPopoverOpen, setEditPopoverOpen] = useState(false);
 
   // Track which individual notes are expanded (by note row id)
   const [expandedNoteIds, setExpandedNoteIds] = useState<ReadonlySet<string>>(() => new Set(notes.map(n => n.id)));
@@ -583,25 +593,30 @@ export function SubstepCard({
           );
         })()}
 
-        {/* Edit mode: video-edit + image-edit overlay buttons */}
-        {editMode && !isPlayingInline && (
-          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+        {/* Edit mode: pencil button + popover */}
+        {editMode && !isPlayingInline && editCallbacks && (
+          <div className="absolute top-2 right-12 z-30" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
-              aria-label={t('common.edit', 'Edit')}
-              className={EDIT_OVERLAY_BTN_CLASS}
-              onClick={(e) => { e.stopPropagation(); editCallbacks?.onEditVideo?.(); }}
+              aria-label={t('editorCore.editSubstep', 'Edit substep')}
+              className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors cursor-pointer"
+              onClick={() => setEditPopoverOpen((o) => !o)}
             >
-              <Video className="h-4 w-4" />
+              <Pencil className="h-4 w-4" />
             </button>
-            <button
-              type="button"
-              aria-label={t('common.edit', 'Edit')}
-              className={EDIT_OVERLAY_BTN_CLASS}
-              onClick={(e) => { e.stopPropagation(); editCallbacks?.onEditImage?.(); }}
-            >
-              <ImageIcon className="h-4 w-4" />
-            </button>
+            {editPopoverOpen && renderEditPopover?.({
+              open: editPopoverOpen,
+              onClose: () => setEditPopoverOpen(false),
+              callbacks: editCallbacks,
+              descriptions,
+              notes,
+              partTools,
+              repeatCount,
+              repeatLabel,
+              references: references.map((r) => ({ kind: r.kind, label: r.label })),
+              hasImage: !!(imageUrl || frameCaptureData),
+              hasVideo: !!videoData,
+            })}
           </div>
         )}
 
@@ -739,154 +754,48 @@ export function SubstepCard({
             onClick={(e) => e.stopPropagation()}
           >
             {sortedNotes.map((noteRow) => (
-              <div
-                key={noteRow.id}
-                data-testid={`editable-note-${noteRow.id}`}
-                className={clsx(
-                  'flex items-center gap-1',
-                  editMode && 'cursor-pointer rounded-lg hover:outline-2 hover:outline-dashed hover:outline-white/60',
-                )}
-                onClick={editMode ? (e) => { e.stopPropagation(); editCallbacks?.onEditNote?.(noteRow.id); } : undefined}
-                role={editMode ? 'button' : undefined}
-                tabIndex={editMode ? 0 : undefined}
-                onKeyDown={editMode ? (e) => { if (e.key === 'Enter') { e.stopPropagation(); editCallbacks?.onEditNote?.(noteRow.id); } } : undefined}
-              >
+              <div key={noteRow.id} className="flex items-center gap-1">
                 <NoteCard
                   level={noteRow.note.level as NoteLevel}
                   text={noteRow.note.text}
                   safetyIconId={noteRow.note.safetyIconId}
                   isExpanded={expandedNoteIds.has(noteRow.id)}
-                  onToggle={editMode ? () => {} : handleNoteToggle}
+                  onToggle={handleNoteToggle}
                   folderName={folderName}
                   videoFrameAreas={videoFrameAreas}
                 />
-                {editMode && (
-                  <button
-                    type="button"
-                    aria-label={t('common.delete', 'Delete')}
-                    className={DELETE_BTN_CLASS}
-                    onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteNote?.(noteRow.id); }}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                )}
               </div>
             ))}
           </div>
         )}
 
-        {/* Edit mode: add note placeholder when no notes */}
-        {editMode && !isPlayingInline && sortedNotes.length === 0 && (
-          <div
-            className="absolute left-2 bottom-2 z-10"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              data-testid="add-note-placeholder"
-              className={ADD_PLACEHOLDER_BTN_CLASS}
-              onClick={() => editCallbacks?.onAddNote?.()}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>{t('editorCore.addNote', 'Add note')}</span>
-            </button>
-          </div>
-        )}
-
         {/* Top right badges */}
-        {!isPlayingInline && (repeatCount > 1 || references.length > 0 || editMode) && (
+        {!isPlayingInline && (repeatCount > 1 || references.length > 0) && (
           <div
             className="absolute top-2 right-2 z-10 flex flex-col items-end gap-2"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Repeat badge — tappable in edit mode */}
-            {repeatCount > 1 ? (
-              <div className="flex items-center gap-1">
-                {editMode ? (
-                  <div
-                    data-testid="repeat-badge"
-                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm cursor-pointer hover:outline-2 hover:outline-dashed hover:outline-white/60 transition-all"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => editCallbacks?.onEditRepeat?.()}
-                    onKeyDown={(e) => { if (e.key === 'Enter') editCallbacks?.onEditRepeat?.(); }}
-                  >
-                    <span>×{repeatCount}</span>
-                    {repeatLabel && <span className="font-normal text-white/80">({repeatLabel})</span>}
-                    <button
-                      type="button"
-                      aria-label={t('common.delete', 'Delete')}
-                      className={`${DELETE_BTN_CLASS} ml-1`}
-                      onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteRepeat?.(); }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <span
-                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm"
-                    data-testid="repeat-badge"
-                  >
-                    <span>×{repeatCount}</span>
-                    {repeatLabel && <span className="font-normal text-white/80">({repeatLabel})</span>}
-                  </span>
-                )}
-              </div>
-            ) : editMode && (
-              <button
-                type="button"
-                className={ADD_PLACEHOLDER_BTN_CLASS}
-                onClick={() => editCallbacks?.onEditRepeat?.()}
+            {/* Repeat badge */}
+            {repeatCount > 1 && (
+              <span
+                className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-secondary)] bg-[var(--color-secondary)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm"
+                data-testid="repeat-badge"
               >
-                <Plus className="h-3.5 w-3.5" />
-                <span>{t('editorCore.repeat', 'Repeat')}</span>
-              </button>
+                <span>×{repeatCount}</span>
+                {repeatLabel && <span className="font-normal text-white/80">({repeatLabel})</span>}
+              </span>
             )}
 
-            {/* Reference badge — tappable in edit mode */}
-            {references.length > 0 ? (
-              <div className="flex items-center gap-1">
-                {editMode ? (
-                  <div
-                    data-testid="editable-reference-0"
-                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-reference)] bg-[var(--color-element-reference)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm cursor-pointer hover:outline-2 hover:outline-dashed hover:outline-white/60 transition-all"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => editCallbacks?.onEditReference?.(0)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') editCallbacks?.onEditReference?.(0); }}
-                  >
-                    <GraduationCap className="h-7 w-7" />
-                    <span>{references[0].label}</span>
-                    <button
-                      type="button"
-                      aria-label={t('common.delete', 'Delete')}
-                      className={`${DELETE_BTN_CLASS} ml-1`}
-                      onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteReference?.(0); }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-reference)] bg-[var(--color-element-reference)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-                    onClick={(e) => { e.stopPropagation(); onReferenceClick?.(); }}
-                    aria-label={references[0].label || t('instructionView.reference', 'Reference')}
-                  >
-                    <GraduationCap className="h-7 w-7" />
-                    <span>{references[0].label}</span>
-                  </button>
-                )}
-              </div>
-            ) : editMode && (
+            {/* Reference badge */}
+            {references.length > 0 && (
               <button
                 type="button"
-                data-testid="add-reference-placeholder"
-                className={ADD_PLACEHOLDER_BTN_CLASS}
-                onClick={() => editCallbacks?.onAddReference?.()}
+                className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-reference)] bg-[var(--color-element-reference)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); onReferenceClick?.(); }}
+                aria-label={references[0].label || t('instructionView.reference', 'Reference')}
               >
-                <Plus className="h-3.5 w-3.5" />
-                <span>{t('editorCore.addReference', 'Add reference')}</span>
+                <GraduationCap className="h-7 w-7" />
+                <span>{references[0].label}</span>
               </button>
             )}
           </div>
@@ -906,40 +815,20 @@ export function SubstepCard({
         )}
 
         {/* Bottom right: parts & tools badge */}
-        {!isPlayingInline && (partTools.length > 0 || editMode) && (
+        {!isPlayingInline && partTools.length > 0 && (
           <div
             className="absolute bottom-2 right-2 z-10 flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            {partTools.length > 0 ? (
-              <button
-                type="button"
-                data-testid={editMode ? 'editable-parts-badge' : undefined}
-                aria-label={editMode
-                  ? t('instructionView.partsTools', 'Parts/Tools')
-                  : `${partTools.length} ${t('instructionView.partsTools', 'Parts & Tools')}`}
-                className={clsx(
-                  'flex items-center gap-2 px-4 h-14 rounded-full border-2 border-[var(--color-element-tool)] bg-[var(--color-element-tool)]/20 backdrop-blur-sm text-white text-base font-medium transition-all focus:outline-none cursor-pointer',
-                  editMode
-                    ? 'hover:outline-2 hover:outline-dashed hover:outline-white/60'
-                    : 'hover:scale-105 active:scale-95',
-                )}
-                onClick={editMode ? () => editCallbacks?.onEditPartTools?.() : onPartToolClick}
-              >
-                <Package className="h-7 w-7 text-[var(--color-element-tool)]" />
-                <span>{partTools.length}</span>
-              </button>
-            ) : editMode && (
-              <button
-                type="button"
-                data-testid="add-parts-placeholder"
-                className={ADD_PLACEHOLDER_BTN_CLASS}
-                onClick={() => editCallbacks?.onEditPartTools?.()}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>{t('editorCore.addPartsTools', 'Add parts/tools')}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              aria-label={`${partTools.length} ${t('instructionView.partsTools', 'Parts & Tools')}`}
+              className="flex items-center gap-2 px-4 h-14 rounded-full border-2 border-[var(--color-element-tool)] bg-[var(--color-element-tool)]/20 backdrop-blur-sm text-white text-base font-medium transition-all focus:outline-none cursor-pointer hover:scale-105 active:scale-95"
+              onClick={onPartToolClick}
+            >
+              <Package className="h-7 w-7 text-[var(--color-element-tool)]" />
+              <span>{partTools.length}</span>
+            </button>
           </div>
         )}
 
@@ -972,64 +861,15 @@ export function SubstepCard({
         {descriptions.length > 0 ? (
           <div className="space-y-1">
             {descriptions.map((desc) => (
-              <div key={desc.id} className="group">
-                {editMode ? (
-                  <div
-                    data-testid="editable-description"
-                    className="flex items-center gap-1 text-lg text-[var(--color-text-base)] leading-relaxed cursor-pointer rounded px-1 -mx-1 hover:outline-2 hover:outline-dashed hover:outline-[var(--color-secondary)]/60"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => editCallbacks?.onEditDescription?.(desc.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') editCallbacks?.onEditDescription?.(desc.id); }}
-                  >
-                    <span className="flex-1">
-                      <span className="text-[var(--color-text-muted)]">&ndash;</span>{' '}
-                      {desc.text}
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={t('common.delete', 'Delete')}
-                      className={DELETE_BTN_CLASS}
-                      onClick={(e) => { e.stopPropagation(); editCallbacks?.onDeleteDescription?.(desc.id); }}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <p className="text-lg text-[var(--color-text-base)] leading-relaxed">
-                    <span className="text-[var(--color-text-muted)]">&ndash;</span>{' '}
-                    {desc.text}
-                  </p>
-                )}
-              </div>
+              <p key={desc.id} className="text-lg text-[var(--color-text-base)] leading-relaxed">
+                <span className="text-[var(--color-text-muted)]">&ndash;</span>{' '}
+                {desc.text}
+              </p>
             ))}
           </div>
         ) : (
           <div className="py-2 flex items-center justify-center">
             <span className="text-sm text-[var(--color-text-subtle)]">—</span>
-          </div>
-        )}
-
-        {/* Edit mode: add buttons + delete substep */}
-        {editMode && (
-          <div className="mt-2 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="flex items-center gap-1 text-sm text-[var(--color-secondary)] hover:text-[var(--color-secondary-hover)] transition-colors cursor-pointer"
-              onClick={() => editCallbacks?.onAddDescription?.()}
-            >
-              <Plus className="h-3.5 w-3.5" />
-              <span>{t('editorCore.addDescription', 'Add description')}</span>
-            </button>
-            <button
-              type="button"
-              aria-label={t('editorCore.deleteSubstep', 'Delete substep')}
-              className="flex items-center gap-1 text-sm text-red-500 hover:text-red-600 transition-colors cursor-pointer ml-auto"
-              onClick={() => editCallbacks?.onDeleteSubstep?.()}
-            >
-              <Trash2 className="h-3.5 w-3.5" />
-              <span>{t('editorCore.deleteSubstep', 'Delete substep')}</span>
-            </button>
           </div>
         )}
       </div>

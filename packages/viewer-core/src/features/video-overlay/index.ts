@@ -50,12 +50,6 @@ export {
 export { useAreaSelection } from './hooks/useAreaSelection';
 export { useAreaResize } from './hooks/useAreaResize';
 export { useVideoBounds, type VideoBounds } from './hooks/useVideoBounds';
-export {
-  useVideoFrameAreaManager,
-  type UseVideoFrameAreaManagerProps,
-  type UseVideoFrameAreaManagerReturn,
-  type CreateAreaResult,
-} from './hooks/useVideoFrameAreaManager';
 export { useAnnotationDrawing } from './hooks/useAnnotationDrawing';
 export { useAnnotationResize, type AnnotationResizeState } from './hooks/useAnnotationResize';
 export { useDrawingResize, type DrawingResizeState } from './hooks/useDrawingResize';

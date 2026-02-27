@@ -1,8 +1,5 @@
-// Simple Store exports
+// Data types and helpers (moved from simpleStore to types/data.ts)
 export {
-  useSimpleStore,
-  videoFrameAreaToViewport,
-  viewportToVideoFrameAreaCoords,
   type InstructionData,
-  type EventRecordCallback,
-} from './simpleStore';
+  videoFrameAreaToViewport,
+} from '../types/data';
