@@ -66,8 +66,16 @@ vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
   };
 });
 
+// Mock URL.createObjectURL / revokeObjectURL (not available in jsdom)
+const mockCreateObjectURL = vi.fn().mockReturnValue('blob:test-url');
+const mockRevokeObjectURL = vi.fn();
+globalThis.URL.createObjectURL = mockCreateObjectURL;
+globalThis.URL.revokeObjectURL = mockRevokeObjectURL;
+
 afterEach(() => {
   cleanup();
+  mockCreateObjectURL.mockClear();
+  mockRevokeObjectURL.mockClear();
 });
 
 const callbacks = {
