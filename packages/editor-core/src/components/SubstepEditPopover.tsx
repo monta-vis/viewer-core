@@ -766,18 +766,6 @@ export function SubstepEditPopover({
           </div>{/* end mt-4 wrapper */}
         </div>{/* end body */}
 
-        {/* ── Danger Zone Footer ── */}
-        <div className="shrink-0 flex items-center justify-end px-5 py-3 border-t border-[var(--color-border-base)]" data-testid="danger-zone">
-          <button
-            type="button"
-            data-testid="popover-delete-substep"
-            className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm text-[var(--color-text-danger)] hover:bg-red-500/10 transition-colors cursor-pointer"
-            onClick={() => fire(callbacks.onDeleteSubstep)}
-          >
-            <Trash2 className="h-4 w-4" />
-            <span>{t('editorCore.deleteSubstep', 'Delete substep')}</span>
-          </button>
-        </div>
       </div>{/* end panel */}
     </div>,
     document.body,

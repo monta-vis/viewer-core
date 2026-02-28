@@ -98,7 +98,6 @@ const callbacks = {
   onUpdateSubstepPartToolAmount: vi.fn(),
   onAddSubstepPartTool: vi.fn(),
   onDeleteSubstepPartTool: vi.fn(),
-  onDeleteSubstep: vi.fn(),
 };
 
 const mockOnUploadSubstepImage = vi.fn();
@@ -219,11 +218,6 @@ describe('SubstepEditPopover — section cards', () => {
   it('renders section-parts card when open', () => {
     render(<SubstepEditPopover {...baseProps} />);
     expect(screen.getByTestId('section-parts')).toBeInTheDocument();
-  });
-
-  it('renders danger-zone footer when open', () => {
-    render(<SubstepEditPopover {...baseProps} />);
-    expect(screen.getByTestId('danger-zone')).toBeInTheDocument();
   });
 
   it('media card shows empty state when hasImage=false and hasVideo=false', () => {
@@ -831,26 +825,6 @@ describe('SubstepEditPopover — layout', () => {
     render(<SubstepEditPopover {...baseProps} />);
     expect(screen.getByTestId('popover-col-sidebar')).toBeInTheDocument();
     expect(screen.getByTestId('popover-col-content')).toBeInTheDocument();
-  });
-});
-
-// ============================================================
-// Delete substep — no auto-close
-// ============================================================
-describe('SubstepEditPopover — delete substep', () => {
-  it('shows delete substep button', () => {
-    render(<SubstepEditPopover {...baseProps} />);
-    expect(screen.getByTestId('popover-delete-substep')).toBeInTheDocument();
-  });
-
-  it('fires onDeleteSubstep WITHOUT closing when clicked', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    await user.click(screen.getByTestId('popover-delete-substep'));
-    expect(callbacks.onDeleteSubstep).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
-    expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 });
 
