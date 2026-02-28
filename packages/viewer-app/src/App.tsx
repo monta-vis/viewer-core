@@ -166,6 +166,8 @@ function useLocalProjects() {
 // Dashboard Page
 // ---------------------------------------------------------------------------
 
+const editEnabled = import.meta.env.VITE_EDIT_ENABLED !== 'false';
+
 function DashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -285,6 +287,11 @@ function DashboardPage() {
                         onClick={() =>
                           navigate(`/view/${encodeURIComponent(project.folderName)}`)
                         }
+                        onEdit={editEnabled ? () =>
+                          navigate(`/view/${encodeURIComponent(project.folderName)}`, {
+                            state: { editMode: true },
+                          })
+                        : undefined}
                       />
                     ))}
                   </div>

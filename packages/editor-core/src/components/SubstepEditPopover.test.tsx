@@ -66,7 +66,7 @@ const callbacks = {
   onSaveNote: vi.fn(),
   onDeleteNote: vi.fn(),
   onAddNote: vi.fn(),
-  onEditRepeat: vi.fn(),
+  onSaveRepeat: vi.fn(),
   onDeleteRepeat: vi.fn(),
   onEditTutorial: vi.fn(),
   onDeleteTutorial: vi.fn(),
@@ -275,6 +275,11 @@ describe('SubstepEditPopover — media', () => {
     expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
+
+  it('media image row still has edit pencil button (regression guard)', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    expect(screen.getByLabelText('Edit image')).toBeInTheDocument();
+  });
 });
 
 // ============================================================
@@ -287,13 +292,11 @@ describe('SubstepEditPopover — descriptions', () => {
     expect(screen.getByText('Second description')).toBeInTheDocument();
   });
 
-  it('clicking edit pencil switches description row to textarea with current text', async () => {
+  it('clicking description text switches row to textarea with current text', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    const row = screen.getByTestId('popover-desc-desc-1');
-    const editBtn = row.querySelector('[aria-label="Edit description"]');
-    await user.click(editBtn!);
+    await user.click(screen.getByText('First description'));
 
     const textarea = screen.getByTestId('inline-edit-desc-desc-1');
     expect(textarea).toBeInTheDocument();
@@ -304,10 +307,8 @@ describe('SubstepEditPopover — descriptions', () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    // Enter edit mode
-    const row = screen.getByTestId('popover-desc-desc-1');
-    const editBtn = row.querySelector('[aria-label="Edit description"]');
-    await user.click(editBtn!);
+    // Enter edit mode by clicking text
+    await user.click(screen.getByText('First description'));
     expect(screen.getByTestId('inline-edit-desc-desc-1')).toBeInTheDocument();
 
     // Press Escape
@@ -324,10 +325,8 @@ describe('SubstepEditPopover — descriptions', () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    // Enter edit mode
-    const row = screen.getByTestId('popover-desc-desc-1');
-    const editBtn = row.querySelector('[aria-label="Edit description"]');
-    await user.click(editBtn!);
+    // Enter edit mode by clicking text
+    await user.click(screen.getByText('First description'));
 
     // Edit the text
     const textarea = screen.getByTestId('inline-edit-desc-desc-1');
@@ -347,9 +346,8 @@ describe('SubstepEditPopover — descriptions', () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    const row = screen.getByTestId('popover-desc-desc-1');
-    const editBtn = row.querySelector('[aria-label="Edit description"]');
-    await user.click(editBtn!);
+    // Enter edit mode by clicking text
+    await user.click(screen.getByText('First description'));
 
     const textarea = screen.getByTestId('inline-edit-desc-desc-1');
     await user.clear(textarea);
@@ -359,6 +357,12 @@ describe('SubstepEditPopover — descriptions', () => {
 
     expect(callbacks.onSaveDescription).toHaveBeenCalledWith('desc-1', 'New text');
     expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('description row does not have edit pencil button', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    const row = screen.getByTestId('popover-desc-desc-1');
+    expect(row.querySelector('[aria-label="Edit description"]')).toBeNull();
   });
 
   it('fires onDeleteDescription(id) WITHOUT closing when delete clicked', async () => {
@@ -399,13 +403,11 @@ describe('SubstepEditPopover — notes', () => {
     expect(screen.getByText('Safety note')).toBeInTheDocument();
   });
 
-  it('clicking edit on note expands row with input + SafetyIconPicker', async () => {
+  it('clicking note text expands row with input + SafetyIconPicker', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    const row = screen.getByTestId('popover-note-note-row-1');
-    const editBtn = row.querySelector('[aria-label="Edit note"]');
-    await user.click(editBtn!);
+    await user.click(screen.getByText('Safety note'));
 
     expect(screen.getByTestId('inline-edit-note-note-row-1')).toBeInTheDocument();
     expect(screen.getByTestId('inline-icon-picker')).toBeInTheDocument();
@@ -415,9 +417,8 @@ describe('SubstepEditPopover — notes', () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    const row = screen.getByTestId('popover-note-note-row-1');
-    const editBtn = row.querySelector('[aria-label="Edit note"]');
-    await user.click(editBtn!);
+    // Enter edit mode by clicking text
+    await user.click(screen.getByText('Safety note'));
 
     const input = screen.getByTestId('inline-edit-note-note-row-1');
     await user.clear(input);
@@ -433,6 +434,12 @@ describe('SubstepEditPopover — notes', () => {
       null,
     );
     expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('note row does not have edit pencil button', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    const row = screen.getByTestId('popover-note-note-row-1');
+    expect(row.querySelector('[aria-label="Edit note"]')).toBeNull();
   });
 
   it('fires onDeleteNote(id) WITHOUT closing when delete clicked', async () => {
@@ -470,7 +477,7 @@ describe('SubstepEditPopover — notes', () => {
 });
 
 // ============================================================
-// Repeat — actions do NOT auto-close
+// Repeat — inline editing
 // ============================================================
 describe('SubstepEditPopover — repeat', () => {
   it('shows repeat row when repeatCount > 1', () => {
@@ -479,16 +486,63 @@ describe('SubstepEditPopover — repeat', () => {
     expect(screen.getByText(/×3/)).toBeInTheDocument();
   });
 
-  it('fires onEditRepeat WITHOUT closing when repeat edit clicked', async () => {
+  it('clicking repeat row text opens inline repeat editor', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    const row = screen.getByTestId('popover-repeat-row');
-    const editBtn = row.querySelector('[aria-label="Edit repeat"]');
-    await user.click(editBtn!);
-    expect(callbacks.onEditRepeat).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
-    expect(baseProps.onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByText(/×3/));
+    expect(screen.getByTestId('inline-edit-repeat')).toBeInTheDocument();
+  });
+
+  it('clicking "+" on repeat shows inline repeat editor with defaults', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} repeatCount={1} />);
+
+    await user.click(screen.getByTestId('popover-add-repeat'));
+    expect(screen.getByTestId('inline-edit-repeat')).toBeInTheDocument();
+    // Default count should be 2 when no existing repeat
+    expect(screen.getByTestId('inline-edit-repeat-count')).toHaveValue(2);
+  });
+
+  it('saving inline repeat fires onSaveRepeat', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} repeatCount={1} repeatLabel={null} />);
+
+    await user.click(screen.getByTestId('popover-add-repeat'));
+
+    const countInput = screen.getByTestId('inline-edit-repeat-count');
+    await user.tripleClick(countInput);
+    await user.keyboard('5');
+
+    const labelInput = screen.getByTestId('inline-edit-repeat-label');
+    await user.type(labelInput, 'each side');
+
+    await user.click(screen.getByTestId('save-repeat'));
+
+    expect(callbacks.onSaveRepeat).toHaveBeenCalledWith(5, 'each side');
+    expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('saving inline repeat with empty label passes null', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} repeatCount={1} repeatLabel={null} />);
+
+    await user.click(screen.getByTestId('popover-add-repeat'));
+
+    await user.click(screen.getByTestId('save-repeat'));
+
+    expect(callbacks.onSaveRepeat).toHaveBeenCalledWith(2, null);
+  });
+
+  it('cancel hides inline repeat editor', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} repeatCount={1} />);
+
+    await user.click(screen.getByTestId('popover-add-repeat'));
+    expect(screen.getByTestId('inline-edit-repeat')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('cancel-repeat'));
+    expect(screen.queryByTestId('inline-edit-repeat')).not.toBeInTheDocument();
   });
 
   it('fires onDeleteRepeat WITHOUT closing when repeat delete clicked', async () => {
@@ -503,15 +557,13 @@ describe('SubstepEditPopover — repeat', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('shows "Add repeat" when repeatCount <= 1', async () => {
+  it('editing existing repeat pre-fills count and label', async () => {
     const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} repeatCount={1} />);
+    render(<SubstepEditPopover {...baseProps} repeatCount={3} repeatLabel="left & right" />);
 
-    const addBtn = screen.getByTestId('popover-add-repeat');
-    await user.click(addBtn);
-    expect(callbacks.onEditRepeat).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
-    expect(baseProps.onClose).not.toHaveBeenCalled();
+    await user.click(screen.getByText(/×3/));
+    expect(screen.getByTestId('inline-edit-repeat-count')).toHaveValue(3);
+    expect(screen.getByTestId('inline-edit-repeat-label')).toHaveValue('left & right');
   });
 });
 
@@ -524,16 +576,20 @@ describe('SubstepEditPopover — tutorials', () => {
     expect(screen.getByText('See Step 3')).toBeInTheDocument();
   });
 
-  it('fires onEditTutorial(0) WITHOUT closing when edit clicked', async () => {
+  it('fires onEditTutorial(0) WITHOUT closing when tutorial text clicked', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    const row = screen.getByTestId('popover-tutorial-0');
-    const editBtn = row.querySelector('[aria-label="Edit tutorial"]');
-    await user.click(editBtn!);
+    await user.click(screen.getByText('See Step 3'));
     expect(callbacks.onEditTutorial).toHaveBeenCalledWith(0);
     expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
+  });
+
+  it('tutorial row does not have edit pencil button', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    const row = screen.getByTestId('popover-tutorial-0');
+    expect(row.querySelector('[aria-label="Edit tutorial"]')).toBeNull();
   });
 
   it('fires onDeleteTutorial(0) WITHOUT closing when delete clicked', async () => {
@@ -548,15 +604,9 @@ describe('SubstepEditPopover — tutorials', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('shows "Add tutorial" button and fires callback WITHOUT closing', async () => {
-    const user = userEvent.setup();
+  it('tutorials add button is disabled', () => {
     render(<SubstepEditPopover {...baseProps} tutorials={[]} />);
-
-    const addBtn = screen.getByTestId('popover-add-tutorial');
-    await user.click(addBtn);
-    expect(callbacks.onAddTutorial).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
-    expect(baseProps.onClose).not.toHaveBeenCalled();
+    expect(screen.getByTestId('popover-add-tutorial')).toBeDisabled();
   });
 });
 
@@ -695,10 +745,10 @@ describe('SubstepEditPopover — note level badges', () => {
 // Two-column layout
 // ============================================================
 describe('SubstepEditPopover — layout', () => {
-  it('renders left column (media) and right column (sections)', () => {
+  it('renders sidebar and content columns', () => {
     render(<SubstepEditPopover {...baseProps} />);
-    expect(screen.getByTestId('popover-left-column')).toBeInTheDocument();
-    expect(screen.getByTestId('popover-right-column')).toBeInTheDocument();
+    expect(screen.getByTestId('popover-col-sidebar')).toBeInTheDocument();
+    expect(screen.getByTestId('popover-col-content')).toBeInTheDocument();
   });
 });
 

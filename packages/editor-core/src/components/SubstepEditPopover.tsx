@@ -88,7 +88,13 @@ interface NoteAddState {
   selectedCategory: string | null;
 }
 
-type InlineEditState = DescriptionEditState | DescriptionAddState | NoteEditState | NoteAddState | null;
+interface RepeatEditState {
+  kind: 'edit-repeat';
+  count: number;
+  label: string;
+}
+
+type InlineEditState = DescriptionEditState | DescriptionAddState | NoteEditState | NoteAddState | RepeatEditState | null;
 
 /* ── Class constants ── */
 const CARD_CLASS = 'rounded-xl border border-[var(--color-border-base)] bg-[var(--color-bg-surface)] flex flex-col';
@@ -99,7 +105,7 @@ const ROW_CLASS = 'flex items-center gap-2 px-2 py-1.5 text-sm text-[var(--color
 const ICON_BTN_CLASS = 'w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer shrink-0';
 const EDIT_BTN_CLASS = `${ICON_BTN_CLASS} hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)]`;
 const DELETE_BTN_CLASS = `${ICON_BTN_CLASS} hover:bg-red-500/10 text-red-500`;
-const ADD_BTN_HEADER_CLASS = `${ICON_BTN_CLASS} hover:bg-[var(--color-bg-hover)] text-[var(--color-secondary)]`;
+const ADD_BTN_CLASS = `${ICON_BTN_CLASS} hover:bg-[var(--color-bg-hover)] text-[var(--color-secondary)]`;
 const EMPTY_STATE_CLASS = 'flex-1 flex items-center justify-center text-sm italic text-[var(--color-text-muted)] py-4';
 const SAVE_BTN_CLASS = `${ICON_BTN_CLASS} hover:bg-[var(--color-secondary)]/20 text-[var(--color-secondary)]`;
 const CANCEL_BTN_CLASS = `${ICON_BTN_CLASS} hover:bg-[var(--color-bg-hover)] text-[var(--color-text-muted)]`;
@@ -301,6 +307,21 @@ export function SubstepEditPopover({
     setEditState(null);
   }, [editState, callbacks, captureSnapshot]);
 
+  // ── Inline repeat editing ──
+
+  const startEditRepeat = useCallback((count: number, label: string) => {
+    setEditState({ kind: 'edit-repeat', count, label });
+  }, []);
+
+  const saveRepeatEdit = useCallback(() => {
+    if (!editState || editState.kind !== 'edit-repeat') return;
+    const count = Math.max(2, editState.count);
+    const label = editState.label.trim() || null;
+    callbacks.onSaveRepeat?.(count, label);
+    captureSnapshot();
+    setEditState(null);
+  }, [editState, callbacks, captureSnapshot]);
+
   // Keyboard handler for inline editors
   const handleInlineKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
@@ -310,11 +331,13 @@ export function SubstepEditPopover({
       e.preventDefault();
       if (editState?.kind === 'edit-desc' || editState?.kind === 'add-desc') {
         saveDescEdit();
+      } else if (editState?.kind === 'edit-repeat') {
+        saveRepeatEdit();
       } else {
         saveNoteEdit();
       }
     }
-  }, [editState, saveDescEdit, saveNoteEdit]);
+  }, [editState, saveDescEdit, saveNoteEdit, saveRepeatEdit]);
 
   if (!open) return null;
 
@@ -330,7 +353,7 @@ export function SubstepEditPopover({
 
       {/* Panel */}
       <div
-        className="relative w-[95vw] sm:w-[90vw] max-w-[72rem] h-[90vh] max-h-[56rem] flex flex-col rounded-2xl bg-[var(--color-bg-elevated)] shadow-xl"
+        className="relative w-[95vw] max-w-[72rem] h-[90vh] max-h-[56rem] flex flex-col rounded-2xl bg-[var(--color-bg-elevated)] shadow-xl"
       >
         {/* ── Header ── */}
         <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-[var(--color-border-base)]">
@@ -369,10 +392,10 @@ export function SubstepEditPopover({
 
         {/* ── Body — two-column layout ── */}
         <div className="flex-1 overflow-y-auto p-5">
-          <div className="flex flex-col sm:flex-row gap-5 h-full">
+          <div className="grid grid-cols-1 md:grid-cols-[15rem_1fr] gap-4">
 
             {/* ── Left column: Media preview ── */}
-            <div className="sm:w-[40%] shrink-0 flex flex-col gap-3" data-testid="popover-left-column">
+            <div className="flex flex-col gap-3 min-w-0" data-testid="popover-col-sidebar">
               <SectionCard
                 data-testid="section-media"
                 icon={<Image className="h-4 w-4" />}
@@ -423,7 +446,7 @@ export function SubstepEditPopover({
             </div>
 
             {/* ── Right column: Section cards ── */}
-            <div className="flex-1 flex flex-col gap-4 min-w-0" data-testid="popover-right-column">
+            <div className="flex-1 flex flex-col gap-4 min-w-0" data-testid="popover-col-content">
 
               {/* Descriptions */}
               <SectionCard
@@ -431,7 +454,7 @@ export function SubstepEditPopover({
                 icon={<AlignLeft className="h-4 w-4" />}
                 title={t('editorCore.descriptions', 'Descriptions')}
                 addButton={
-                  <button type="button" data-testid="popover-add-description" aria-label={t('editorCore.addDescription', 'Add description')} className={ADD_BTN_HEADER_CLASS} onClick={startAddDesc}>
+                  <button type="button" data-testid="popover-add-description" aria-label={t('editorCore.addDescription', 'Add description')} className={ADD_BTN_CLASS} onClick={startAddDesc}>
                     <Plus className="h-4 w-4" />
                   </button>
                 }
@@ -469,10 +492,7 @@ export function SubstepEditPopover({
                       return (
                         <div key={desc.id} className={ROW_CLASS} data-testid={`popover-desc-${desc.id}`}>
                           <AlignLeft className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-                          <span className="flex-1 truncate">{desc.text}</span>
-                          <button type="button" aria-label={t('editorCore.editDescription', 'Edit description')} className={EDIT_BTN_CLASS} onClick={() => startEditDesc(desc.id, desc.text)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                          <span className="flex-1 truncate cursor-pointer" onClick={() => startEditDesc(desc.id, desc.text)}>{desc.text}</span>
                           <button type="button" aria-label={t('editorCore.deleteDescription', 'Delete description')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteDescription, desc.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -513,7 +533,7 @@ export function SubstepEditPopover({
                 icon={<StickyNote className="h-4 w-4" />}
                 title={t('editorCore.notes', 'Notes')}
                 addButton={
-                  <button type="button" data-testid="popover-add-note" aria-label={t('editorCore.addNote', 'Add note')} className={ADD_BTN_HEADER_CLASS} onClick={startAddNote}>
+                  <button type="button" data-testid="popover-add-note" aria-label={t('editorCore.addNote', 'Add note')} className={ADD_BTN_CLASS} onClick={startAddNote}>
                     <Plus className="h-4 w-4" />
                   </button>
                 }
@@ -566,10 +586,7 @@ export function SubstepEditPopover({
                             <LevelIcon className="h-3 w-3" />
                             {level}
                           </span>
-                          <span className="flex-1 truncate">{noteRow.note.text}</span>
-                          <button type="button" aria-label={t('editorCore.editNote', 'Edit note')} className={EDIT_BTN_CLASS} onClick={() => startEditNote(noteRow.id, noteRow.note.text, noteRow.note.safetyIconId, noteRow.note.safetyIconCategory ?? null)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
+                          <span className="flex-1 truncate cursor-pointer" onClick={() => startEditNote(noteRow.id, noteRow.note.text, noteRow.note.safetyIconId, noteRow.note.safetyIconCategory ?? null)}>{noteRow.note.text}</span>
                           <button type="button" aria-label={t('editorCore.deleteNote', 'Delete note')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteNote, noteRow.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -617,27 +634,56 @@ export function SubstepEditPopover({
                 data-testid="section-repeat"
                 icon={<Repeat className="h-4 w-4" />}
                 title={t('editorCore.repeat', 'Repeat')}
-                emptyText={t('editorCore.noRepeat', 'No repeat')}
+                addButton={
+                  <button type="button" data-testid="popover-add-repeat" aria-label={t('editorCore.addRepeat', 'Add repeat')} className={ADD_BTN_CLASS} onClick={() => startEditRepeat(repeatCount > 1 ? repeatCount : 2, repeatLabel ?? '')}>
+                    <Plus className="h-4 w-4" />
+                  </button>
+                }
+                emptyText={editState?.kind === 'edit-repeat' ? undefined : t('editorCore.noRepeat', 'No repeat')}
               >
-                {repeatCount > 1 ? (
+                {repeatCount > 1 && editState?.kind !== 'edit-repeat' ? (
                   <div className={ROW_CLASS} data-testid="popover-repeat-row">
                     <Repeat className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-                    <span className="flex-1 truncate">
+                    <span className="flex-1 truncate cursor-pointer" onClick={() => startEditRepeat(repeatCount, repeatLabel ?? '')}>
                       ×{repeatCount}
                       {repeatLabel && <span className="ml-1 text-[var(--color-text-muted)]">({repeatLabel})</span>}
                     </span>
-                    <button type="button" aria-label={t('editorCore.editRepeat', 'Edit repeat')} className={EDIT_BTN_CLASS} onClick={() => fire(callbacks.onEditRepeat)}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </button>
                     <button type="button" aria-label={t('editorCore.deleteRepeat', 'Delete repeat')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteRepeat)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
-                ) : (
-                  <button type="button" data-testid="popover-add-repeat" className="flex items-center gap-1.5 px-2 py-1.5 text-sm text-[var(--color-secondary)] hover:text-[var(--color-secondary-hover)] transition-colors cursor-pointer" onClick={() => fire(callbacks.onEditRepeat)}>
-                    <Plus className="h-3.5 w-3.5" />
-                    <span>{t('editorCore.addRepeat', 'Add repeat')}</span>
-                  </button>
+                ) : undefined}
+                {editState?.kind === 'edit-repeat' && (
+                  <div className="flex flex-col gap-1 px-2 py-1.5" data-testid="inline-edit-repeat">
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={2}
+                        data-testid="inline-edit-repeat-count"
+                        value={editState.count}
+                        onChange={(e) => setEditState({ ...editState, count: Math.max(2, parseInt(e.target.value, 10) || 2) })}
+                        onKeyDown={handleInlineKeyDown}
+                        className="w-16 px-2 py-1.5 rounded-lg text-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                      />
+                      <input
+                        type="text"
+                        data-testid="inline-edit-repeat-label"
+                        value={editState.label}
+                        onChange={(e) => setEditState({ ...editState, label: e.target.value })}
+                        onKeyDown={handleInlineKeyDown}
+                        placeholder={t('editorCore.repeatLabel', 'Label (optional)')}
+                        className="flex-1 px-2 py-1.5 rounded-lg text-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-1">
+                      <button type="button" aria-label={t('common.cancel', 'Cancel')} data-testid="cancel-repeat" className={CANCEL_BTN_CLASS} onClick={() => setEditState(null)}>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                      <button type="button" aria-label={t('common.save', 'Save')} data-testid="save-repeat" className={SAVE_BTN_CLASS} onClick={saveRepeatEdit}>
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 )}
               </SectionCard>
 
@@ -647,7 +693,7 @@ export function SubstepEditPopover({
                 icon={<GraduationCap className="h-4 w-4" />}
                 title={t('editorCore.tutorials', 'Tutorials')}
                 addButton={
-                  <button type="button" data-testid="popover-add-tutorial" aria-label={t('editorCore.addTutorial', 'Add tutorial')} className={ADD_BTN_HEADER_CLASS} onClick={() => fire(callbacks.onAddTutorial)}>
+                  <button type="button" data-testid="popover-add-tutorial" aria-label={t('editorCore.addTutorial', 'Add tutorial')} className={`${ADD_BTN_CLASS} opacity-50 cursor-not-allowed`} disabled>
                     <Plus className="h-4 w-4" />
                   </button>
                 }
@@ -658,10 +704,7 @@ export function SubstepEditPopover({
                     {tutorials.map((ref, idx) => (
                       <div key={`${ref.kind}-${idx}`} className={ROW_CLASS} data-testid={`popover-tutorial-${idx}`}>
                         <GraduationCap className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-                        <span className="flex-1 truncate">{ref.label}</span>
-                        <button type="button" aria-label={t('editorCore.editTutorial', 'Edit tutorial')} className={EDIT_BTN_CLASS} onClick={() => fireWithArg(callbacks.onEditTutorial, idx)}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
+                        <span className="flex-1 truncate cursor-pointer" onClick={() => fireWithArg(callbacks.onEditTutorial, idx)}>{ref.label}</span>
                         <button type="button" aria-label={t('editorCore.deleteTutorial', 'Delete tutorial')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteTutorial, idx)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -673,17 +716,26 @@ export function SubstepEditPopover({
 
 
             </div>{/* end right column */}
-          </div>{/* end two-column flex */}
+          </div>{/* end two-column grid */}
 
           {/* Parts/Tools — full-width inline-editable table */}
+          <div className="mt-4">
           <SectionCard
             data-testid="section-parts"
             icon={<Package className="h-4 w-4" />}
             title={t('editorCore.partsTools', 'Parts/Tools')}
+            addButton={
+              <button type="button" data-testid="parttool-add" aria-label={t('editorCore.addPartTool', 'Add part/tool')} className={ADD_BTN_CLASS} onClick={partToolCallbacks.onAdd}>
+                <Plus className="h-4 w-4" />
+              </button>
+            }
             emptyText={t('editorCore.noPartsTools', 'No parts/tools')}
           >
-            <PartToolTable partTools={partTools} callbacks={partToolCallbacks} />
+            {partTools.length > 0 ? (
+              <PartToolTable partTools={partTools} callbacks={partToolCallbacks} />
+            ) : undefined}
           </SectionCard>
+          </div>{/* end mt-4 wrapper */}
         </div>{/* end body */}
 
         {/* ── Danger Zone Footer ── */}

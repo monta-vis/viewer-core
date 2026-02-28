@@ -30,6 +30,7 @@ npm run typecheck    # Typecheck all packages
 6. **English only** — all `.md` files must be written in English.
 7. **No hallucinations** — if unsure, investigate first. Never make claims about code without reading it.
 8. **Echo Task:** At the end of every response, repeat the user's original question/task as plain text (e.g., `> Task: "your question here"`).
+9. If you change something in editor-core or viewer-core rebuild it at the end
 
 ## Critical Constraints
 

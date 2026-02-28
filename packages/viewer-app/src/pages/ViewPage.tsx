@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import {
@@ -36,6 +36,8 @@ function translateData(
   return applyTranslationsToStore(base, rows);
 }
 
+const editEnabled = import.meta.env.VITE_EDIT_ENABLED !== 'false';
+
 function generateId(): string {
   return crypto.randomUUID();
 }
@@ -43,6 +45,8 @@ function generateId(): string {
 export function ViewPage() {
   const { folderName } = useParams<{ folderName: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const editModeActive = (location.state as { editMode?: boolean } | null)?.editMode ?? false;
   const { t, i18n } = useTranslation();
 
   const [data, setData] = useState<InstructionData | null>(null);
@@ -235,6 +239,15 @@ export function ViewPage() {
     store.deleteNote(substepNote.noteId);
   }, []);
 
+  // --- Repeat operations (inline save) ---
+  const onSaveRepeat = useCallback((count: number, label: string | null, substepId: string) => {
+    useEditorStore.getState().updateSubstep(substepId, { repeatCount: count, repeatLabel: label });
+  }, []);
+
+  const onDeleteRepeat = useCallback((substepId: string) => {
+    useEditorStore.getState().updateSubstep(substepId, { repeatCount: 1, repeatLabel: null });
+  }, []);
+
   // --- Delete operations (direct store calls) ---
   const onDeleteSubstep = useCallback((substepId: string) => {
     useEditorStore.getState().deleteSubstep(substepId);
@@ -279,13 +292,15 @@ export function ViewPage() {
     onSaveNote,
     onDeleteNote,
     onAddNote,
+    onSaveRepeat,
+    onDeleteRepeat,
     onDeleteSubstep,
     onDeleteImage,
     onDeleteTutorial,
     onDeletePartTool,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
-    onSaveNote, onDeleteNote, onAddNote,
+    onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
     onDeleteSubstep, onDeleteImage, onDeleteTutorial, onDeletePartTool,
   ]);
 
@@ -340,8 +355,9 @@ export function ViewPage() {
                   onStepChange={setSelectedStepId}
                   onBreak={() => navigate("/")}
                   folderName={decodedFolderName}
-                  editCallbacks={editCallbacks}
-                  renderEditPopover={renderEditPopover}
+                  editModeActive={editEnabled && editModeActive}
+                  editCallbacks={editEnabled ? editCallbacks : undefined}
+                  renderEditPopover={editEnabled ? renderEditPopover : undefined}
                 />
               </InstructionViewContainer>
             </ViewerDataProvider>

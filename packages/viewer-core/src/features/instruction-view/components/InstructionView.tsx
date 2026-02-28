@@ -82,6 +82,8 @@ interface InstructionViewProps {
   initialPartsDrawerOpen?: boolean;
   /** Enable guided tutorial overlay (3-step walkthrough). Default: false */
   tutorial?: boolean;
+  /** Whether edit mode is active (controlled by parent). Default: false */
+  editModeActive?: boolean;
   /** Edit callbacks per substep (substepId passed as first arg) */
   editCallbacks?: {
     onEditImage?: (substepId: string) => void;
@@ -94,7 +96,8 @@ interface InstructionViewProps {
     onSaveNote?: (noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => void;
     onDeleteNote?: (noteRowId: string, substepId: string) => void;
     onAddNote?: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => void;
-    onEditRepeat?: (substepId: string) => void;
+    onSaveRepeat?: (count: number, label: string | null, substepId: string) => void;
+    onDeleteRepeat?: (substepId: string) => void;
     onEditTutorial?: (tutorialIndex: number, substepId: string) => void;
     onDeleteTutorial?: (tutorialIndex: number, substepId: string) => void;
     onAddTutorial?: (substepId: string) => void;
@@ -134,7 +137,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editCallbacks, partToolCatalog, renderEditPopover }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, partToolCatalog, renderEditPopover }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -257,8 +260,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   // Tutorial step state (null = not active)
   const [tutorialStep, setTutorialStep] = useState<TutorialStep>(() => getInitialTutorialStep(tutorial));
 
-  // Edit mode is active whenever editCallbacks are provided (no toggle needed)
-  const effectiveEditMode = !!editCallbacks;
+  // Edit mode: requires both the prop being true AND editCallbacks being provided
+  const effectiveEditMode = editModeActive && !!editCallbacks;
 
   // Stable factory for per-substep edit callbacks (avoids creating N objects per render tick)
   const makeSubstepEditCallbacks = useCallback(
@@ -275,7 +278,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         onSaveNote: (noteRowId, text, level, iconId, iconCat) => editCallbacks.onSaveNote?.(noteRowId, text, level, iconId, iconCat, substepId),
         onDeleteNote: (noteRowId) => editCallbacks.onDeleteNote?.(noteRowId, substepId),
         onAddNote: (text, level, iconId, iconCat) => editCallbacks.onAddNote?.(text, level, iconId, iconCat, substepId),
-        onEditRepeat: () => editCallbacks.onEditRepeat?.(substepId),
+        onSaveRepeat: (count, label) => editCallbacks.onSaveRepeat?.(count, label, substepId),
+        onDeleteRepeat: () => editCallbacks.onDeleteRepeat?.(substepId),
         onEditTutorial: (refIdx) => editCallbacks.onEditTutorial?.(refIdx, substepId),
         onDeleteTutorial: (refIdx) => editCallbacks.onDeleteTutorial?.(refIdx, substepId),
         onAddTutorial: () => editCallbacks.onAddTutorial?.(substepId),

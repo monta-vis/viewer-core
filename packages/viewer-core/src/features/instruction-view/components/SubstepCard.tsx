@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { Eye, X, Package, GraduationCap, Play, VideoOff, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 
-import { Card, TutorialClickIcon } from '@/components/ui';
+import { Card, TutorialClickIcon, IconButton } from '@/components/ui';
 import type {
   DrawingRow,
   EnrichedSubstepNote,
@@ -41,8 +41,9 @@ export interface SubstepEditCallbacks {
   onSaveNote?: (noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
   onDeleteNote?: (noteRowId: string) => void;
   onAddNote?: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
-  onEditRepeat?: () => void;
+  onSaveRepeat?: (count: number, label: string | null) => void;
   onDeleteRepeat?: () => void;
+  onEditRepeat?: () => void;
   onEditTutorial?: (tutorialIndex: number) => void;
   onDeleteTutorial?: (tutorialIndex: number) => void;
   onAddTutorial?: () => void;
@@ -603,14 +604,13 @@ export const SubstepCard = memo(function SubstepCard({
         {/* Edit mode: pencil button + popover */}
         {editMode && !isPlayingInline && editCallbacks && (
           <div className="absolute top-2 right-12 z-30" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
+            <IconButton
+              variant="overlay"
+              size="md"
+              icon={<Pencil />}
               aria-label={t('editorCore.editSubstep', 'Edit substep')}
-              className="w-10 h-10 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/80 transition-colors cursor-pointer"
               onClick={() => setEditPopoverOpen((o) => !o)}
-            >
-              <Pencil className="h-4 w-4" />
-            </button>
+            />
             {editPopoverOpen && renderEditPopover?.({
               open: editPopoverOpen,
               onClose: () => setEditPopoverOpen(false),
@@ -722,14 +722,14 @@ export const SubstepCard = memo(function SubstepCard({
         {/* Top right: close button (inline playback) */}
         {isPlayingInline && (
           <div className="absolute top-2 right-2 z-20">
-            <button
-              type="button"
+            <IconButton
+              variant="overlay"
+              size="lg"
+              icon={<X />}
               aria-label={t('common.close', 'Close')}
-              className="pointer-events-auto w-16 h-16 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white hover:bg-black/70 active:bg-[var(--color-secondary)] transition-colors cursor-pointer"
+              className="pointer-events-auto"
               onClick={(e) => { e.stopPropagation(); closeInlinePlayback(); }}
-            >
-              <X className="h-7 w-7" />
-            </button>
+            />
           </div>
         )}
 

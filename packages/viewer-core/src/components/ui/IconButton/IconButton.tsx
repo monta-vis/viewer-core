@@ -1,7 +1,7 @@
 import { type ButtonHTMLAttributes, forwardRef, type ReactNode } from 'react'
 import { clsx } from 'clsx'
 
-export type IconButtonVariant = 'default' | 'primary' | 'ghost' | 'danger'
+export type IconButtonVariant = 'default' | 'primary' | 'ghost' | 'danger' | 'overlay' | 'glass'
 export type IconButtonSize = 'sm' | 'md' | 'lg'
 
 export interface IconButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -37,6 +37,18 @@ const variantStyles: Record<IconButtonVariant, string> = {
     'active:bg-[var(--color-error)]/20',
     'focus-visible:ring-[var(--color-error)]',
   ].join(' '),
+  overlay: [
+    'bg-black/60 text-white backdrop-blur-sm',
+    'hover:bg-black/80',
+    'active:bg-black/90',
+    'focus-visible:ring-white/50',
+  ].join(' '),
+  glass: [
+    'bg-transparent text-[var(--color-text-base)]',
+    'hover:bg-white/25 dark:hover:bg-white/15',
+    'active:bg-white/35 dark:active:bg-white/25',
+    'focus-visible:ring-white/50',
+  ].join(' '),
 }
 
 // Size styles - WCAG 2.5.5 requires minimum 44x44px (2.75rem) touch targets
@@ -61,6 +73,8 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
     },
     ref
   ) => {
+    const isMinimal = variant === 'glass' || variant === 'overlay';
+
     return (
       <button
         ref={ref}
@@ -69,11 +83,12 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
         aria-pressed={selected}
         className={clsx(
           'inline-flex items-center justify-center',
-          'rounded-md',
+          variant === 'overlay' ? 'rounded-full' : variant === 'glass' ? 'rounded-none' : 'rounded-md',
           'transition-all duration-150',
-          'hover:shadow-sm',
-          'active:scale-[0.97] active:shadow-none',
-          'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
+          !isMinimal && 'hover:shadow-sm',
+          !isMinimal && 'active:scale-[0.97] active:shadow-none',
+          'focus:outline-none focus-visible:ring-2',
+          isMinimal ? 'focus-visible:ring-offset-0' : 'focus-visible:ring-offset-2',
           'disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100',
           variantStyles[variant],
           sizeStyles[size],

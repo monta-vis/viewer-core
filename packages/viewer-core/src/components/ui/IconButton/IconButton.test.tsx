@@ -66,6 +66,31 @@ describe('IconButton', () => {
     expect(screen.getByRole('button')).toHaveClass('!bg-[var(--item-bg-selected)]')
   })
 
+  it('applies glass variant styles without shadow or scale', () => {
+    render(
+      <IconButton icon={<TestIcon />} aria-label="Glass" variant="glass" />
+    )
+    const btn = screen.getByRole('button')
+    expect(btn).toHaveClass('bg-transparent')
+    expect(btn).toHaveClass('rounded-none')
+    expect(btn).not.toHaveClass('rounded-md')
+    expect(btn).not.toHaveClass('hover:shadow-sm')
+    expect(btn).not.toHaveClass('active:scale-[0.97]')
+  })
+
+  it('applies overlay variant styles with rounded-full', () => {
+    render(
+      <IconButton icon={<TestIcon />} aria-label="Overlay" variant="overlay" />
+    )
+    const btn = screen.getByRole('button', { name: 'Overlay' })
+    expect(btn).toHaveClass('bg-black/60')
+    expect(btn).toHaveClass('text-white')
+    expect(btn).toHaveClass('backdrop-blur-sm')
+    expect(btn).toHaveClass('rounded-full')
+    // overlay should NOT have the default rounded-md
+    expect(btn).not.toHaveClass('rounded-md')
+  })
+
   it('can be disabled', () => {
     render(<IconButton icon={<TestIcon />} aria-label="Disabled" disabled />)
     expect(screen.getByRole('button')).toBeDisabled()

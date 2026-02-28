@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Plus, Package, Wrench } from 'lucide-react';
+import { Trash2, Package, Wrench } from 'lucide-react';
 import type { EnrichedSubstepPartTool, PartToolRow } from '@monta-vis/viewer-core';
 import { isPartToolNameValid } from '../utils/partToolHelpers';
 
@@ -21,38 +21,25 @@ export function PartToolTable({ partTools, callbacks }: PartToolTableProps) {
   const { t } = useTranslation();
 
   return (
-    <div className="flex flex-col gap-1">
-      {partTools.length > 0 && (
-        <table className="w-full text-[0.65rem] border-collapse" data-testid="parttool-table">
-          <thead>
-            <tr className="text-[var(--color-text-muted)] text-left">
-              <th className="px-1 py-0.5 font-medium w-[2.5rem]">{t('editorCore.typePart', 'Type')}</th>
-              <th className="px-1 py-0.5 font-medium">{t('editorCore.partToolName', 'Name')}</th>
-              <th className="px-1 py-0.5 font-medium w-[4rem]">{t('editorCore.partToolPartNumber', 'Part#')}</th>
-              <th className="px-1 py-0.5 font-medium w-[2.5rem]">{t('editorCore.partToolAmount', 'Amt')}</th>
-              <th className="px-1 py-0.5 font-medium w-[3rem]">{t('editorCore.partToolUnit', 'Unit')}</th>
-              <th className="px-1 py-0.5 font-medium w-[4rem]">{t('editorCore.partToolMaterial', 'Material')}</th>
-              <th className="px-1 py-0.5 font-medium w-[3.5rem]">{t('editorCore.partToolDimension', 'Dim.')}</th>
-              <th className="px-1 py-0.5 w-[1.5rem]" />
-            </tr>
-          </thead>
-          <tbody>
-            {partTools.map((row) => (
-              <PartToolTableRow key={row.id} row={row} callbacks={callbacks} />
-            ))}
-          </tbody>
-        </table>
-      )}
-      <button
-        type="button"
-        data-testid="parttool-add"
-        className="flex items-center gap-1 px-1 py-1 text-[0.65rem] text-[var(--color-secondary)] hover:text-[var(--color-secondary-hover)] transition-colors cursor-pointer"
-        onClick={callbacks.onAdd}
-      >
-        <Plus className="h-3 w-3" />
-        <span>{t('editorCore.addPartTool', 'Add part/tool')}</span>
-      </button>
-    </div>
+    <table className="w-full text-xs border-collapse" data-testid="parttool-table">
+      <thead>
+        <tr className="text-[var(--color-text-muted)] text-left">
+          <th className="px-1 py-0.5 font-medium w-[2.5rem]">{t('editorCore.typePart', 'Type')}</th>
+          <th className="px-1 py-0.5 font-medium">{t('editorCore.partToolName', 'Name')}</th>
+          <th className="px-1 py-0.5 font-medium w-[4rem]">{t('editorCore.partToolPartNumber', 'Part#')}</th>
+          <th className="px-1 py-0.5 font-medium w-[2.5rem]">{t('editorCore.partToolAmount', 'Amt')}</th>
+          <th className="px-1 py-0.5 font-medium w-[3rem]">{t('editorCore.partToolUnit', 'Unit')}</th>
+          <th className="px-1 py-0.5 font-medium w-[4rem]">{t('editorCore.partToolMaterial', 'Material')}</th>
+          <th className="px-1 py-0.5 font-medium w-[3.5rem]">{t('editorCore.partToolDimension', 'Dim.')}</th>
+          <th className="px-1 py-0.5 w-[1.5rem]" />
+        </tr>
+      </thead>
+      <tbody>
+        {partTools.map((row) => (
+          <PartToolTableRow key={row.id} row={row} callbacks={callbacks} />
+        ))}
+      </tbody>
+    </table>
   );
 }
 
@@ -64,7 +51,7 @@ interface RowProps {
 }
 
 const INPUT_CLASS =
-  'w-full bg-transparent border border-[var(--color-border-base)] rounded px-1 py-0.5 text-[0.65rem] text-[var(--color-text-base)] focus:outline-none focus:border-[var(--color-secondary)] transition-colors';
+  'w-full bg-transparent border border-[var(--color-border-base)] rounded px-1 py-0.5 text-xs text-[var(--color-text-base)] focus:outline-none focus:border-[var(--color-secondary)] transition-colors';
 
 function PartToolTableRow({ row, callbacks }: RowProps) {
   const { t } = useTranslation();
@@ -141,7 +128,7 @@ function PartToolTableRow({ row, callbacks }: RowProps) {
           type="button"
           data-testid={`type-toggle-${row.id}`}
           aria-label={isTool ? t('editorCore.typeTool', 'Tool') : t('editorCore.typePart', 'Part')}
-          className={`flex items-center justify-center w-full rounded px-1 py-0.5 text-[0.6rem] font-semibold cursor-pointer transition-colors ${
+          className={`flex items-center justify-center w-full rounded px-1 py-0.5 text-xs font-semibold cursor-pointer transition-colors ${
             isTool
               ? 'bg-[var(--color-element-tool)]/15 text-[var(--color-element-tool)]'
               : 'bg-[var(--color-element-part)]/15 text-[var(--color-element-part)]'
