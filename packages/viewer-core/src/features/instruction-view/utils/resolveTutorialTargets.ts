@@ -1,21 +1,21 @@
 import type { Step, SubstepRow } from '@/features/instruction';
 
-export interface ReferenceTargetResult {
+export interface TutorialTargetResult {
   substepIds: string[];
   isSameStep: boolean;
 }
 
 /**
- * Resolve reference targets: determine which substeps are targeted and
+ * Resolve tutorial targets: determine which substeps are targeted and
  * whether they belong to the currently viewed step.
  */
-export function resolveReferenceTargets(
+export function resolveTutorialTargets(
   targetType: 'step' | 'substep' | 'tutorial',
   targetId: string,
   selectedStepId: string | null,
   steps: Record<string, Step>,
   substeps: Record<string, SubstepRow>,
-): ReferenceTargetResult {
+): TutorialTargetResult {
   if (targetType === 'step') {
     const targetStep = steps[targetId];
     if (!targetStep) return { substepIds: [], isSameStep: false };

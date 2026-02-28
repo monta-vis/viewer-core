@@ -86,7 +86,7 @@
   /* ── Element Type Colors (used by Parts/Tools/Reference UI) ── */
   --color-element-part: hsl(var(--hue-orange), 90%, 55%);
   --color-element-tool: hsl(var(--hue-orange), 90%, 55%);
-  --color-element-reference: hsl(var(--hue-yellow), 100%, 51%);
+  --color-element-tutorial: hsl(var(--hue-yellow), 100%, 51%);
   --color-element-image: hsl(210, 70%, 55%);
   --color-element-video: hsl(var(--hue-green), 61%, 45%);
   --color-element-description: hsl(var(--hue-purple), 60%, 60%);

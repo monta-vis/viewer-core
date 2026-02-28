@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Eye, X, Package, GraduationCap, Play, VideoOff, Pencil } from 'lucide-react';
@@ -9,6 +9,7 @@ import type {
   DrawingRow,
   EnrichedSubstepNote,
   EnrichedSubstepPartTool,
+  PartToolRow,
   SubstepDescriptionRow,
   ViewportKeyframeRow,
 } from '@/features/instruction';
@@ -34,18 +35,22 @@ export interface SubstepEditCallbacks {
   onDeleteImage?: () => void;
   onEditVideo?: () => void;
   onDeleteVideo?: () => void;
-  onEditDescription?: (descriptionId: string) => void;
+  onSaveDescription?: (descriptionId: string, text: string) => void;
   onDeleteDescription?: (descriptionId: string) => void;
-  onAddDescription?: () => void;
-  onEditNote?: (noteRowId: string) => void;
+  onAddDescription?: (text: string) => void;
+  onSaveNote?: (noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
   onDeleteNote?: (noteRowId: string) => void;
-  onAddNote?: () => void;
+  onAddNote?: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
   onEditRepeat?: () => void;
   onDeleteRepeat?: () => void;
-  onEditReference?: (referenceIndex: number) => void;
-  onDeleteReference?: (referenceIndex: number) => void;
-  onAddReference?: () => void;
+  onEditTutorial?: (tutorialIndex: number) => void;
+  onDeleteTutorial?: (tutorialIndex: number) => void;
+  onAddTutorial?: () => void;
   onEditPartTools?: () => void;
+  onUpdatePartTool?: (partToolId: string, updates: Partial<PartToolRow>) => void;
+  onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
+  onAddSubstepPartTool?: () => void;
+  onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
   onDeleteSubstep?: () => void;
 }
 
@@ -70,9 +75,9 @@ interface SubstepCardProps {
   /** Video drawings for this substep (filtered by frame during playback) */
   videoDrawings?: DrawingRow[];
   /** Rich reference display data for this substep */
-  references?: Array<{ kind: 'see' | 'tutorial'; label: string; targetId?: string; targetType?: 'step' | 'substep' | 'tutorial' }>;
+  tutorials?: Array<{ kind: 'see' | 'tutorial'; label: string; targetId?: string; targetType?: 'step' | 'substep' | 'tutorial' }>;
   /** Called when user clicks the grouped reference badge */
-  onReferenceClick?: () => void;
+  onTutorialClick?: () => void;
   /** Show tutorial highlight (orange border + click icon) */
   tutorialHighlight?: boolean;
   /** Repetition count for this substep (shows ×N badge when > 1) */
@@ -80,9 +85,9 @@ interface SubstepCardProps {
   /** Optional label for the repetition (e.g. "left & right") */
   repeatLabel?: string | null;
   /** Reference display data — adds visual indicators for reference substeps */
-  referenceDisplay?: {
+  tutorialDisplay?: {
     kind: 'see' | 'tutorial';
-    referenceLabel: string;
+    tutorialLabel: string;
   };
   /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
   folderName?: string;
@@ -102,13 +107,15 @@ interface SubstepCardProps {
     partTools: EnrichedSubstepPartTool[];
     repeatCount: number;
     repeatLabel?: string | null;
-    references: Array<{ kind: string; label: string }>;
+    tutorials: Array<{ kind: string; label: string }>;
     hasImage: boolean;
     hasVideo: boolean;
+    /** Pre-rendered media preview (image / video frame capture) matching SubstepCard appearance */
+    mediaPreview?: ReactNode;
   }) => ReactNode;
 }
 
-export function SubstepCard({
+export const SubstepCard = memo(function SubstepCard({
   title,
   stepOrder,
   imageUrl,
@@ -126,12 +133,12 @@ export function SubstepCard({
   videoData,
   imageDrawings = [],
   videoDrawings = [],
-  references = [],
-  onReferenceClick,
+  tutorials = [],
+  onTutorialClick,
   tutorialHighlight = false,
   repeatCount = 1,
   repeatLabel,
-  referenceDisplay,
+  tutorialDisplay,
   folderName,
   videoFrameAreas,
   editMode = false,
@@ -517,7 +524,7 @@ export function SubstepCard({
       selected={selected}
       className={clsx(
         landscape && 'h-full flex flex-col',
-        referenceDisplay && 'ring-2 ring-[var(--color-element-reference)]/60',
+        tutorialDisplay && 'ring-2 ring-[var(--color-element-tutorial)]/60',
       )}
     >
       {/* Image area */}
@@ -578,11 +585,11 @@ export function SubstepCard({
               />
             );
           }
-          if (referenceDisplay) {
+          if (tutorialDisplay) {
             const FallbackIcon = GraduationCap;
             return (
-              <div className="w-full h-full flex items-center justify-center" data-testid="reference-fallback-icon">
-                <FallbackIcon className="h-16 w-16 text-[var(--color-element-reference)]/40" />
+              <div className="w-full h-full flex items-center justify-center" data-testid="tutorial-fallback-icon">
+                <FallbackIcon className="h-16 w-16 text-[var(--color-element-tutorial)]/40" />
               </div>
             );
           }
@@ -613,9 +620,27 @@ export function SubstepCard({
               partTools,
               repeatCount,
               repeatLabel,
-              references: references.map((r) => ({ kind: r.kind, label: r.label })),
+              tutorials: tutorials.map((r) => ({ kind: r.kind, label: r.label })),
               hasImage: !!(imageUrl || frameCaptureData),
               hasVideo: !!videoData,
+              mediaPreview: frameCaptureData ? (
+                <VideoFrameCapture
+                  videoId={frameCaptureData.videoId}
+                  fps={frameCaptureData.fps}
+                  frameNumber={frameCaptureData.frameNumber}
+                  cropArea={frameCaptureData.cropArea}
+                  videoSrc={frameCaptureData.videoSrc}
+                  alt={altText}
+                  className="w-full h-full object-contain"
+                />
+              ) : imageUrl ? (
+                <img
+                  src={imageUrl}
+                  alt={altText}
+                  draggable={false}
+                  className="w-full h-full object-contain select-none"
+                />
+              ) : undefined,
             })}
           </div>
         )}
@@ -714,14 +739,14 @@ export function SubstepCard({
             <>
               <span className={clsx(
                 'text-base font-semibold text-white px-3 py-1 rounded-full',
-                referenceDisplay ? 'bg-[var(--color-element-reference)]/80' : 'bg-black/50',
+                tutorialDisplay ? 'bg-[var(--color-element-tutorial)]/80' : 'bg-black/50',
               )}>
                 {stepOrder}
               </span>
-              {referenceDisplay && (
+              {tutorialDisplay && (
                 <div
-                  className="w-8 h-8 rounded-full bg-[var(--color-element-reference)]/80 backdrop-blur-sm flex items-center justify-center shadow-lg"
-                  aria-label={t('instructionView.reference', 'Reference')}
+                  className="w-8 h-8 rounded-full bg-[var(--color-element-tutorial)]/80 backdrop-blur-sm flex items-center justify-center shadow-lg"
+                  aria-label={t('instructionView.tutorialLabel', 'Tutorial')}
                 >
                   <GraduationCap className="h-4 w-4 text-white" />
                 </div>
@@ -770,7 +795,7 @@ export function SubstepCard({
         )}
 
         {/* Top right badges */}
-        {!isPlayingInline && (repeatCount > 1 || references.length > 0) && (
+        {!isPlayingInline && (repeatCount > 1 || tutorials.length > 0) && (
           <div
             className="absolute top-2 right-2 z-10 flex flex-col items-end gap-2"
             onClick={(e) => e.stopPropagation()}
@@ -787,29 +812,29 @@ export function SubstepCard({
             )}
 
             {/* Reference badge */}
-            {references.length > 0 && (
+            {tutorials.length > 0 && (
               <button
                 type="button"
-                className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-reference)] bg-[var(--color-element-reference)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
-                onClick={(e) => { e.stopPropagation(); onReferenceClick?.(); }}
-                aria-label={references[0].label || t('instructionView.reference', 'Reference')}
+                className="flex items-center gap-1.5 px-4 h-14 rounded-full border-2 border-[var(--color-element-tutorial)] bg-[var(--color-element-tutorial)]/20 backdrop-blur-sm text-white text-base font-semibold shadow-sm hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); onTutorialClick?.(); }}
+                aria-label={tutorials[0].label || t('instructionView.tutorialLabel', 'Tutorial')}
               >
                 <GraduationCap className="h-7 w-7" />
-                <span>{references[0].label}</span>
+                <span>{tutorials[0].label}</span>
               </button>
             )}
           </div>
         )}
 
         {/* Bottom left: reference label */}
-        {!isPlayingInline && referenceDisplay && (
+        {!isPlayingInline && tutorialDisplay && (
           <div
             className="absolute bottom-2 left-2 z-10"
             onClick={(e) => e.stopPropagation()}
           >
-            <span className="flex items-center gap-2 px-4 h-14 rounded-full bg-[var(--color-element-reference)]/90 backdrop-blur-sm text-white text-base font-medium shadow-sm">
+            <span className="flex items-center gap-2 px-4 h-14 rounded-full bg-[var(--color-element-tutorial)]/90 backdrop-blur-sm text-white text-base font-medium shadow-sm">
               <GraduationCap className="h-7 w-7" />
-              <span>{referenceDisplay.referenceLabel}</span>
+              <span>{tutorialDisplay.tutorialLabel}</span>
             </span>
           </div>
         )}
@@ -875,4 +900,4 @@ export function SubstepCard({
       </div>
     </Card>
   );
-}
+});

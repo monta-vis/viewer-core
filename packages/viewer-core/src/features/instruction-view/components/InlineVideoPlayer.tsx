@@ -232,7 +232,7 @@ export function InlineVideoPlayer({
       <div className={clsx('flex-1 flex min-h-0 overflow-hidden', isLandscape ? 'flex-row-reverse' : 'flex-col')}>
         <div
           className={clsx('relative flex items-center justify-center bg-black overflow-hidden', isLandscape ? 'flex-1 min-w-0' : 'w-full')}
-          style={!isLandscape ? { height: '55%', minHeight: '200px' } : undefined}
+          style={!isLandscape ? { height: '55%', minHeight: '12.5rem' } : undefined}
         >
           <div className="relative flex items-center justify-center h-full aspect-square max-w-full max-h-full overflow-hidden rounded-lg">
             <VideoPlayer className="w-full h-full" viewportStyle={viewportStyle} />

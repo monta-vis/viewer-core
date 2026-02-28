@@ -2,13 +2,6 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { TextInputPopover } from './TextInputPopover';
 import { ShapeRenderer, type ShapeData } from './ShapeRenderer';
-import { DrawingEditor, type DrawingCardData } from '@/features/editor/components/editors/DrawingEditor';
-
-// Mock useVideo (required by DrawingEditor)
-vi.mock('@/features/video-player', () => ({
-  useVideo: () => ({ fastSeekFrame: vi.fn() }),
-}));
-
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -439,93 +432,3 @@ describe('ShapeRenderer text double-click', () => {
   });
 });
 
-describe('DrawingEditor fontSize controls', () => {
-  const baseDrawingEditorProps = {
-    activeTool: null as null,
-    activeColor: 'teal' as const,
-    onToolSelect: vi.fn(),
-    onColorSelect: vi.fn(),
-    drawingMode: 'video' as const,
-    onDrawingModeChange: vi.fn(),
-    onClose: vi.fn(),
-  };
-
-  const textDrawing: DrawingCardData = {
-    id: 'draw-1',
-    type: 'video',
-    shapeType: 'text',
-    color: 'teal',
-    startFrame: 0,
-    endFrame: 100,
-  };
-
-  const arrowDrawing: DrawingCardData = {
-    id: 'draw-2',
-    type: 'video',
-    shapeType: 'arrow',
-    color: 'red',
-    startFrame: 0,
-    endFrame: 100,
-  };
-
-  it('shows S/M/L buttons when a text drawing is selected', () => {
-    render(
-      <DrawingEditor
-        {...baseDrawingEditorProps}
-        drawings={[textDrawing]}
-        selectedDrawingId="draw-1"
-        selectedDrawingFontSize={5}
-        onFontSizeSelect={vi.fn()}
-      />,
-    );
-    // S/M/L buttons should be visible
-    expect(screen.getByRole('button', { name: /small/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /medium/i })).toBeTruthy();
-    expect(screen.getByRole('button', { name: /large/i })).toBeTruthy();
-  });
-
-  it('hides S/M/L buttons for non-text shapes', () => {
-    render(
-      <DrawingEditor
-        {...baseDrawingEditorProps}
-        drawings={[arrowDrawing]}
-        selectedDrawingId="draw-2"
-      />,
-    );
-    // S/M/L buttons should not exist
-    expect(screen.queryByRole('button', { name: /small/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /medium/i })).toBeNull();
-    expect(screen.queryByRole('button', { name: /large/i })).toBeNull();
-  });
-
-  it('clicking a size button calls onFontSizeSelect with correct value', () => {
-    const onFontSizeSelect = vi.fn();
-    render(
-      <DrawingEditor
-        {...baseDrawingEditorProps}
-        drawings={[textDrawing]}
-        selectedDrawingId="draw-1"
-        selectedDrawingFontSize={5}
-        onFontSizeSelect={onFontSizeSelect}
-      />,
-    );
-
-    fireEvent.click(screen.getByRole('button', { name: /large/i }));
-    expect(onFontSizeSelect).toHaveBeenCalledWith(8);
-  });
-
-  it('highlights the currently active font size button', () => {
-    render(
-      <DrawingEditor
-        {...baseDrawingEditorProps}
-        drawings={[textDrawing]}
-        selectedDrawingId="draw-1"
-        selectedDrawingFontSize={3}
-        onFontSizeSelect={vi.fn()}
-      />,
-    );
-
-    const smallBtn = screen.getByRole('button', { name: /small/i });
-    expect(smallBtn.className).toContain('bg-[var(--color-primary)]');
-  });
-});

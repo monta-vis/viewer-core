@@ -44,7 +44,8 @@ export type {
   ViewportKeyframeRow,
   DrawingRow,
   AnnotationRow,
-  SubstepReferenceRow,
+  SubstepTutorialRow,
+  SubstepTutorialRow as SubstepReferenceRow,
   SubstepRow,
 } from './types';
 
@@ -82,5 +83,15 @@ export { SAFETY_ICON_MANIFEST, SAFETY_ICON_BY_FILENAME } from './utils/safetyIco
 export type { SafetyIconEntry } from './utils/safetyIconManifest';
 
 // Utils
-export { resolveReferenceLabel, formatReferenceDisplay } from './utils/resolveReferenceLabel';
-export { formatReferenceDisplayRich, type RichReferenceDisplay } from './utils/formatReferenceDisplayRich';
+export { resolveTutorialLabel, formatTutorialDisplay } from './utils/resolveTutorialLabel';
+export { formatTutorialDisplayRich, type RichTutorialDisplay } from './utils/formatTutorialDisplayRich';
+
+// Backwards-compatible aliases (old names → new names)
+export {
+  resolveTutorialLabel as resolveReferenceLabel,
+  formatTutorialDisplay as formatReferenceDisplay,
+} from './utils/resolveTutorialLabel';
+export {
+  formatTutorialDisplayRich as formatReferenceDisplayRich,
+  type RichTutorialDisplay as RichReferenceDisplay,
+} from './utils/formatTutorialDisplayRich';

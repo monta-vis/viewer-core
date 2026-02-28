@@ -1,5 +1,5 @@
 /**
- * Utility for multiplying PartTool amounts for ReferenceCard display.
+ * Utility for multiplying PartTool amounts for TutorialCard display.
  */
 
 export interface PartToolSummary {
@@ -11,7 +11,7 @@ export interface PartToolSummary {
 /**
  * Clone part tools and multiply Part amounts by the given multiplier.
  * Tools are reusable and keep their original amount (not multiplied).
- * Used to show "target's PartTools × repeatCount" on ReferenceCards.
+ * Used to show "target's PartTools × repeatCount" on TutorialCards.
  */
 export function multiplyPartToolAmounts(
   partTools: readonly PartToolSummary[],

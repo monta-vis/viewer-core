@@ -16,7 +16,7 @@ export type {
   SubstepPartToolRow,
   SubstepNoteRow,
   SubstepDescriptionRow,
-  SubstepReferenceRow,
+  SubstepTutorialRow,
   SubstepVideoSectionRow,
   PartToolVideoFrameAreaRow,
   DrawingRow,

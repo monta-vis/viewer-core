@@ -24,7 +24,7 @@ export interface SubstepRow {
   creationOrder: number;
   title: string | null;
   description: string | null;
-  displayMode: 'normal' | 'reference';
+  displayMode: 'normal' | 'tutorial';
   repeatCount: number;        // default 1 — "do N times" badge
   repeatLabel: string | null; // e.g. "left & right", "all 4 corners"
 }
@@ -188,7 +188,7 @@ export interface SubstepDescriptionRow {
   order: number;
 }
 
-export interface SubstepReferenceRow {
+export interface SubstepTutorialRow {
   id: string;
   versionId: string;
   substepId: string;
@@ -288,7 +288,7 @@ export interface Substep extends SubstepRow {
   partToolRowIds: string[];        // -> SubstepPartToolRow
   noteRowIds: string[];            // -> SubstepNoteRow
   descriptionRowIds: string[];     // -> SubstepDescriptionRow
-  referenceRowIds: string[];       // -> SubstepReferenceRow
+  tutorialRowIds: string[];       // -> SubstepTutorialRow
 }
 
 /**

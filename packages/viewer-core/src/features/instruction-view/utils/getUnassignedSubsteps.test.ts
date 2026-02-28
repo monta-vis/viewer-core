@@ -18,7 +18,7 @@ function makeSubstep(id: string, stepId: string | null, creationOrder: number) {
     partToolRowIds: [],
     noteRowIds: [],
     descriptionRowIds: [],
-    referenceRowIds: [],
+    tutorialRowIds: [],
   };
 }
 

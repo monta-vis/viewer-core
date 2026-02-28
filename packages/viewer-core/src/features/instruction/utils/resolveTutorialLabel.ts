@@ -1,7 +1,7 @@
-import type { Step, Substep, SubstepReferenceRow } from '../types/enriched';
+import type { Step, Substep, SubstepTutorialRow } from '../types/enriched';
 
-export function resolveReferenceLabel(
-  ref: SubstepReferenceRow,
+export function resolveTutorialLabel(
+  ref: SubstepTutorialRow,
   steps: Record<string, Step>,
   substeps: Record<string, Substep>,
 ): string {
@@ -32,13 +32,13 @@ export function resolveReferenceLabel(
 }
 
 /**
- * Simple string formatter for reference display.
- * References are now pure navigation links — no repeat info.
+ * Simple string formatter for tutorial display.
+ * Tutorials are now pure navigation links — no repeat info.
  */
-export function formatReferenceDisplay(
-  ref: SubstepReferenceRow,
+export function formatTutorialDisplay(
+  ref: SubstepTutorialRow,
   steps: Record<string, Step>,
   substeps: Record<string, Substep>,
 ): string {
-  return resolveReferenceLabel(ref, steps, substeps);
+  return resolveTutorialLabel(ref, steps, substeps);
 }

@@ -58,7 +58,7 @@ const baseProps = {
   imageUrl: 'test-image.jpg',
   repeatCount: 3,
   repeatLabel: 'left & right',
-  references: [{ kind: 'see' as const, label: 'See Step 3', targetId: 'step-3', targetType: 'step' as const }],
+  tutorials: [{ kind: 'see' as const, label: 'See Step 3', targetId: 'step-3', targetType: 'step' as const }],
 };
 
 // Minimal props — missing elements (no notes, no parts, repeatCount=1, no references)
@@ -70,7 +70,7 @@ const minimalProps = {
   partTools: [] as EnrichedSubstepPartTool[],
   imageUrl: null,
   repeatCount: 1,
-  references: [] as Array<{ kind: 'see' | 'tutorial'; label: string; targetId?: string; targetType?: 'step' | 'substep' | 'tutorial' }>,
+  tutorials: [] as Array<{ kind: 'see' | 'tutorial'; label: string; targetId?: string; targetType?: 'step' | 'substep' | 'tutorial' }>,
 };
 
 const editCallbacks = {
@@ -86,9 +86,9 @@ const editCallbacks = {
   onAddNote: vi.fn(),
   onEditRepeat: vi.fn(),
   onDeleteRepeat: vi.fn(),
-  onEditReference: vi.fn(),
-  onDeleteReference: vi.fn(),
-  onAddReference: vi.fn(),
+  onEditTutorial: vi.fn(),
+  onDeleteTutorial: vi.fn(),
+  onAddTutorial: vi.fn(),
   onEditPartTools: vi.fn(),
   onDeleteSubstep: vi.fn(),
 };
@@ -168,7 +168,7 @@ describe('SubstepCard — editMode=true', () => {
     render(<SubstepCard {...minimalProps} editMode editCallbacks={editCallbacks} />);
 
     expect(screen.queryByTestId('add-note-placeholder')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('add-reference-placeholder')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('add-tutorial-placeholder')).not.toBeInTheDocument();
     expect(screen.queryByTestId('add-parts-placeholder')).not.toBeInTheDocument();
   });
 

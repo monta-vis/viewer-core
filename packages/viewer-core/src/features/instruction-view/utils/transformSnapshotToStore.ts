@@ -82,7 +82,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         partToolRowIds: s.part_tool_row_ids,
         noteRowIds: s.note_row_ids,
         descriptionRowIds: s.description_row_ids,
-        referenceRowIds: s.reference_row_ids ?? [],
+        tutorialRowIds: s.tutorial_row_ids ?? [],
       }])
     ),
     videos: Object.fromEntries(
@@ -252,8 +252,8 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         order: d.order,
       }])
     ),
-    substepReferences: Object.fromEntries(
-      Object.values(snapshot.substepReferences ?? {}).map(sr => [sr.id, {
+    substepTutorials: Object.fromEntries(
+      Object.values(snapshot.substepTutorials ?? {}).map(sr => [sr.id, {
         id: sr.id,
         versionId,
         substepId: sr.substep_id,

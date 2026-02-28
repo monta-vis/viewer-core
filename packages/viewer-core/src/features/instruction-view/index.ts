@@ -38,8 +38,18 @@ export { NoteCard } from './components/NoteCard';
 export { sqliteToSnapshot } from './utils/sqliteToSnapshot';
 export { transformSnapshotToStore } from './utils/transformSnapshotToStore';
 export { resolveRawFrameCapture, resolvePartToolFrameCapture, type FrameCaptureData } from './utils/resolveRawFrameCapture';
-export { resolveReferenceTargets, type ReferenceTargetResult } from './utils/resolveReferenceTargets';
-export { computeReferenceToggle } from './utils/referenceToggle';
+export { resolveTutorialTargets, type TutorialTargetResult } from './utils/resolveTutorialTargets';
+export { computeTutorialToggle, type ActiveTutorial } from './utils/tutorialToggle';
+
+// Backwards-compatible aliases (old names → new names)
+export {
+  resolveTutorialTargets as resolveReferenceTargets,
+  type TutorialTargetResult as ReferenceTargetResult,
+} from './utils/resolveTutorialTargets';
+export {
+  computeTutorialToggle as computeReferenceToggle,
+  type ActiveTutorial as ActiveReference,
+} from './utils/tutorialToggle';
 export { applyTranslationsToStore, type TranslationRow } from './utils/applyTranslations';
 export { flattenTranslations } from './utils/flattenTranslations';
 export { getImageDrawings, getVideoDrawings } from './utils/filterSubstepDrawings';

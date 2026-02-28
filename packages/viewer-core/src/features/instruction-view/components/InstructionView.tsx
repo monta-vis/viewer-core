@@ -1,15 +1,15 @@
 import type { ReactNode } from 'react';
 import { Fragment, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronLeft, ChevronRight, ChevronDown, Gauge, Package, Pencil, PencilOff, Plus, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, ChevronDown, Gauge, Package, Plus, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { Button, TutorialClickIcon } from '@/components/ui';
 import type { TextInputSuggestion } from '@/components/ui';
-import { isImageDrawing, isVideoDrawing, formatReferenceDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
+import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
-import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, SubstepDescriptionRow, ViewportKeyframeRow, SubstepRow, RichReferenceDisplay } from '@/features/instruction';
+import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, ViewportKeyframeRow, SubstepRow, RichTutorialDisplay, NoteLevel } from '@/features/instruction';
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
@@ -21,10 +21,10 @@ import { PartsDrawer } from './PartsDrawer';
 import { SpeedDrawer } from './SpeedDrawer';
 import { resolveRawFrameCapture } from '../utils/resolveRawFrameCapture';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
-import { resolveReferenceTargets, type ReferenceTargetResult } from '../utils/resolveReferenceTargets';
-import { computeReferenceToggle } from '../utils/referenceToggle';
+import { resolveTutorialTargets, type TutorialTargetResult } from '../utils/resolveTutorialTargets';
+import { computeTutorialToggle } from '../utils/tutorialToggle';
 import { progressPercent } from '../utils/progressPercent';
-import type { ActiveReference } from '../utils/referenceToggle';
+import type { ActiveTutorial } from '../utils/tutorialToggle';
 import type { TutorialStep } from '../utils/tutorialSteps';
 import { getInitialTutorialStep, advanceOnDrawerOpen, advanceOnDrawerClose, advanceOnSubstepClick } from '../utils/tutorialSteps';
 import {
@@ -82,25 +82,27 @@ interface InstructionViewProps {
   initialPartsDrawerOpen?: boolean;
   /** Enable guided tutorial overlay (3-step walkthrough). Default: false */
   tutorial?: boolean;
-  /** Show inline edit controls on all substep cards. Default: false */
-  editMode?: boolean;
   /** Edit callbacks per substep (substepId passed as first arg) */
   editCallbacks?: {
     onEditImage?: (substepId: string) => void;
     onDeleteImage?: (substepId: string) => void;
     onEditVideo?: (substepId: string) => void;
     onDeleteVideo?: (substepId: string) => void;
-    onEditDescription?: (descriptionId: string, substepId: string) => void;
+    onSaveDescription?: (descriptionId: string, text: string, substepId: string) => void;
     onDeleteDescription?: (descriptionId: string, substepId: string) => void;
-    onAddDescription?: (substepId: string) => void;
-    onEditNote?: (noteRowId: string, substepId: string) => void;
+    onAddDescription?: (text: string, substepId: string) => void;
+    onSaveNote?: (noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => void;
     onDeleteNote?: (noteRowId: string, substepId: string) => void;
-    onAddNote?: (substepId: string) => void;
+    onAddNote?: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => void;
     onEditRepeat?: (substepId: string) => void;
-    onEditReference?: (referenceIndex: number, substepId: string) => void;
-    onDeleteReference?: (referenceIndex: number, substepId: string) => void;
-    onAddReference?: (substepId: string) => void;
+    onEditTutorial?: (tutorialIndex: number, substepId: string) => void;
+    onDeleteTutorial?: (tutorialIndex: number, substepId: string) => void;
+    onAddTutorial?: (substepId: string) => void;
     onEditPartTools?: (substepId: string) => void;
+    onUpdatePartTool?: (partToolId: string, updates: Partial<PartToolRow>) => void;
+    onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
+    onAddSubstepPartTool?: (substepId: string) => void;
+    onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
     onDeleteSubstep?: (substepId: string) => void;
     onAddSubstep?: (stepId: string) => void;
     onReplacePartTool?: (oldPartToolId: string, newPartToolId: string) => void;
@@ -111,8 +113,6 @@ interface InstructionViewProps {
   };
   /** Catalog of available parts/tools for search + swap in PartToolDetailModal */
   partToolCatalog?: TextInputSuggestion[];
-  /** Extra content rendered in the navbar (right side) when edit mode is active. Use for save/undo/redo buttons. */
-  editNavbarExtra?: React.ReactNode;
   /** Render function for the edit popover (provided by editor-core via app shell). Passed through to SubstepCard. */
   renderEditPopover?: (props: {
     open: boolean;
@@ -123,7 +123,7 @@ interface InstructionViewProps {
     partTools: EnrichedSubstepPartTool[];
     repeatCount: number;
     repeatLabel?: string | null;
-    references: Array<{ kind: string; label: string }>;
+    tutorials: Array<{ kind: string; label: string }>;
     hasImage: boolean;
     hasVideo: boolean;
   }) => ReactNode;
@@ -134,7 +134,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editMode = false, editCallbacks, partToolCatalog, editNavbarExtra, renderEditPopover }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editCallbacks, partToolCatalog, renderEditPopover }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -257,10 +257,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   // Tutorial step state (null = not active)
   const [tutorialStep, setTutorialStep] = useState<TutorialStep>(() => getInitialTutorialStep(tutorial));
 
-  // Per-step edit toggle (internal state, reset on step change)
-  const [isEditing, setIsEditing] = useState(false);
-  useEffect(() => { setIsEditing(false); }, [step?.id]);
-  const effectiveEditMode = editMode || isEditing;
+  // Edit mode is active whenever editCallbacks are provided (no toggle needed)
+  const effectiveEditMode = !!editCallbacks;
 
   // Stable factory for per-substep edit callbacks (avoids creating N objects per render tick)
   const makeSubstepEditCallbacks = useCallback(
@@ -271,17 +269,21 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         onDeleteImage: () => editCallbacks.onDeleteImage?.(substepId),
         onEditVideo: () => editCallbacks.onEditVideo?.(substepId),
         onDeleteVideo: () => editCallbacks.onDeleteVideo?.(substepId),
-        onEditDescription: (descId) => editCallbacks.onEditDescription?.(descId, substepId),
+        onSaveDescription: (descId, text) => editCallbacks.onSaveDescription?.(descId, text, substepId),
         onDeleteDescription: (descId) => editCallbacks.onDeleteDescription?.(descId, substepId),
-        onAddDescription: () => editCallbacks.onAddDescription?.(substepId),
-        onEditNote: (noteRowId) => editCallbacks.onEditNote?.(noteRowId, substepId),
+        onAddDescription: (text) => editCallbacks.onAddDescription?.(text, substepId),
+        onSaveNote: (noteRowId, text, level, iconId, iconCat) => editCallbacks.onSaveNote?.(noteRowId, text, level, iconId, iconCat, substepId),
         onDeleteNote: (noteRowId) => editCallbacks.onDeleteNote?.(noteRowId, substepId),
-        onAddNote: () => editCallbacks.onAddNote?.(substepId),
+        onAddNote: (text, level, iconId, iconCat) => editCallbacks.onAddNote?.(text, level, iconId, iconCat, substepId),
         onEditRepeat: () => editCallbacks.onEditRepeat?.(substepId),
-        onEditReference: (refIdx) => editCallbacks.onEditReference?.(refIdx, substepId),
-        onDeleteReference: (refIdx) => editCallbacks.onDeleteReference?.(refIdx, substepId),
-        onAddReference: () => editCallbacks.onAddReference?.(substepId),
+        onEditTutorial: (refIdx) => editCallbacks.onEditTutorial?.(refIdx, substepId),
+        onDeleteTutorial: (refIdx) => editCallbacks.onDeleteTutorial?.(refIdx, substepId),
+        onAddTutorial: () => editCallbacks.onAddTutorial?.(substepId),
         onEditPartTools: () => editCallbacks.onEditPartTools?.(substepId),
+        onUpdatePartTool: (ptId, updates) => editCallbacks.onUpdatePartTool?.(ptId, updates),
+        onUpdateSubstepPartToolAmount: (sptId, amount) => editCallbacks.onUpdateSubstepPartToolAmount?.(sptId, amount),
+        onAddSubstepPartTool: () => editCallbacks.onAddSubstepPartTool?.(substepId),
+        onDeleteSubstepPartTool: (sptId) => editCallbacks.onDeleteSubstepPartTool?.(sptId),
         onDeleteSubstep: () => editCallbacks.onDeleteSubstep?.(substepId),
       };
     },
@@ -393,33 +395,33 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   }, [data?.drawings]);
 
   // Pre-compute formatted reference data per substep (rich: kind + label + repeatCount).
-  const referenceDisplayMap = useMemo(() => {
-    const map = new Map<string, RichReferenceDisplay[]>();
+  const tutorialDisplayMap = useMemo(() => {
+    const map = new Map<string, RichTutorialDisplay[]>();
     if (!data) return map;
     for (const substep of substeps) {
-      const refs = substep.referenceRowIds
-        .map((id) => data.substepReferences[id])
+      const refs = substep.tutorialRowIds
+        .map((id) => data.substepTutorials[id])
         .filter(Boolean)
         .sort((a, b) => a.order - b.order)
-        .map((ref) => formatReferenceDisplayRich(ref, data.steps, data.substeps));
+        .map((ref) => formatTutorialDisplayRich(ref, data.steps, data.substeps));
       if (refs.length > 0) map.set(substep.id, refs);
     }
     return map;
   }, [data, substeps]);
 
-  // Pre-compute referenceDisplay props per substep (for reference-mode cards)
-  const substepReferenceDisplayMap = useMemo(() => {
-    const map = new Map<string, { kind: 'see' | 'tutorial'; referenceLabel: string }>();
+  // Pre-compute tutorialDisplay props per substep (for reference-mode cards)
+  const substepTutorialDisplayMap = useMemo(() => {
+    const map = new Map<string, { kind: 'see' | 'tutorial'; tutorialLabel: string }>();
     if (!data) return map;
     for (const substep of substeps) {
-      if (substep.displayMode !== 'reference') continue;
-      const refs = referenceDisplayMap.get(substep.id);
+      if (substep.displayMode !== 'tutorial') continue;
+      const refs = tutorialDisplayMap.get(substep.id);
       if (!refs || refs.length === 0) continue;
       const firstRef = refs[0];
-      map.set(substep.id, { kind: firstRef.kind, referenceLabel: firstRef.label });
+      map.set(substep.id, { kind: firstRef.kind, tutorialLabel: firstRef.label });
     }
     return map;
-  }, [data, substeps, referenceDisplayMap]);
+  }, [data, substeps, tutorialDisplayMap]);
 
   // Compute per-substep video data for inline card playback
   const substepVideoDataMap = useMemo(() => {
@@ -508,12 +510,21 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     return map;
   }, [data, substeps, useRawVideo, useBlurred, folderName, resolveSourceVideoUrl]);
 
+  // Pre-compute per-substep edit callbacks (stable references for React.memo)
+  const substepEditCallbacksMap = useMemo(() => {
+    const map = new Map<string, SubstepEditCallbacks | undefined>();
+    for (const substep of substeps) {
+      map.set(substep.id, makeSubstepEditCallbacks(substep.id));
+    }
+    return map;
+  }, [substeps, makeSubstepEditCallbacks]);
+
   // Unified reference toggle: clicking a reference badge toggles persistent highlight / inline cards
-  const [activeReference, setActiveReference] = useState<ActiveReference | null>(null);
+  const [activeTutorial, setActiveTutorial] = useState<ActiveTutorial | null>(null);
 
   // Clear active reference when step changes
   useEffect(() => {
-    setActiveReference(null);
+    setActiveTutorial(null);
   }, [selectedStepId]);
 
   // Observe last substep card to show/hide scroll hint
@@ -535,9 +546,9 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   // Pre-compute video data for cross-step reference targets
   const activeRefVideoData = useMemo(() => {
     const map = new Map<string, { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; sections?: { startFrame: number; endFrame: number }[] }>();
-    if (!activeReference || activeReference.isSameStep || !data) return map;
+    if (!activeTutorial || activeTutorial.isSameStep || !data) return map;
 
-    for (const targetId of activeReference.targetSubstepIds) {
+    for (const targetId of activeTutorial.targetSubstepIds) {
       const targetSubstep = data.substeps[targetId];
       if (!targetSubstep) continue;
 
@@ -604,7 +615,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       }
     }
     return map;
-  }, [activeReference, data, useRawVideo, useBlurred, folderName, resolveSourceVideoUrl]);
+  }, [activeTutorial, data, useRawVideo, useBlurred, folderName, resolveSourceVideoUrl]);
 
   // Grid layout: always use the responsive column count so card size stays
   // consistent regardless of how many substeps a step has.
@@ -620,16 +631,16 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   // Click-to-navigate: scroll to target substep and toggle highlight
   const substepRefsMap = useRef(new Map<string, HTMLDivElement>());
 
-  const handleReferenceClick = useCallback((sourceSubstepId: string) => {
+  const handleTutorialClick = useCallback((sourceSubstepId: string) => {
     if (!data) return;
 
-    // Resolve ALL references for this substep and merge targets
-    const refs = referenceDisplayMap.get(sourceSubstepId) ?? [];
+    // Resolve ALL tutorials for this substep and merge targets
+    const refs = tutorialDisplayMap.get(sourceSubstepId) ?? [];
     const substepIdSet = new Set<string>();
     let allSameStep = true;
 
     for (const ref of refs) {
-      const resolved = resolveReferenceTargets(ref.targetType, ref.targetId, step?.id ?? null, data.steps, data.substeps as Record<string, SubstepRow>);
+      const resolved = resolveTutorialTargets(ref.targetType, ref.targetId, step?.id ?? null, data.steps, data.substeps as Record<string, SubstepRow>);
       for (const id of resolved.substepIds) substepIdSet.add(id);
       if (!resolved.isSameStep) allSameStep = false;
     }
@@ -637,10 +648,10 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     const allSubstepIds = [...substepIdSet];
     if (allSubstepIds.length === 0) return;
 
-    const mergedResult: ReferenceTargetResult = { substepIds: allSubstepIds, isSameStep: allSameStep };
+    const mergedResult: TutorialTargetResult = { substepIds: allSubstepIds, isSameStep: allSameStep };
 
-    setActiveReference((current) => {
-      const next = computeReferenceToggle(current, sourceSubstepId, mergedResult);
+    setActiveTutorial((current) => {
+      const next = computeTutorialToggle(current, sourceSubstepId, mergedResult);
 
       // Scroll to first same-step target on toggle-on only
       if (next?.isSameStep) {
@@ -654,7 +665,25 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
       return next;
     });
-  }, [data, step?.id, referenceDisplayMap]);
+  }, [data, step?.id, tutorialDisplayMap]);
+
+  // Pre-compute per-substep handler maps (stable references for React.memo)
+  const substepHandlersMap = useMemo(() => {
+    const map = new Map<string, { onClick: () => void; onTutorialClick: () => void; onPartToolClick: () => void }>();
+    const stepNumber = step?.stepNumber ?? 0;
+    for (const substep of substeps) {
+      const id = substep.id;
+      map.set(id, {
+        onClick: () => handleInlinePlay(id),
+        onTutorialClick: () => handleTutorialClick(id),
+        onPartToolClick: () => {
+          setHighlightedSubstep({ substepId: id, stepNumber });
+          setIsPartsDrawerOpen(true);
+        },
+      });
+    }
+    return map;
+  }, [substeps, step?.stepNumber, handleInlinePlay, handleTutorialClick]);
 
   // Handle step selection from overview
   const handleOverviewStepSelect = useCallback((stepId: string) => {
@@ -841,20 +870,6 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
           {/* Right: Feedback + Close */}
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-            {/* Consumer-provided edit navbar extras (save, undo/redo) */}
-            {effectiveEditMode && editNavbarExtra}
-            {/* Edit toggle — only visible when editCallbacks provided */}
-            {editCallbacks && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-12 sm:h-14 px-2 sm:px-3 py-0 rounded-lg hover:bg-[var(--color-bg-elevated)]"
-                onClick={() => setIsEditing((prev) => !prev)}
-                aria-label={isEditing ? t('instructionView.exitEditMode', 'Exit edit mode') : t('instructionView.enterEditMode', 'Enter edit mode')}
-              >
-                {isEditing ? <PencilOff className="h-5 w-5 sm:h-6 sm:w-6" /> : <Pencil className="h-5 w-5 sm:h-6 sm:w-6" />}
-              </Button>
-            )}
             {/* Playback speed toggle */}
             <Button
               variant="ghost"
@@ -960,8 +975,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                     })
                     .filter((p): p is EnrichedSubstepPartTool => p !== null);
 
-                  // Get pre-computed references for this substep
-                  const references = referenceDisplayMap.get(substep.id) ?? [];
+                  // Get pre-computed tutorials for this substep
+                  const tutorials = tutorialDisplayMap.get(substep.id) ?? [];
 
                   // Look up pre-computed drawings for this substep
                   const substepImageId = imageRow?.id ?? null;
@@ -972,7 +987,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                     <Fragment key={substep.id}>
                     <div className="relative" ref={index === substeps.length - 1 ? lastCardRef : undefined}>
                         <div
-                          className={`rounded-xl transition-shadow duration-300 ${activeReference?.targetSubstepIds.includes(substep.id) ? 'ring-3 ring-[var(--color-element-reference)] shadow-lg' : ''}`}
+                          className={`rounded-xl transition-shadow duration-300 ${activeTutorial?.targetSubstepIds.includes(substep.id) ? 'ring-3 ring-[var(--color-element-tutorial)] shadow-lg' : ''}`}
                           ref={(el) => { if (el) substepRefsMap.current.set(substep.id, el); }}
                         >
                           <SubstepCard
@@ -985,26 +1000,20 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                             partTools={partTools}
                             imageDrawings={imgDrawings}
                             videoDrawings={vidDrawings}
-                            references={references}
-                            onReferenceClick={() => handleReferenceClick(substep.id)}
-                            onClick={() => handleInlinePlay(substep.id)}
+                            tutorials={tutorials}
+                            onTutorialClick={substepHandlersMap.get(substep.id)?.onTutorialClick}
+                            onClick={substepHandlersMap.get(substep.id)?.onClick}
                             videoData={substepVideoDataMap.get(substep.id)}
                             isViewed={viewedSubstepIds.has(substep.id)}
                             tutorialHighlight={tutorialStep === 2 && index === 0}
                             repeatCount={substep.repeatCount}
                             repeatLabel={substep.repeatLabel}
-                            onPartToolClick={() => {
-                              setHighlightedSubstep({
-                                substepId: substep.id,
-                                stepNumber: step.stepNumber,
-                              });
-                              setIsPartsDrawerOpen(true);
-                            }}
-                            referenceDisplay={substepReferenceDisplayMap.get(substep.id)}
+                            onPartToolClick={substepHandlersMap.get(substep.id)?.onPartToolClick}
+                            tutorialDisplay={substepTutorialDisplayMap.get(substep.id)}
                             folderName={folderName}
                             videoFrameAreas={data.videoFrameAreas}
                             editMode={effectiveEditMode}
-                            editCallbacks={makeSubstepEditCallbacks(substep.id)}
+                            editCallbacks={substepEditCallbacksMap.get(substep.id)}
                             renderEditPopover={renderEditPopover}
                           />
                         </div>
@@ -1024,8 +1033,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                     </div>
 
                     {/* Cross-step reference: inline target cards after source card */}
-                    {activeReference?.sourceSubstepId === substep.id && !activeReference.isSameStep &&
-                      activeReference.targetSubstepIds.map((targetId, targetIdx) => {
+                    {activeTutorial?.sourceSubstepId === substep.id && !activeTutorial.isSameStep &&
+                      activeTutorial.targetSubstepIds.map((targetId, targetIdx) => {
                         const targetSubstep = data.substeps[targetId];
                         if (!targetSubstep) return null;
 
@@ -1059,7 +1068,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                         const targetVidDrawings = drawingMaps.video.get(targetId) ?? EMPTY_DRAWINGS;
 
                         return (
-                          <div key={targetId} className="ring-3 ring-[var(--color-element-reference)] shadow-lg rounded-xl">
+                          <div key={targetId} className="ring-3 ring-[var(--color-element-tutorial)] shadow-lg rounded-xl">
                             <SubstepCard
                               title={targetSubstep.title}
                               stepOrder={targetIdx + 1}

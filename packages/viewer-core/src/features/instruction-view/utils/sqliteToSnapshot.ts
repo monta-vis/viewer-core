@@ -42,7 +42,7 @@ type ElectronProjectData = {
   partToolVideoFrameAreas: Record<string, unknown>[];
   branding: Record<string, unknown>[];
 
-  substepReferences?: Record<string, unknown>[];
+  substepTutorials?: Record<string, unknown>[];
   safetyIcons?: Record<string, unknown>[];
   translations?: Record<string, unknown>[];
 };
@@ -138,7 +138,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
   const ptBySubstep = groupIds(data.substepPartTools, 'substep_id');
   const notesBySubstep = groupIds(data.substepNotes, 'substep_id');
   const descsBySubstep = groupIds(data.substepDescriptions, 'substep_id');
-  const refsBySubstep = groupIds(data.substepReferences ?? [], 'substep_id');
+  const refsBySubstep = groupIds(data.substepTutorials ?? [], 'substep_id');
 
   // Group viewport keyframes by video_id
   const kfByVideo = groupIds(data.viewportKeyframes, 'video_id');
@@ -167,7 +167,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       step_id: r.step_id,
       step_order: r.step_order,
       title: r.title,
-      display_mode: (r.display_mode as 'normal' | 'reference') || 'normal',
+      display_mode: (r.display_mode as 'normal' | 'tutorial') || 'normal',
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
       image_row_ids: imagesBySubstep[r.id] || [],
@@ -175,7 +175,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       part_tool_row_ids: ptBySubstep[r.id] || [],
       note_row_ids: notesBySubstep[r.id] || [],
       description_row_ids: descsBySubstep[r.id] || [],
-      reference_row_ids: refsBySubstep[r.id] || [],
+      tutorial_row_ids: refsBySubstep[r.id] || [],
     };
   }
 
@@ -305,7 +305,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
     substepNotes: keyById(data.substepNotes),
     substepDescriptions: keyById(data.substepDescriptions),
     partToolVideoFrameAreas: keyById(data.partToolVideoFrameAreas),
-    substepReferences: keyById(data.substepReferences ?? []),
+    substepTutorials: keyById(data.substepTutorials ?? []),
     safetyIcons: keyById(data.safetyIcons ?? []),
   };
 }

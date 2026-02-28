@@ -14,7 +14,7 @@ import type {
   SubstepPartToolRow,
   SubstepNoteRow,
   SubstepDescriptionRow,
-  SubstepReferenceRow,
+  SubstepTutorialRow,
   SubstepVideoSectionRow,
   VideoFrameAreaRow,
   VideoSectionRow,
@@ -56,7 +56,7 @@ export interface InstructionData {
   substepVideoSections: Record<string, SubstepVideoSectionRow>;
   partToolVideoFrameAreas: Record<string, PartToolVideoFrameAreaRow>;
   drawings: Record<string, DrawingRow>;
-  substepReferences: Record<string, SubstepReferenceRow>;
+  substepTutorials: Record<string, SubstepTutorialRow>;
   safetyIcons: Record<string, SafetyIconRow>;
 }
 

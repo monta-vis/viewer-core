@@ -46,7 +46,7 @@ export interface SnapshotSubstep {
   step_id: string;
   title: string | null;
   step_order: number;
-  display_mode?: 'normal' | 'reference';
+  display_mode?: 'normal' | 'tutorial';
   repeat_count?: number;
   repeat_label?: string | null;
   image_row_ids: string[];
@@ -54,7 +54,7 @@ export interface SnapshotSubstep {
   part_tool_row_ids: string[];
   note_row_ids: string[];
   description_row_ids: string[];
-  reference_row_ids?: string[];
+  tutorial_row_ids?: string[];
 }
 
 // ============================================
@@ -207,7 +207,7 @@ export interface SnapshotSubstepDescription {
   order: number;
 }
 
-export interface SnapshotSubstepReference {
+export interface SnapshotSubstepTutorial {
   id: string;
   substep_id: string;
   target_type: 'step' | 'substep';
@@ -218,6 +218,9 @@ export interface SnapshotSubstepReference {
   kind?: 'see' | 'tutorial';
   label?: string | null;
 }
+
+/** @deprecated Use SnapshotSubstepTutorial */
+export type SnapshotSubstepReference = SnapshotSubstepTutorial;
 
 export interface SnapshotPartToolVideoFrameArea {
   id: string;
@@ -275,7 +278,7 @@ export interface InstructionSnapshot {
   substepNotes: Record<string, SnapshotSubstepNote>;
   substepDescriptions: Record<string, SnapshotSubstepDescription>;
   partToolVideoFrameAreas: Record<string, SnapshotPartToolVideoFrameArea>;
-  substepReferences?: Record<string, SnapshotSubstepReference>;
+  substepTutorials?: Record<string, SnapshotSubstepTutorial>;
   safetyIcons?: Record<string, SnapshotSafetyIcon>;
   branding?: Array<{ id: string; primary_color?: string; secondary_color?: string; default_theme?: string }>;
 }
