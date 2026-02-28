@@ -17,6 +17,7 @@ export {
   type ProjectChanges,
   type PersistenceResult,
   type ImageUploadResult,
+  type CoverImageUploadResult,
   type ImageSource,
   type NormalizedCrop,
 } from './persistence';

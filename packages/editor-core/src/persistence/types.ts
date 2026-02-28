@@ -41,10 +41,15 @@ export type ImageSource =
   | { type: 'file'; file: File }
   | { type: 'blob'; blob: Blob; name: string };
 
+export interface CoverImageUploadResult extends PersistenceResult {
+  vfaId?: string;
+}
+
 export interface PersistenceAdapter {
   listProjects(): Promise<ProjectListItem[]>;
   getProjectData(projectId: string): Promise<unknown>;
   saveChanges(projectId: string, changes: ProjectChanges): Promise<PersistenceResult>;
   uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource, crop?: NormalizedCrop): Promise<ImageUploadResult>;
+  uploadCoverImage?(projectId: string, image: ImageSource, crop?: NormalizedCrop): Promise<CoverImageUploadResult>;
   resolveMediaUrl(projectId: string, relativePath: string): string;
 }

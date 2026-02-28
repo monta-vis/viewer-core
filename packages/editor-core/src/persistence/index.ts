@@ -4,6 +4,7 @@ export type {
   ProjectChanges,
   PersistenceResult,
   ImageUploadResult,
+  CoverImageUploadResult,
   ImageSource,
   NormalizedCrop,
 } from './types';
