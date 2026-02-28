@@ -27,7 +27,20 @@ export { EditorProvider } from './EditorProvider';
 export { useEditCallbacks, type EditCallbacks } from './hooks/useEditCallbacks';
 
 // Editor-only types (moved from viewer-core)
-export type { EventRecordCallback, StepLoadingState, StepChunkData } from './types';
+export type {
+  EventRecordCallback,
+  StepLoadingState,
+  StepChunkData,
+  CatalogEntry,
+  CatalogCategory,
+  SafetyIconCatalog,
+} from './types';
+
+// Auto-save hook (debounced persistence)
+export { useAutoSave, type UseAutoSaveOptions } from './hooks/useAutoSave';
+
+// Session history hook (scoped undo/redo for popover sessions)
+export { useSessionHistory, type UseSessionHistoryReturn } from './hooks/useSessionHistory';
 
 // SubstepEditPopover (popover-based edit UI for substep cards)
 export { SubstepEditPopover, type SubstepEditPopoverProps } from './components/SubstepEditPopover';
@@ -40,3 +53,18 @@ export {
   type CreateAreaResult,
   type VideoFrameAreaData,
 } from './hooks/useVideoFrameAreaManager';
+
+// TextEditDialog (generic text editing modal)
+export { TextEditDialog, type TextEditDialogProps } from './components/TextEditDialog';
+
+// SafetyIconPicker (icon browser with search + category tabs)
+export { SafetyIconPicker, type SafetyIconPickerProps, type SafetyIconItem } from './components/SafetyIconPicker';
+
+// NoteEditDialog (note editing with safety icon picker)
+export { NoteEditDialog, type NoteEditDialogProps } from './components/NoteEditDialog';
+
+// PartToolTable (inline-editable table for substep partTools)
+export { PartToolTable, type PartToolTableProps, type PartToolTableCallbacks } from './components/PartToolTable';
+
+// PartTool helpers
+export { createDefaultPartTool, isPartToolNameValid, sortSubstepPartTools } from './utils/partToolHelpers';

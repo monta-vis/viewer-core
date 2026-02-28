@@ -50,7 +50,7 @@ function createMockInstructionData(): InstructionData {
         partToolRowIds: [],
         noteRowIds: [],
         descriptionRowIds: [],
-        referenceRowIds: [],
+        tutorialRowIds: [],
       },
     },
     videos: {},
@@ -67,7 +67,7 @@ function createMockInstructionData(): InstructionData {
     viewportKeyframes: {},
     drawings: {},
     images: {},
-    substepReferences: {},
+    substepTutorials: {},
     safetyIcons: {},
   };
 }
@@ -274,7 +274,7 @@ describe('useEditorStore', () => {
         partToolRowIds: [],
         noteRowIds: [],
         descriptionRowIds: [],
-        referenceRowIds: [],
+        tutorialRowIds: [],
       };
       mockData.substeps['substep-3'] = {
         id: 'substep-3',
@@ -291,7 +291,7 @@ describe('useEditorStore', () => {
         partToolRowIds: [],
         noteRowIds: [],
         descriptionRowIds: [],
-        referenceRowIds: [],
+        tutorialRowIds: [],
       };
       mockData.steps['step-1'].substepIds = ['substep-1', 'substep-2', 'substep-3'];
 
@@ -355,7 +355,7 @@ describe('useEditorStore', () => {
         partToolRowIds: [],
         noteRowIds: [],
         descriptionRowIds: [],
-        referenceRowIds: [],
+        tutorialRowIds: [],
       };
 
       act(() => {

@@ -23,7 +23,7 @@ export type EventRecordCallback = (
   entityType: string,
   entityId: string,
   operation: 'create' | 'update' | 'delete',
-  data: Record<string, unknown>,
+  data: unknown,
   changedFields?: string[]
 ) => void;
 
@@ -50,4 +50,27 @@ export interface StepChunkData {
   substepVideoSections: SubstepVideoSectionRow[];
   drawings: DrawingRow[];
   hasMore: boolean;
+}
+
+// ── Safety icon catalog types (shared data contracts) ──
+
+/** A single safety icon entry from a catalog.json file. */
+export interface CatalogEntry {
+  filename: string;
+  category: string;
+  label: Record<string, string>;
+}
+
+/** A category definition from catalog.json. */
+export interface CatalogCategory {
+  id: string;
+  label: Record<string, string>;
+}
+
+/** A catalog loaded from disk with its asset directory path. */
+export interface SafetyIconCatalog {
+  name: string;
+  assetsDir: string;
+  categories: CatalogCategory[];
+  entries: CatalogEntry[];
 }

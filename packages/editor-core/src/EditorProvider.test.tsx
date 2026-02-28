@@ -46,7 +46,7 @@ function createMockData(): InstructionData {
     substepVideoSections: {},
     partToolVideoFrameAreas: {},
     drawings: {},
-    substepReferences: {},
+    substepTutorials: {},
     safetyIcons: {},
   };
 }

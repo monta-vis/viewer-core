@@ -11,7 +11,9 @@
  */
 
 import { useCallback, useMemo } from 'react';
+import type { PartToolRow } from '@monta-vis/viewer-core';
 import { useEditorStore } from '../store';
+import { createDefaultPartTool } from '../utils/partToolHelpers';
 
 /**
  * EditCallbacks matches the `editCallbacks` prop shape of InstructionView.
@@ -29,10 +31,14 @@ export interface EditCallbacks {
   onDeleteNote?: (noteRowId: string, substepId: string) => void;
   onAddNote?: (substepId: string) => void;
   onEditRepeat?: (substepId: string) => void;
-  onEditReference?: (referenceIndex: number, substepId: string) => void;
-  onDeleteReference?: (referenceIndex: number, substepId: string) => void;
-  onAddReference?: (substepId: string) => void;
+  onEditTutorial?: (tutorialIndex: number, substepId: string) => void;
+  onDeleteTutorial?: (tutorialIndex: number, substepId: string) => void;
+  onAddTutorial?: (substepId: string) => void;
   onEditPartTools?: (substepId: string) => void;
+  onUpdatePartTool?: (partToolId: string, updates: Partial<PartToolRow>) => void;
+  onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
+  onAddSubstepPartTool?: (substepId: string) => void;
+  onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
   onDeleteSubstep?: (substepId: string) => void;
   onAddSubstep?: (stepId: string) => void;
   onReplacePartTool?: (oldPartToolId: string, newPartToolId: string) => void;
@@ -73,13 +79,13 @@ export function useEditCallbacks(): EditCallbacks {
     }
   }, []);
 
-  const onDeleteReference = useCallback((refIdx: number, substepId: string) => {
+  const onDeleteTutorial = useCallback((refIdx: number, substepId: string) => {
     const store = useEditorStore.getState();
     const substep = store.data?.substeps[substepId];
     if (!substep) return;
-    const refId = substep.referenceRowIds[refIdx];
+    const refId = substep.tutorialRowIds[refIdx];
     if (refId) {
-      store.deleteSubstepReference(refId);
+      store.deleteSubstepTutorial(refId);
     }
   }, []);
 
@@ -92,19 +98,64 @@ export function useEditCallbacks(): EditCallbacks {
     }
   }, []);
 
+  const onUpdatePartTool = useCallback((partToolId: string, updates: Partial<PartToolRow>) => {
+    useEditorStore.getState().updatePartTool(partToolId, updates);
+  }, []);
+
+  const onUpdateSubstepPartToolAmount = useCallback((substepPartToolId: string, amount: number) => {
+    useEditorStore.getState().updateSubstepPartTool(substepPartToolId, { amount });
+  }, []);
+
+  const onAddSubstepPartTool = useCallback((substepId: string) => {
+    const store = useEditorStore.getState();
+    const data = store.data;
+    if (!data) return;
+    const pt = createDefaultPartTool(data.currentVersionId, data.instructionId);
+    store.addPartTool(pt);
+
+    const substep = data.substeps[substepId];
+    const maxOrder = substep
+      ? substep.partToolRowIds.reduce((max, id) => {
+          const spt = data.substepPartTools[id];
+          return spt ? Math.max(max, spt.order) : max;
+        }, 0)
+      : 0;
+
+    store.addSubstepPartTool({
+      id: crypto.randomUUID(),
+      versionId: data.currentVersionId,
+      substepId,
+      partToolId: pt.id,
+      amount: 1,
+      order: maxOrder + 1,
+    });
+  }, []);
+
+  const onDeleteSubstepPartTool = useCallback((substepPartToolId: string) => {
+    useEditorStore.getState().deleteSubstepPartTool(substepPartToolId);
+  }, []);
+
   return useMemo(() => ({
     onDeleteDescription,
     onDeleteNote,
     onDeleteSubstep,
     onDeleteImage,
-    onDeleteReference,
+    onDeleteTutorial,
     onDeletePartTool,
+    onUpdatePartTool,
+    onUpdateSubstepPartToolAmount,
+    onAddSubstepPartTool,
+    onDeleteSubstepPartTool,
   }), [
     onDeleteDescription,
     onDeleteNote,
     onDeleteSubstep,
     onDeleteImage,
-    onDeleteReference,
+    onDeleteTutorial,
     onDeletePartTool,
+    onUpdatePartTool,
+    onUpdateSubstepPartToolAmount,
+    onAddSubstepPartTool,
+    onDeleteSubstepPartTool,
   ]);
 }

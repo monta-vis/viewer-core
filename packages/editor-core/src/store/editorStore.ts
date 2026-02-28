@@ -14,7 +14,7 @@ import {
   type SubstepPartToolRow,
   type SubstepNoteRow,
   type SubstepDescriptionRow,
-  type SubstepReferenceRow,
+  type SubstepTutorialRow,
   type SubstepVideoSectionRow,
   type VideoFrameAreaRow,
   type VideoSectionRow,
@@ -35,6 +35,69 @@ import type { EventRecordCallback, StepLoadingState, StepChunkData } from '../ty
 interface ChangeTracking {
   changed: Set<string>;
   deleted: Set<string>;
+}
+
+/** Config entry for element-type dispatch in reorder/move actions */
+interface SubstepElementConfig {
+  dict: Record<string, { substepId: string; order?: number }>;
+  changes: ChangeTracking;
+  getSubstepIds: (substep: Substep) => string[];
+  filterFn?: (id: string) => boolean;
+}
+
+/** Build dispatch config for substep element types. Used by reorder and move actions. */
+function buildSubstepElementConfig(
+  data: InstructionData,
+  changes: StoreState['changes'],
+  opts?: { withPartToolFilter: boolean },
+): Record<string, SubstepElementConfig> {
+  const base: Record<string, SubstepElementConfig> = {
+    image: {
+      dict: data.substepImages as Record<string, { substepId: string; order?: number }>,
+      changes: changes.substepImages,
+      getSubstepIds: (substep: Substep) => substep.imageRowIds,
+    },
+    video: {
+      dict: data.substepVideoSections as Record<string, { substepId: string; order?: number }>,
+      changes: changes.substepVideoSections,
+      getSubstepIds: (substep: Substep) => substep.videoSectionRowIds,
+    },
+    part: {
+      dict: data.substepPartTools as Record<string, { substepId: string; order?: number }>,
+      changes: changes.substepPartTools,
+      getSubstepIds: (substep: Substep) => substep.partToolRowIds,
+    },
+    tool: {
+      dict: data.substepPartTools as Record<string, { substepId: string; order?: number }>,
+      changes: changes.substepPartTools,
+      getSubstepIds: (substep: Substep) => substep.partToolRowIds,
+    },
+    description: {
+      dict: data.substepDescriptions as Record<string, { substepId: string; order?: number }>,
+      changes: changes.substepDescriptions,
+      getSubstepIds: (substep: Substep) => substep.descriptionRowIds,
+    },
+    note: {
+      dict: data.substepNotes as Record<string, { substepId: string; order?: number }>,
+      changes: changes.substepNotes,
+      getSubstepIds: (substep: Substep) => substep.noteRowIds,
+    },
+  };
+
+  if (opts?.withPartToolFilter) {
+    base.part.filterFn = (id: string) => {
+      const row = data.substepPartTools[id];
+      const partTool = row ? data.partTools[row.partToolId] : null;
+      return partTool?.type === 'Part';
+    };
+    base.tool.filterFn = (id: string) => {
+      const row = data.substepPartTools[id];
+      const partTool = row ? data.partTools[row.partToolId] : null;
+      return partTool?.type === 'Tool';
+    };
+  }
+
+  return base;
 }
 
 interface StoreState {
@@ -68,7 +131,7 @@ interface StoreState {
     substepVideoSections: ChangeTracking;
     partToolVideoFrameAreas: ChangeTracking;
     drawings: ChangeTracking;
-    substepReferences: ChangeTracking;
+    substepTutorials: ChangeTracking;
   };
 }
 
@@ -171,10 +234,10 @@ interface StoreActions {
   updateDrawing(id: string, updates: Partial<DrawingRow>): void;
   deleteDrawing(id: string): void;
 
-  // SubstepReferences
-  addSubstepReference(row: SubstepReferenceRow): void;
-  updateSubstepReference(id: string, updates: Partial<SubstepReferenceRow>): void;
-  deleteSubstepReference(id: string): void;
+  // SubstepTutorials
+  addSubstepTutorial(row: SubstepTutorialRow): void;
+  updateSubstepTutorial(id: string, updates: Partial<SubstepTutorialRow>): void;
+  deleteSubstepTutorial(id: string): void;
 
   // ViewportKeyframes (per-Video, not per-Section)
   addViewportKeyframe(keyframe: ViewportKeyframeRow): void;
@@ -197,7 +260,7 @@ interface StoreActions {
 
   // Change tracking
   hasChanges(): boolean;
-  getChangedData(): { changed: Record<string, unknown[]>; deleted: Record<string, string[]> };
+  getChangedData(): { changed: Record<string, Record<string, unknown>[]>; deleted: Record<string, string[]> };
   clearChanges(): void;
 
   // Progressive step loading
@@ -230,7 +293,7 @@ const initialChanges = () => ({
   substepVideoSections: createEmptyTracking(),
   partToolVideoFrameAreas: createEmptyTracking(),
   drawings: createEmptyTracking(),
-  substepReferences: createEmptyTracking(),
+  substepTutorials: createEmptyTracking(),
 });
 
 const initialState: StoreState = {
@@ -290,7 +353,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           'assemblies', 'steps', 'substeps', 'videoSections', 'videoFrameAreas',
           'viewportKeyframes', 'partTools', 'notes', 'substepImages', 'substepPartTools',
           'substepNotes', 'substepDescriptions', 'substepVideoSections',
-          'partToolVideoFrameAreas', 'drawings', 'substepReferences',
+          'partToolVideoFrameAreas', 'drawings', 'substepTutorials',
         ] as const;
 
         for (const key of entityKeys) {
@@ -461,7 +524,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.steps[step.id]) {
-        onEventRecord('step', step.id, 'create', data.steps[step.id] as unknown as Record<string, unknown>);
+        onEventRecord('step', step.id, 'create', data.steps[step.id]);
       }
     },
 
@@ -473,7 +536,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.steps[id]) {
-        onEventRecord('step', id, 'update', data.steps[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('step', id, 'update', data.steps[id], Object.keys(updates));
       }
     },
 
@@ -490,7 +553,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       if (onEventRecord && data) {
         for (const { id, changes } of updates) {
           if (data.steps[id]) {
-            onEventRecord('step', id, 'update', data.steps[id] as unknown as Record<string, unknown>, Object.keys(changes));
+            onEventRecord('step', id, 'update', data.steps[id], Object.keys(changes));
           }
         }
       }
@@ -514,7 +577,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord } = get();
       if (onEventRecord && stepData) {
-        onEventRecord('step', id, 'delete', stepData as unknown as Record<string, unknown>);
+        onEventRecord('step', id, 'delete', stepData);
       }
     },
 
@@ -535,7 +598,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       // Record event for sync
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substeps[substep.id]) {
-        onEventRecord('substep', substep.id, 'create', data.substeps[substep.id] as unknown as Record<string, unknown>);
+        onEventRecord('substep', substep.id, 'create', data.substeps[substep.id]);
       }
     },
 
@@ -548,7 +611,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       // Record event for sync
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substeps[id]) {
-        onEventRecord('substep', id, 'update', data.substeps[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('substep', id, 'update', data.substeps[id], Object.keys(updates));
       }
     },
 
@@ -565,7 +628,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       if (onEventRecord && data) {
         for (const { id, changes } of updates) {
           if (data.substeps[id]) {
-            onEventRecord('substep', id, 'update', data.substeps[id] as unknown as Record<string, unknown>, Object.keys(changes));
+            onEventRecord('substep', id, 'update', data.substeps[id], Object.keys(changes));
           }
         }
       }
@@ -612,11 +675,11 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           }
         }
         // 5. SubstepReferences
-        for (const refId of substep.referenceRowIds) {
-          if (s.data.substepReferences[refId]) {
-            delete s.data.substepReferences[refId];
-            s.changes.substepReferences.changed.delete(refId);
-            s.changes.substepReferences.deleted.add(refId);
+        for (const refId of substep.tutorialRowIds) {
+          if (s.data.substepTutorials[refId]) {
+            delete s.data.substepTutorials[refId];
+            s.changes.substepTutorials.changed.delete(refId);
+            s.changes.substepTutorials.deleted.add(refId);
           }
         }
         // 6. SubstepVideoSections AND their actual VideoSections
@@ -628,7 +691,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
               const videoSection = s.data.videoSections[svs.videoSectionId];
 
               // Remove from parent video's sectionIds
-              const video = Object.values(s.data.videos).find(v => v.id === videoSection.videoId);
+              const video = s.data.videos[videoSection.videoId];
               if (video) {
                 video.sectionIds = video.sectionIds.filter(sid => sid !== svs.videoSectionId);
               }
@@ -659,7 +722,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       // Record event for sync
       const { onEventRecord } = get();
       if (onEventRecord && substepData) {
-        onEventRecord('substep', id, 'delete', substepData as unknown as Record<string, unknown>);
+        onEventRecord('substep', id, 'delete', substepData);
       }
     },
 
@@ -711,7 +774,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepImages[row.id]) {
-        onEventRecord('substep_image', row.id, 'create', data.substepImages[row.id] as unknown as Record<string, unknown>);
+        onEventRecord('substep_image', row.id, 'create', data.substepImages[row.id]);
       }
     },
 
@@ -723,7 +786,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepImages[id]) {
-        onEventRecord('substep_image', id, 'update', data.substepImages[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('substep_image', id, 'update', data.substepImages[id], Object.keys(updates));
       }
     },
 
@@ -744,7 +807,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord } = get();
       if (onEventRecord && imageData) {
-        onEventRecord('substep_image', id, 'delete', imageData as unknown as Record<string, unknown>);
+        onEventRecord('substep_image', id, 'delete', imageData);
       }
     },
 
@@ -762,7 +825,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepDescriptions[row.id]) {
-        onEventRecord('substep_description', row.id, 'create', data.substepDescriptions[row.id] as unknown as Record<string, unknown>);
+        onEventRecord('substep_description', row.id, 'create', data.substepDescriptions[row.id]);
       }
     },
 
@@ -774,7 +837,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepDescriptions[id]) {
-        onEventRecord('substep_description', id, 'update', data.substepDescriptions[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('substep_description', id, 'update', data.substepDescriptions[id], Object.keys(updates));
       }
     },
 
@@ -795,7 +858,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord } = get();
       if (onEventRecord && descriptionData) {
-        onEventRecord('substep_description', id, 'delete', descriptionData as unknown as Record<string, unknown>);
+        onEventRecord('substep_description', id, 'delete', descriptionData);
       }
     },
 
@@ -833,7 +896,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepPartTools[row.id]) {
-        onEventRecord('substep_part_tool', row.id, 'create', data.substepPartTools[row.id] as unknown as Record<string, unknown>);
+        onEventRecord('substep_part_tool', row.id, 'create', data.substepPartTools[row.id]);
       }
     },
 
@@ -845,7 +908,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepPartTools[id]) {
-        onEventRecord('substep_part_tool', id, 'update', data.substepPartTools[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('substep_part_tool', id, 'update', data.substepPartTools[id], Object.keys(updates));
       }
     },
 
@@ -866,7 +929,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord } = get();
       if (onEventRecord && partToolData) {
-        onEventRecord('substep_part_tool', id, 'delete', partToolData as unknown as Record<string, unknown>);
+        onEventRecord('substep_part_tool', id, 'delete', partToolData);
       }
     },
 
@@ -904,7 +967,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepNotes[row.id]) {
-        onEventRecord('substep_note', row.id, 'create', data.substepNotes[row.id] as unknown as Record<string, unknown>);
+        onEventRecord('substep_note', row.id, 'create', data.substepNotes[row.id]);
       }
     },
 
@@ -916,7 +979,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepNotes[id]) {
-        onEventRecord('substep_note', id, 'update', data.substepNotes[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('substep_note', id, 'update', data.substepNotes[id], Object.keys(updates));
       }
     },
 
@@ -937,58 +1000,58 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord } = get();
       if (onEventRecord && noteData) {
-        onEventRecord('substep_note', id, 'delete', noteData as unknown as Record<string, unknown>);
+        onEventRecord('substep_note', id, 'delete', noteData);
       }
     },
 
-    // SubstepReferences
-    addSubstepReference: (row) => {
+    // SubstepTutorials
+    addSubstepTutorial: (row) => {
       set((s) => {
         if (!s.data) return;
-        s.data.substepReferences[row.id] = row;
-        s.changes.substepReferences.changed.add(row.id);
+        s.data.substepTutorials[row.id] = row;
+        s.changes.substepTutorials.changed.add(row.id);
 
         const substep = s.data.substeps[row.substepId];
-        if (substep && !substep.referenceRowIds.includes(row.id)) {
-          substep.referenceRowIds.push(row.id);
+        if (substep && !substep.tutorialRowIds.includes(row.id)) {
+          substep.tutorialRowIds.push(row.id);
         }
       });
       const { onEventRecord, data } = get();
-      if (onEventRecord && data?.substepReferences[row.id]) {
-        onEventRecord('substep_reference', row.id, 'create', data.substepReferences[row.id] as unknown as Record<string, unknown>);
+      if (onEventRecord && data?.substepTutorials[row.id]) {
+        onEventRecord('substep_tutorial', row.id, 'create', data.substepTutorials[row.id]);
       }
     },
 
-    updateSubstepReference: (id, updates) => {
+    updateSubstepTutorial: (id, updates) => {
       set((s) => {
-        if (!s.data?.substepReferences[id]) return;
-        Object.assign(s.data.substepReferences[id], updates);
-        s.changes.substepReferences.changed.add(id);
+        if (!s.data?.substepTutorials[id]) return;
+        Object.assign(s.data.substepTutorials[id], updates);
+        s.changes.substepTutorials.changed.add(id);
       });
       const { onEventRecord, data } = get();
-      if (onEventRecord && data?.substepReferences[id]) {
-        onEventRecord('substep_reference', id, 'update', data.substepReferences[id] as unknown as Record<string, unknown>, Object.keys(updates));
+      if (onEventRecord && data?.substepTutorials[id]) {
+        onEventRecord('substep_tutorial', id, 'update', data.substepTutorials[id], Object.keys(updates));
       }
     },
 
-    deleteSubstepReference: (id) => {
-      const refData = get().data?.substepReferences[id];
+    deleteSubstepTutorial: (id) => {
+      const refData = get().data?.substepTutorials[id];
       set((s) => {
-        if (!s.data?.substepReferences[id]) return;
-        const row = s.data.substepReferences[id];
+        if (!s.data?.substepTutorials[id]) return;
+        const row = s.data.substepTutorials[id];
 
         const substep = s.data.substeps[row.substepId];
         if (substep) {
-          substep.referenceRowIds = substep.referenceRowIds.filter((rid) => rid !== id);
+          substep.tutorialRowIds = substep.tutorialRowIds.filter((rid) => rid !== id);
         }
 
-        delete s.data.substepReferences[id];
-        s.changes.substepReferences.changed.delete(id);
-        s.changes.substepReferences.deleted.add(id);
+        delete s.data.substepTutorials[id];
+        s.changes.substepTutorials.changed.delete(id);
+        s.changes.substepTutorials.deleted.add(id);
       });
       const { onEventRecord } = get();
       if (onEventRecord && refData) {
-        onEventRecord('substep_reference', id, 'delete', refData as unknown as Record<string, unknown>);
+        onEventRecord('substep_tutorial', id, 'delete', refData);
       }
     },
 
@@ -1000,7 +1063,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         s.changes.videoSections.changed.add(section.id);
 
         // Add to parent video's sectionIds
-        const video = Object.values(s.data.videos).find(v => v.id === section.videoId);
+        const video = s.data.videos[section.videoId];
         if (video && !video.sectionIds.includes(section.id)) {
           video.sectionIds.push(section.id);
         }
@@ -1008,7 +1071,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       // Record event for sync
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.videoSections[section.id]) {
-        onEventRecord('video_section', section.id, 'create', data.videoSections[section.id] as unknown as Record<string, unknown>);
+        onEventRecord('video_section', section.id, 'create', data.videoSections[section.id]);
       }
     },
 
@@ -1021,7 +1084,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       // Record event for sync
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.videoSections[id]) {
-        onEventRecord('video_section', id, 'update', data.videoSections[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('video_section', id, 'update', data.videoSections[id], Object.keys(updates));
       }
     },
 
@@ -1033,19 +1096,20 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         const section = s.data.videoSections[id];
 
         // Remove from parent video's sectionIds
-        const video = Object.values(s.data.videos).find(v => v.id === section.videoId);
+        const video = s.data.videos[section.videoId];
         if (video) {
           video.sectionIds = video.sectionIds.filter(sid => sid !== id);
         }
 
         // Cascade delete: Remove all SubstepVideoSections that reference this section
-        Object.values(s.data.substepVideoSections).forEach(svs => {
+        const data = s.data;
+        Object.values(data.substepVideoSections).forEach(svs => {
           if (svs.videoSectionId === id) {
-            const substep = s.data!.substeps[svs.substepId || ''];
+            const substep = data.substeps[svs.substepId || ''];
             if (substep) {
               substep.videoSectionRowIds = substep.videoSectionRowIds.filter(r => r !== svs.id);
             }
-            delete s.data!.substepVideoSections[svs.id];
+            delete data.substepVideoSections[svs.id];
             s.changes.substepVideoSections.changed.delete(svs.id);
             s.changes.substepVideoSections.deleted.add(svs.id);
           }
@@ -1058,7 +1122,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       // Record event for sync
       const { onEventRecord } = get();
       if (onEventRecord && sectionData) {
-        onEventRecord('video_section', id, 'delete', sectionData as unknown as Record<string, unknown>);
+        onEventRecord('video_section', id, 'delete', sectionData);
       }
     },
 
@@ -1101,14 +1165,15 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         s.changes.videoSections.changed.add(newSectionId);
 
         // Add new section to video's sectionIds
-        const video = Object.values(s.data.videos).find(v => v.id === section.videoId);
+        const video = s.data.videos[section.videoId];
         if (video && !video.sectionIds.includes(newSectionId)) {
           video.sectionIds.push(newSectionId);
         }
 
         // Find all SubstepVideoSections linking to the original section
         // and create matching links to the new section
-        const linkedRows = Object.values(s.data.substepVideoSections)
+        const data = s.data;
+        const linkedRows = Object.values(data.substepVideoSections)
           .filter(svs => svs.videoSectionId === sectionId);
 
         linkedRows.forEach(svs => {
@@ -1120,12 +1185,12 @@ export const useEditorStore = create<StoreState & StoreActions>()(
             videoSectionId: newSectionId,
             order: svs.order + 1, // Place right after the original
           };
-          s.data!.substepVideoSections[newSvsId] = newSvs;
+          data.substepVideoSections[newSvsId] = newSvs;
           s.changes.substepVideoSections.changed.add(newSvsId);
 
           // Add to substep's videoSectionRowIds
           if (svs.substepId) {
-            const substep = s.data!.substeps[svs.substepId];
+            const substep = data.substeps[svs.substepId];
             if (substep && !substep.videoSectionRowIds.includes(newSvsId)) {
               // Insert right after the original SVS
               const originalIndex = substep.videoSectionRowIds.indexOf(svs.id);
@@ -1159,7 +1224,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepVideoSections[row.id]) {
-        onEventRecord('substep_video_section', row.id, 'create', data.substepVideoSections[row.id] as unknown as Record<string, unknown>);
+        onEventRecord('substep_video_section', row.id, 'create', data.substepVideoSections[row.id]);
       }
     },
 
@@ -1171,7 +1236,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord, data } = get();
       if (onEventRecord && data?.substepVideoSections[id]) {
-        onEventRecord('substep_video_section', id, 'update', data.substepVideoSections[id] as unknown as Record<string, unknown>, Object.keys(updates));
+        onEventRecord('substep_video_section', id, 'update', data.substepVideoSections[id], Object.keys(updates));
       }
     },
 
@@ -1195,7 +1260,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       });
       const { onEventRecord } = get();
       if (onEventRecord && svsData) {
-        onEventRecord('substep_video_section', id, 'delete', svsData as unknown as Record<string, unknown>);
+        onEventRecord('substep_video_section', id, 'delete', svsData);
       }
     },
 
@@ -1283,51 +1348,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
     reorderSubstepElement: (elementId, newIndex, type) => set((s) => {
       if (!s.data) return;
 
-      // Map type to the corresponding data dictionary and update function
-      const typeConfig = {
-        image: {
-          dict: s.data.substepImages,
-          changes: s.changes.substepImages,
-          getSubstepIds: (substep: Substep) => substep.imageRowIds,
-        },
-        video: {
-          dict: s.data.substepVideoSections,
-          changes: s.changes.substepVideoSections,
-          getSubstepIds: (substep: Substep) => substep.videoSectionRowIds,
-        },
-        part: {
-          dict: s.data.substepPartTools,
-          changes: s.changes.substepPartTools,
-          getSubstepIds: (substep: Substep) => substep.partToolRowIds,
-          filterFn: (id: string) => {
-            const row = s.data!.substepPartTools[id];
-            const partTool = row ? s.data!.partTools[row.partToolId] : null;
-            return partTool?.type === 'Part';
-          },
-        },
-        tool: {
-          dict: s.data.substepPartTools,
-          changes: s.changes.substepPartTools,
-          getSubstepIds: (substep: Substep) => substep.partToolRowIds,
-          filterFn: (id: string) => {
-            const row = s.data!.substepPartTools[id];
-            const partTool = row ? s.data!.partTools[row.partToolId] : null;
-            return partTool?.type === 'Tool';
-          },
-        },
-        description: {
-          dict: s.data.substepDescriptions,
-          changes: s.changes.substepDescriptions,
-          getSubstepIds: (substep: Substep) => substep.descriptionRowIds,
-        },
-        note: {
-          dict: s.data.substepNotes,
-          changes: s.changes.substepNotes,
-          getSubstepIds: (substep: Substep) => substep.noteRowIds,
-        },
-      };
-
-      const config = typeConfig[type];
+      const config = buildSubstepElementConfig(s.data, s.changes, { withPartToolFilter: true })[type];
       if (!config) return;
 
       // Get the element and its substepId
@@ -1374,40 +1395,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
     moveSubstepElement: (elementId, newSubstepId, type) => set((s) => {
       if (!s.data) return;
 
-      const typeConfig = {
-        image: {
-          dict: s.data.substepImages,
-          changes: s.changes.substepImages,
-          getSubstepIds: (substep: Substep) => substep.imageRowIds,
-        },
-        video: {
-          dict: s.data.substepVideoSections,
-          changes: s.changes.substepVideoSections,
-          getSubstepIds: (substep: Substep) => substep.videoSectionRowIds,
-        },
-        part: {
-          dict: s.data.substepPartTools,
-          changes: s.changes.substepPartTools,
-          getSubstepIds: (substep: Substep) => substep.partToolRowIds,
-        },
-        tool: {
-          dict: s.data.substepPartTools,
-          changes: s.changes.substepPartTools,
-          getSubstepIds: (substep: Substep) => substep.partToolRowIds,
-        },
-        description: {
-          dict: s.data.substepDescriptions,
-          changes: s.changes.substepDescriptions,
-          getSubstepIds: (substep: Substep) => substep.descriptionRowIds,
-        },
-        note: {
-          dict: s.data.substepNotes,
-          changes: s.changes.substepNotes,
-          getSubstepIds: (substep: Substep) => substep.noteRowIds,
-        },
-      };
-
-      const config = typeConfig[type];
+      const config = buildSubstepElementConfig(s.data, s.changes)[type];
       if (!config) return;
 
       const element = config.dict[elementId] as { substepId: string } | undefined;
@@ -1448,7 +1436,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       const { data, changes, instructionChanged } = get();
       if (!data) return { changed: {}, deleted: {} };
 
-      const changed: Record<string, unknown[]> = {};
+      const changed: Record<string, Record<string, unknown>[]> = {};
       const deleted: Record<string, string[]> = {};
 
       // Convert camelCase to snake_case for backend API
@@ -1520,7 +1508,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       collect('substepVideoSections', 'substep_video_sections', data.substepVideoSections, changes.substepVideoSections);
       collect('partToolVideoFrameAreas', 'part_tool_video_frame_areas', data.partToolVideoFrameAreas, changes.partToolVideoFrameAreas);
       collect('drawings', 'drawings', data.drawings, changes.drawings);
-      collect('substepReferences', 'substep_references', data.substepReferences, changes.substepReferences);
+      collect('substepTutorials', 'substep_tutorials', data.substepTutorials, changes.substepTutorials);
 
       return { changed, deleted };
     },
