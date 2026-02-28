@@ -15,7 +15,7 @@ import {
   IconButton,
   Navbar,
 } from "@monta-vis/viewer-core";
-import type { InstructionData, InstructionSnapshot, NoteLevel, PartToolRow } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow } from "@monta-vis/viewer-core";
 import { buildMediaUrl } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
@@ -25,6 +25,7 @@ import {
   createDefaultPartTool,
   type SafetyIconCatalog,
   type NormalizedCrop,
+  type PartToolImageItem,
 } from "@monta-vis/editor-core";
 import { createElectronAdapter } from "../persistence/electronAdapter";
 
@@ -188,20 +189,19 @@ export function ViewPage() {
   }, []);
 
   // --- Note operations (inline save) ---
-  const onSaveNote = useCallback((noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => {
+  const onSaveNote = useCallback((noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => {
     const store = useEditorStore.getState();
     const substepNote = store.data?.substepNotes[noteRowId];
     if (!substepNote) return;
 
     store.updateNote(substepNote.noteId, {
       text,
-      level,
       safetyIconId,
       safetyIconCategory,
     });
   }, []);
 
-  const onAddNote = useCallback((text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => {
+  const onAddNote = useCallback((text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string) => {
     const noteId = generateId();
     const substepNoteId = generateId();
     const versionId = getVersionId();
@@ -218,7 +218,6 @@ export function ViewPage() {
       versionId,
       instructionId,
       text,
-      level,
       safetyIconId,
       safetyIconCategory,
     });
@@ -394,13 +393,49 @@ export function ViewPage() {
     return buildMediaUrl(decodedFolderName, `media/frames/${pt.previewImageId}/image`);
   }, [decodedFolderName]);
 
+  const getPartToolImages = useCallback((partToolId: string): PartToolImageItem[] => {
+    const store = useEditorStore.getState();
+    const ptvfas = store.data?.partToolVideoFrameAreas ?? {};
+    return Object.values(ptvfas)
+      .filter((j) => j.partToolId === partToolId)
+      .sort((a, b) => a.order - b.order)
+      .map((j) => ({
+        junctionId: j.id,
+        areaId: j.videoFrameAreaId,
+        url: buildMediaUrl(decodedFolderName!, `media/frames/${j.videoFrameAreaId}/image`),
+        isPreview: j.isPreviewImage,
+      }));
+  }, [decodedFolderName]);
+
+  const onSetPreviewImage = useCallback((partToolId: string, junctionId: string, areaId: string) => {
+    const store = useEditorStore.getState();
+    // Clear old preview flags for this partTool
+    const ptvfas = store.data?.partToolVideoFrameAreas ?? {};
+    for (const j of Object.values(ptvfas)) {
+      if (j.partToolId === partToolId && j.isPreviewImage) {
+        store.updatePartToolVideoFrameArea(j.id, { isPreviewImage: false });
+      }
+    }
+    // Set new preview
+    store.updatePartToolVideoFrameArea(junctionId, { isPreviewImage: true });
+    store.updatePartTool(partToolId, { previewImageId: areaId });
+  }, []);
+
+  // Image callbacks for PartToolTable (shared by PartToolListPanel + SubstepEditPopover)
+  const imageCallbacks = useMemo(() => ({
+    onUploadImage: onUploadPartToolImage,
+    onDeleteImage: onDeletePartToolImage,
+    onSetPreviewImage,
+  }), [onUploadPartToolImage, onDeletePartToolImage, onSetPreviewImage]);
+
   const partToolListCallbacks = useMemo(() => ({
     onAddPartTool,
     onUpdatePartTool,
     onDeletePartTool: onDeletePartToolFromList,
     onUploadImage: onUploadPartToolImage,
     onDeleteImage: onDeletePartToolImage,
-  }), [onAddPartTool, onUpdatePartTool, onDeletePartToolFromList, onUploadPartToolImage, onDeletePartToolImage]);
+    onSetPreviewImage,
+  }), [onAddPartTool, onUpdatePartTool, onDeletePartToolFromList, onUploadPartToolImage, onDeletePartToolImage, onSetPreviewImage]);
 
   // ── Memoized edit callbacks ──
   const editCallbacks = useMemo(() => ({
@@ -428,9 +463,16 @@ export function ViewPage() {
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
   const renderEditPopover = useCallback(
     (props: Parameters<typeof SubstepEditPopover>[0]) => (
-      <SubstepEditPopover {...props} folderName={decodedFolderName} catalogs={safetyIconCatalogs} getPreviewUrl={getPartToolPreviewUrl} />
+      <SubstepEditPopover
+        {...props}
+        folderName={decodedFolderName}
+        catalogs={safetyIconCatalogs}
+        getPreviewUrl={getPartToolPreviewUrl}
+        getPartToolImages={getPartToolImages}
+        imageCallbacks={imageCallbacks}
+      />
     ),
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl],
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks],
   );
 
   if (isLoading) {
@@ -489,6 +531,7 @@ export function ViewPage() {
                   substepPartTools={viewerData?.substepPartTools ?? {}}
                   callbacks={partToolListCallbacks}
                   getPreviewUrl={getPartToolPreviewUrl}
+                  getPartToolImages={getPartToolImages}
                 />
               )}
             </ViewerDataProvider>

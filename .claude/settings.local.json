@@ -1,0 +1,10 @@
+{
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "sqlite",
+    "github",
+    "filesystem",
+    "playwright",
+    "context7"
+  ]
+}
