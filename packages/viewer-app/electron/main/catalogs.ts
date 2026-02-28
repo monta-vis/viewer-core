@@ -1,7 +1,8 @@
 import { app } from "electron";
 import path from "path";
 import fs from "fs";
-import type { CatalogJson, SafetyIconCatalog } from "../../src/types/catalog.js";
+import type { SafetyIconCatalog } from "@monta-vis/editor-core";
+import type { CatalogJson } from "../../src/types/catalog.js";
 
 /**
  * Scan ~/Documents/Montavis/Catalogs/SafetyIcons/ for subdirectories,

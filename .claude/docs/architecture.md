@@ -75,6 +75,10 @@ Editing layer that adds mutation capabilities on top of viewer-core. Published t
 | `PersistenceProvider` / `usePersistence` | React context for platform-specific persistence |
 | `useEditCallbacks` | Creates EditCallbacks from store mutations |
 | `useVideoFrameAreaManager` | Area CRUD hook (editing-specific) |
+| `TextEditDialog` | Generic text editing modal dialog |
+| `SafetyIconPicker` | Icon browser with search + category tabs |
+| `NoteEditDialog` | Note editing modal with safety icon picker (accepts `catalogs` prop) |
+| `SafetyIconCatalog` / `CatalogEntry` / `CatalogCategory` | Shared catalog type contracts |
 
 ### Persistence Adapter
 
@@ -101,9 +105,15 @@ packages/editor-core/src/
 ├── persistence/
 │   ├── types.ts                      # PersistenceAdapter interface
 │   └── PersistenceContext.tsx         # React context + provider
-└── hooks/
-    ├── useEditCallbacks.ts           # EditCallbacks from store
-    └── useVideoFrameAreaManager.ts   # Area CRUD (moved from viewer-core)
+├── components/
+│   ├── SubstepEditPopover.tsx        # Popover-based substep editing
+│   ├── TextEditDialog.tsx            # Generic text editing modal
+│   ├── SafetyIconPicker.tsx          # Icon browser with search + tabs
+│   └── NoteEditDialog.tsx            # Note editing with icon picker
+├── hooks/
+│   ├── useEditCallbacks.ts           # EditCallbacks from store
+│   └── useVideoFrameAreaManager.ts   # Area CRUD (moved from viewer-core)
+└── types.ts                          # Editor types + catalog contracts
 ```
 
 ## Features

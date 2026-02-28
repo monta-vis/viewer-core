@@ -143,7 +143,7 @@ export interface ElectronProjectData {
   partToolVideoFrameAreas: Record<string, unknown>[];
   branding: Record<string, unknown>[];
   images: Record<string, unknown>[];
-  substepReferences: Record<string, unknown>[];
+  substepTutorials: Record<string, unknown>[];
   safetyIcons: Record<string, unknown>[];
   translations: Record<string, unknown>[];
 }
@@ -168,7 +168,7 @@ const ALLOWED_TABLES: Record<string, keyof ElectronProjectData> = {
   part_tool_video_frame_areas: "partToolVideoFrameAreas",
   branding: "branding",
   images: "images",
-  substep_references: "substepReferences",
+  substep_tutorials: "substepTutorials",
   safety_icons: "safetyIcons",
   translations: "translations",
 };
@@ -189,13 +189,13 @@ const SAVE_ALLOWED_TABLES = new Set([
   "video_frame_areas", "viewport_keyframes", "drawings", "notes",
   "part_tools", "substep_descriptions", "substep_notes", "substep_part_tools",
   "substep_images", "substep_video_sections", "part_tool_video_frame_areas",
-  "branding", "translations", "substep_references",
+  "branding", "translations", "substep_tutorials",
 ]);
 
 /** Delete order: child/junction tables first, then parents (FK-safe). */
 const DELETE_ORDER: string[] = [
   // Leaf / junction tables
-  "substep_references", "substep_notes", "substep_part_tools",
+  "substep_tutorials", "substep_notes", "substep_part_tools",
   "substep_images", "substep_video_sections", "substep_descriptions",
   "part_tool_video_frame_areas", "viewport_keyframes", "translations",
   "drawings", "branding",
@@ -215,6 +215,20 @@ export function getProjectData(folderName: string): ElectronProjectData {
 
   if (!isInsideBasePath(dbPath) || !fs.existsSync(dbPath)) {
     throw new Error(`Project not found: ${folderName}`);
+  }
+
+  // Migrate old table name: substep_references → substep_tutorials (once)
+  {
+    const migrationDb = new Database(dbPath);
+    try {
+      const hasOldTable = migrationDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='substep_references'").get();
+      const hasNewTable = migrationDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='substep_tutorials'").get();
+      if (hasOldTable && !hasNewTable) {
+        migrationDb.exec("ALTER TABLE substep_references RENAME TO substep_tutorials");
+      }
+    } finally {
+      migrationDb.close();
+    }
   }
 
   const db = new Database(dbPath, { readonly: true });
@@ -252,7 +266,7 @@ export function getProjectData(folderName: string): ElectronProjectData {
       partToolVideoFrameAreas: [],
       branding: [],
       images: [],
-      substepReferences: [],
+      substepTutorials: [],
       safetyIcons: [],
       translations: [],
     };

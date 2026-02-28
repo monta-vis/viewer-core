@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Loader2, Save, Undo2, Redo2 } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   sqliteToSnapshot,
   transformSnapshotToStore,
@@ -13,35 +13,16 @@ import {
   ViewerDataProvider,
   VideoProvider,
   IconButton,
-  Button,
   Navbar,
 } from "@monta-vis/viewer-core";
 import type { InstructionData, InstructionSnapshot, NoteLevel } from "@monta-vis/viewer-core";
-import { useEditorStore, SubstepEditPopover, type ProjectChanges } from "@monta-vis/editor-core";
+import {
+  useEditorStore,
+  useAutoSave,
+  SubstepEditPopover,
+  type SafetyIconCatalog,
+} from "@monta-vis/editor-core";
 import { createElectronAdapter } from "../persistence/electronAdapter";
-import { useHistoryStore, useHistorySync } from "../stores/historyStore";
-import { TextEditDialog } from "../components/TextEditDialog";
-import { NoteEditDialog } from "../components/NoteEditDialog";
-
-// ── Dialog state types ──
-
-interface DescriptionDialog {
-  type: "description";
-  title: string;
-  initialValue: string;
-  onSave: (text: string) => void;
-}
-
-interface NoteDialog {
-  type: "note";
-  title: string;
-  initialText: string;
-  initialSafetyIconId: string | null;
-  initialSafetyIconCategory: string | null;
-  onSave: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
-}
-
-type EditDialog = DescriptionDialog | NoteDialog;
 
 /** Apply content translations for a language to base (untranslated) data. */
 function translateData(
@@ -67,35 +48,39 @@ export function ViewPage() {
   const [data, setData] = useState<InstructionData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // Dialog state for editing descriptions/notes
-  const [editDialog, setEditDialog] = useState<EditDialog | null>(null);
+  // Safety icon catalogs (loaded from disk via Electron API)
+  const [safetyIconCatalogs, setSafetyIconCatalogs] = useState<SafetyIconCatalog[]>([]);
 
-  // Ref for save message timeout cleanup
-  const saveMessageTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    window.electronAPI?.catalogs
+      ?.getSafetyIcons()
+      .then((result: SafetyIconCatalog[]) => setSafetyIconCatalogs(result ?? []))
+      .catch(() => setSafetyIconCatalogs([]));
+  }, []);
 
-  // Subscribe to store change tracking
-  const hasChanges = useEditorStore((s) => s.hasChanges());
+  // Subscribe to store data (reflects edits)
   const storeData = useEditorStore((s) => s.data);
 
   // Persistence adapter
   const adapter = useMemo(() => createElectronAdapter(), []);
 
-  // Undo/redo
-  useHistorySync();
-  const canUndo = useHistoryStore((s) => s.canUndo());
-  const canRedo = useHistoryStore((s) => s.canRedo());
+  // Decoded folder name for persistence
+  const decodedFolderName = useMemo(
+    () => (folderName ? decodeURIComponent(folderName) : undefined),
+    [folderName],
+  );
+
+  // Auto-save: watches store for changes and saves automatically
+  useAutoSave({
+    adapter,
+    projectId: decodedFolderName ?? '',
+    enabled: !!decodedFolderName,
+  });
 
   // Refs for snapshot and base data — used by language effect without triggering it
   const snapshotRef = useRef<InstructionSnapshot | null>(null);
   const baseDataRef = useRef<InstructionData | null>(null);
-
-  // Cleanup save message timer on unmount
-  useEffect(() => () => {
-    if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
-  }, []);
 
   // ── Load project data from SQLite (once per folderName) ──
   useEffect(() => {
@@ -157,40 +142,6 @@ export function ViewPage() {
     }
   }, [firstStepId, selectedStepId]);
 
-  // ── Save handler ──
-  const decodedFolderName = useMemo(
-    () => (folderName ? decodeURIComponent(folderName) : undefined),
-    [folderName],
-  );
-
-  const handleSave = useCallback(async () => {
-    if (!decodedFolderName) return;
-
-    setIsSaving(true);
-    setSaveMessage(null);
-
-    try {
-      const changes = useEditorStore.getState().getChangedData() as ProjectChanges;
-      const result = await adapter.saveChanges(decodedFolderName, changes);
-
-      if (result.success) {
-        useEditorStore.getState().clearChanges();
-        setSaveMessage({ type: "success", text: t("common.saved", "Saved successfully") });
-      } else {
-        setSaveMessage({ type: "error", text: result.error ?? t("common.saveError", "Save failed") });
-      }
-    } catch (err) {
-      setSaveMessage({
-        type: "error",
-        text: err instanceof Error ? err.message : t("common.saveError", "Save failed"),
-      });
-    } finally {
-      setIsSaving(false);
-      if (saveMessageTimerRef.current) clearTimeout(saveMessageTimerRef.current);
-      saveMessageTimerRef.current = setTimeout(() => setSaveMessage(null), 3000);
-    }
-  }, [decodedFolderName, adapter, t]);
-
   // ── Helper: get versionId from store ──
   const getVersionId = useCallback(() => {
     const d = useEditorStore.getState().data;
@@ -202,116 +153,77 @@ export function ViewPage() {
     return useEditorStore.getState().data?.instructionId ?? "";
   }, []);
 
-  // ── Edit callbacks ──
+  // ── Edit callbacks (direct store calls, no dialogs) ──
 
-  // --- Description operations ---
-  const onEditDescription = useCallback((descId: string) => {
+  // --- Description operations (inline save) ---
+  const onSaveDescription = useCallback((descId: string, text: string) => {
+    useEditorStore.getState().updateSubstepDescription(descId, { text });
+  }, []);
+
+  const onAddDescription = useCallback((text: string, substepId: string) => {
     const store = useEditorStore.getState();
-    const desc = store.data?.substepDescriptions[descId];
-    if (!desc) return;
+    const existingDescs = Object.values(store.data?.substepDescriptions ?? {})
+      .filter((d) => d.substepId === substepId);
+    const maxOrder = existingDescs.reduce((max, d) => Math.max(max, d.order), -1);
 
-    setEditDialog({
-      type: "description",
-      title: t("edit.editDescription", "Edit Description"),
-      initialValue: desc.text,
-      onSave: (text) => {
-        useEditorStore.getState().updateSubstepDescription(descId, { text });
-      },
+    store.addSubstepDescription({
+      id: generateId(),
+      substepId,
+      text,
+      order: maxOrder + 1,
+      versionId: getVersionId(),
     });
-  }, [t]);
-
-  const onAddDescription = useCallback((substepId: string) => {
-    setEditDialog({
-      type: "description",
-      title: t("edit.addDescription", "Add Description"),
-      initialValue: "",
-      onSave: (text) => {
-        const store = useEditorStore.getState();
-        const existingDescs = Object.values(store.data?.substepDescriptions ?? {})
-          .filter((d) => d.substepId === substepId);
-        const maxOrder = existingDescs.reduce((max, d) => Math.max(max, d.order), -1);
-
-        useEditorStore.getState().addSubstepDescription({
-          id: generateId(),
-          substepId,
-          text,
-          order: maxOrder + 1,
-          versionId: getVersionId(),
-        });
-      },
-    });
-  }, [t, getVersionId]);
+  }, [getVersionId]);
 
   const onDeleteDescription = useCallback((descId: string) => {
     useEditorStore.getState().deleteSubstepDescription(descId);
   }, []);
 
-  // --- Note operations ---
-  const onEditNote = useCallback((noteRowId: string) => {
+  // --- Note operations (inline save) ---
+  const onSaveNote = useCallback((noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => {
     const store = useEditorStore.getState();
     const substepNote = store.data?.substepNotes[noteRowId];
     if (!substepNote) return;
 
-    const note = store.data?.notes[substepNote.noteId];
-    if (!note) return;
-
-    setEditDialog({
-      type: "note",
-      title: t("edit.editNote", "Edit Note"),
-      initialText: note.text,
-      initialSafetyIconId: note.safetyIconId,
-      initialSafetyIconCategory: note.safetyIconCategory,
-      onSave: (text, level, safetyIconId, safetyIconCategory) => {
-        useEditorStore.getState().updateNote(substepNote.noteId, {
-          text,
-          level,
-          safetyIconId,
-          safetyIconCategory,
-        });
-      },
+    store.updateNote(substepNote.noteId, {
+      text,
+      level,
+      safetyIconId,
+      safetyIconCategory,
     });
-  }, [t]);
+  }, []);
 
-  const onAddNote = useCallback((substepId: string) => {
-    setEditDialog({
-      type: "note",
-      title: t("edit.addNote", "Add Note"),
-      initialText: "",
-      initialSafetyIconId: null,
-      initialSafetyIconCategory: null,
-      onSave: (text, level, safetyIconId, safetyIconCategory) => {
-        const noteId = generateId();
-        const substepNoteId = generateId();
-        const versionId = getVersionId();
-        const instructionId = getInstructionId();
+  const onAddNote = useCallback((text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => {
+    const noteId = generateId();
+    const substepNoteId = generateId();
+    const versionId = getVersionId();
+    const instructionId = getInstructionId();
 
-        const store = useEditorStore.getState();
-        const existingNotes = Object.values(store.data?.substepNotes ?? {})
-          .filter((sn) => sn.substepId === substepId);
-        const maxOrder = existingNotes.reduce((max, sn) => Math.max(max, sn.order), -1);
+    const store = useEditorStore.getState();
+    const existingNotes = Object.values(store.data?.substepNotes ?? {})
+      .filter((sn) => sn.substepId === substepId);
+    const maxOrder = existingNotes.reduce((max, sn) => Math.max(max, sn.order), -1);
 
-        // Create the note entity
-        store.addNote({
-          id: noteId,
-          versionId,
-          instructionId,
-          text,
-          level,
-          safetyIconId,
-          safetyIconCategory,
-        });
-
-        // Create the junction row
-        store.addSubstepNote({
-          id: substepNoteId,
-          versionId,
-          substepId,
-          noteId,
-          order: maxOrder + 1,
-        });
-      },
+    // Create the note entity
+    store.addNote({
+      id: noteId,
+      versionId,
+      instructionId,
+      text,
+      level,
+      safetyIconId,
+      safetyIconCategory,
     });
-  }, [t, getVersionId, getInstructionId]);
+
+    // Create the junction row
+    store.addSubstepNote({
+      id: substepNoteId,
+      versionId,
+      substepId,
+      noteId,
+      order: maxOrder + 1,
+    });
+  }, [getVersionId, getInstructionId]);
 
   const onDeleteNote = useCallback((noteRowId: string) => {
     const store = useEditorStore.getState();
@@ -338,14 +250,14 @@ export function ViewPage() {
     }
   }, []);
 
-  const onDeleteReference = useCallback((refIdx: number, substepId: string) => {
+  const onDeleteTutorial = useCallback((refIdx: number, substepId: string) => {
     const store = useEditorStore.getState();
     const substep = store.data?.substeps[substepId];
     if (!substep) return;
 
-    const refId = substep.referenceRowIds[refIdx];
+    const refId = substep.tutorialRowIds[refIdx];
     if (refId) {
-      store.deleteSubstepReference(refId);
+      store.deleteSubstepTutorial(refId);
     }
   }, []);
 
@@ -359,77 +271,31 @@ export function ViewPage() {
     }
   }, []);
 
-  // ── Memoized edit callbacks (unimplemented callbacks are omitted) ──
+  // ── Memoized edit callbacks ──
   const editCallbacks = useMemo(() => ({
-    onEditDescription,
+    onSaveDescription,
     onDeleteDescription,
     onAddDescription,
-    onEditNote,
+    onSaveNote,
     onDeleteNote,
     onAddNote,
     onDeleteSubstep,
     onDeleteImage,
-    onDeleteReference,
+    onDeleteTutorial,
     onDeletePartTool,
   }), [
-    onEditDescription, onDeleteDescription, onAddDescription,
-    onEditNote, onDeleteNote, onAddNote,
-    onDeleteSubstep, onDeleteImage, onDeleteReference, onDeletePartTool,
+    onSaveDescription, onDeleteDescription, onAddDescription,
+    onSaveNote, onDeleteNote, onAddNote,
+    onDeleteSubstep, onDeleteImage, onDeleteTutorial, onDeletePartTool,
   ]);
 
-  // ── Edit popover render function ──
+  // ── Edit popover render function (captures folderName + catalogs in closure) ──
   const renderEditPopover = useCallback(
-    (props: Parameters<typeof SubstepEditPopover>[0]) => <SubstepEditPopover {...props} />,
-    [],
+    (props: Parameters<typeof SubstepEditPopover>[0]) => (
+      <SubstepEditPopover {...props} folderName={decodedFolderName} catalogs={safetyIconCatalogs} />
+    ),
+    [decodedFolderName, safetyIconCatalogs],
   );
-
-  // ── Navbar extras (save, undo, redo) ──
-  const editNavbarExtra = useMemo(() => (
-    <div className="flex items-center gap-1">
-      <IconButton
-        icon={<Undo2 />}
-        onClick={() => useHistoryStore.getState().undo()}
-        disabled={!canUndo}
-        variant="ghost"
-        aria-label={t("edit.undo", "Undo")}
-      />
-      <IconButton
-        icon={<Redo2 />}
-        onClick={() => useHistoryStore.getState().redo()}
-        disabled={!canRedo}
-        variant="ghost"
-        aria-label={t("edit.redo", "Redo")}
-      />
-      <Button
-        variant="primary"
-        size="sm"
-        onClick={handleSave}
-        disabled={!hasChanges || isSaving}
-        className={`h-12 sm:h-14 px-2 sm:px-3 ${hasChanges && !isSaving ? "animate-pulse" : ""}`}
-        aria-label={t("common.save", "Save")}
-      >
-        {isSaving ? (
-          <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 animate-spin" />
-        ) : (
-          <Save className="h-5 w-5 sm:h-6 sm:w-6" />
-        )}
-      </Button>
-      {saveMessage && (
-        <span
-          className={`text-xs px-2 py-1 rounded-lg ${
-            saveMessage.type === "success"
-              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
-              : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
-          }`}
-        >
-          {saveMessage.text}
-        </span>
-      )}
-    </div>
-  ), [canUndo, canRedo, hasChanges, isSaving, saveMessage, handleSave, t]);
-
-  // ── Dialog close handler ──
-  const closeDialog = useCallback(() => setEditDialog(null), []);
 
   if (isLoading) {
     return (
@@ -474,7 +340,6 @@ export function ViewPage() {
                   onStepChange={setSelectedStepId}
                   onBreak={() => navigate("/")}
                   folderName={decodedFolderName}
-                  editNavbarExtra={editNavbarExtra}
                   editCallbacks={editCallbacks}
                   renderEditPopover={renderEditPopover}
                 />
@@ -483,28 +348,6 @@ export function ViewPage() {
           </InstructionViewProvider>
         </VideoProvider>
       </div>
-
-      {/* Edit dialogs */}
-      {editDialog?.type === "description" && (
-        <TextEditDialog
-          open
-          title={editDialog.title}
-          initialValue={editDialog.initialValue}
-          onSave={editDialog.onSave}
-          onClose={closeDialog}
-        />
-      )}
-      {editDialog?.type === "note" && (
-        <NoteEditDialog
-          open
-          initialText={editDialog.initialText}
-          initialSafetyIconId={editDialog.initialSafetyIconId}
-          initialSafetyIconCategory={editDialog.initialSafetyIconCategory}
-          folderName={decodedFolderName}
-          onSave={editDialog.onSave}
-          onClose={closeDialog}
-        />
-      )}
     </div>
   );
 }

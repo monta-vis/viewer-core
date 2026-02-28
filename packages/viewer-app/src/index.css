@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@monta-vis/viewer-core/styles.css";
 @source "../../../node_modules/@monta-vis/viewer-core/dist/viewer-core.js";
+@source "../../../node_modules/@monta-vis/editor-core/dist/editor-core.js";
 
 /* ============================================
    DESIGN TOKENS - Montavis Viewer App
