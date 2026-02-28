@@ -1,11 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  DialogShell,
+  Button,
   categoryToNoteLevel,
   type NoteLevel,
   type SafetyIconCategory,
 } from '@monta-vis/viewer-core';
 import { SafetyIconPicker, type SafetyIconItem } from './SafetyIconPicker';
+import { EditInput } from './EditInput';
 import type { SafetyIconCatalog } from '../types';
 import { buildIconList, buildAssetsDirMap, getIconUrl as getIconUrlUtil } from '../utils/iconUtils';
 
@@ -76,62 +79,42 @@ export function NoteEditDialog({
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onClose();
-      } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
         handleSave();
       }
     },
-    [onClose, handleSave],
+    [handleSave],
   );
 
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onClose}
-      onKeyDown={handleKeyDown}
-    >
-      <div
-        className="bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full max-w-4xl mx-4 p-6"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Safety icon picker */}
-        <div className="mb-4">
-          <SafetyIconPicker
-            icons={icons}
-            getIconUrl={getIconUrl}
-            selectedIconId={selectedIconId}
-            onSelect={handleSelect}
-          />
-        </div>
-
-        <input
-          ref={inputRef}
-          type="text"
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          className="w-full px-2 py-1 rounded-lg text-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
-          placeholder={t('editorCore.enterNote', 'Enter note...')}
+    <DialogShell open={open} onClose={onClose} maxWidth="max-w-4xl">
+      {/* Safety icon picker */}
+      <div className="mb-4">
+        <SafetyIconPicker
+          icons={icons}
+          getIconUrl={getIconUrl}
+          selectedIconId={selectedIconId}
+          onSelect={handleSelect}
         />
-
-        <div className="flex justify-end gap-3 mt-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded-lg text-[var(--color-text-muted)] hover:bg-[var(--color-bg-elevated)] transition-colors"
-          >
-            {t('common.cancel', 'Cancel')}
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={!text.trim() && !selectedIconId}
-            className="px-4 py-2 rounded-lg bg-[var(--color-primary)] text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
-          >
-            {t('common.save', 'Save')}
-          </button>
-        </div>
       </div>
-    </div>
+
+      <EditInput
+        ref={inputRef}
+        type="text"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder={t('editorCore.enterNote', 'Enter note...')}
+      />
+
+      <div className="flex justify-end gap-3 mt-2">
+        <Button variant="ghost" onClick={onClose}>
+          {t('common.cancel', 'Cancel')}
+        </Button>
+        <Button variant="primary" onClick={handleSave} disabled={!text.trim() && !selectedIconId}>
+          {t('common.save', 'Save')}
+        </Button>
+      </div>
+    </DialogShell>
   );
 }

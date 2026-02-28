@@ -23,12 +23,14 @@ const electronAPI = {
       folderName: string,
       partToolId: string,
       imagePath: string,
+      crop?: { x: number; y: number; width: number; height: number },
     ) =>
       ipcRenderer.invoke(
         "projects:upload-parttool-image",
         folderName,
         partToolId,
         imagePath,
+        crop,
       ),
   },
 };

@@ -18,6 +18,7 @@ export {
   type PersistenceResult,
   type ImageUploadResult,
   type ImageSource,
+  type NormalizedCrop,
 } from './persistence';
 
 // EditorProvider (convenience wrapper: PersistenceProvider + ViewerDataProvider)
@@ -63,8 +64,37 @@ export { SafetyIconPicker, type SafetyIconPickerProps, type SafetyIconItem } fro
 // NoteEditDialog (note editing with safety icon picker)
 export { NoteEditDialog, type NoteEditDialogProps } from './components/NoteEditDialog';
 
-// PartToolTable (inline-editable table for substep partTools)
-export { PartToolTable, type PartToolTableProps, type PartToolTableCallbacks } from './components/PartToolTable';
+// PartToolTable (inline-editable table for partTools — shared by SubstepEditPopover + PartToolListPanel)
+export {
+  PartToolTable,
+  type PartToolTableProps,
+  type PartToolTableCallbacks,
+  type PartToolTableItem,
+  type PartToolTableImageCallbacks,
+} from './components/PartToolTable';
+
+// PartToolListPanel (instruction-level part/tool management panel)
+export {
+  PartToolListPanel,
+  type PartToolListPanelProps,
+  type PartToolListPanelCallbacks,
+} from './components/PartToolListPanel';
+
+// ImageCropDialog (image crop dialog for part/tool images)
+export { ImageCropDialog, type ImageCropDialogProps } from './components/ImageCropDialog';
+
+// EditInput / EditTextarea (styled input wrappers for editor forms)
+export { EditInput, EditTextarea } from './components/EditInput';
+export type { EditInputProps, EditTextareaProps } from './components/EditInput';
+
+// SectionCard (reusable panel card for editor sections)
+export { SectionCard, type SectionCardProps } from './components/SectionCard';
 
 // PartTool helpers
-export { createDefaultPartTool, isPartToolNameValid, sortSubstepPartTools } from './utils/partToolHelpers';
+export {
+  createDefaultPartTool,
+  isPartToolNameValid,
+  sortSubstepPartTools,
+  sortPartToolRows,
+  computeUsedAmount,
+} from './utils/partToolHelpers';

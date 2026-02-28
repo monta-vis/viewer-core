@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
+import { DialogShell } from '../DialogShell';
 
 export interface TextInputSuggestion {
   id: string;
@@ -58,88 +59,73 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
     if (e.key === 'Enter' && inputType !== 'textarea') {
       e.preventDefault();
       handleConfirm();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    }
-  };
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      onCancel();
     }
   };
 
   const inputClassName = 'w-full rounded-lg border border-[var(--color-border-base)] bg-[var(--color-bg-base)] px-3 py-2 text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]/40';
 
   return (
-    <div
-      data-testid="text-input-modal-backdrop"
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
-      onClick={handleBackdropClick}
-    >
-      <div className="w-full max-w-sm mx-4 rounded-xl bg-[var(--color-bg-surface)] p-5 shadow-2xl border border-[var(--color-border-muted)] space-y-4">
-        {/* Label */}
-        <h3 className="text-base font-medium text-[var(--color-text-base)]">{label}</h3>
+    <DialogShell open blur maxWidth="max-w-sm" onClose={onCancel} className="bg-[var(--color-bg-surface)] border-[var(--color-border-muted)] space-y-4">
+      {/* Label */}
+      <h3 className="text-base font-medium text-[var(--color-text-base)]">{label}</h3>
 
-        {/* Input */}
-        {inputType === 'textarea' ? (
-          <textarea
-            ref={inputRef as React.RefObject<HTMLTextAreaElement>}
-            aria-label={label}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            rows={3}
-            className={inputClassName}
-          />
-        ) : (
-          <input
-            ref={inputRef as React.RefObject<HTMLInputElement>}
-            aria-label={label}
-            type={inputType}
-            value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className={inputClassName}
-          />
-        )}
+      {/* Input */}
+      {inputType === 'textarea' ? (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          aria-label={label}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={3}
+          className={inputClassName}
+        />
+      ) : (
+        <input
+          ref={inputRef as React.RefObject<HTMLInputElement>}
+          aria-label={label}
+          type={inputType}
+          value={inputValue}
+          onChange={(e) => setInputValue(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className={inputClassName}
+        />
+      )}
 
-        {/* Suggestion list */}
-        {filteredSuggestions !== undefined && (
-          <div data-testid="suggestion-list" className="max-h-48 overflow-y-auto rounded-lg border border-[var(--color-border-muted)]">
-            {filteredSuggestions.length === 0 ? (
-              <div className="px-3 py-2 text-sm text-[var(--color-text-muted)]">
-                {t('common.noResults', 'No results')}
-              </div>
-            ) : (
-              filteredSuggestions.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  className="w-full text-left px-3 py-2 hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-b border-[var(--color-border-muted)] last:border-b-0"
-                  onClick={() => onSelect?.(s.id)}
-                >
-                  <div className="text-sm font-medium text-[var(--color-text-base)]">{s.label}</div>
-                  {s.sublabel && (
-                    <div className="text-xs text-[var(--color-text-muted)]">{s.sublabel}</div>
-                  )}
-                </button>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* Buttons */}
-        <div className="flex justify-end gap-2">
-          <Button variant="ghost" size="sm" onClick={onCancel} aria-label={t('common.cancel', 'Cancel')}>
-            {t('common.cancel', 'Cancel')}
-          </Button>
-          <Button variant="primary" size="sm" onClick={handleConfirm} aria-label={t('common.confirm', 'Confirm')}>
-            {t('common.confirm', 'Confirm')}
-          </Button>
+      {/* Suggestion list */}
+      {filteredSuggestions !== undefined && (
+        <div data-testid="suggestion-list" className="max-h-48 overflow-y-auto rounded-lg border border-[var(--color-border-muted)]">
+          {filteredSuggestions.length === 0 ? (
+            <div className="px-3 py-2 text-sm text-[var(--color-text-muted)]">
+              {t('common.noResults', 'No results')}
+            </div>
+          ) : (
+            filteredSuggestions.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="w-full text-left px-3 py-2 hover:bg-[var(--color-bg-elevated)] transition-colors cursor-pointer border-b border-[var(--color-border-muted)] last:border-b-0"
+                onClick={() => onSelect?.(s.id)}
+              >
+                <div className="text-sm font-medium text-[var(--color-text-base)]">{s.label}</div>
+                {s.sublabel && (
+                  <div className="text-xs text-[var(--color-text-muted)]">{s.sublabel}</div>
+                )}
+              </button>
+            ))
+          )}
         </div>
+      )}
+
+      {/* Buttons */}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" onClick={onCancel} aria-label={t('common.cancel', 'Cancel')}>
+          {t('common.cancel', 'Cancel')}
+        </Button>
+        <Button variant="primary" size="sm" onClick={handleConfirm} aria-label={t('common.confirm', 'Confirm')}>
+          {t('common.confirm', 'Confirm')}
+        </Button>
       </div>
-    </div>
+    </DialogShell>
   );
 }

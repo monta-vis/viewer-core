@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -31,6 +32,25 @@ vi.mock('@monta-vis/viewer-core', () => ({
   getCategoryPriority: () => 0,
   getCategoryColor: () => '#888',
   SAFETY_ICON_CATEGORIES: {},
+  DialogShell: ({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) => {
+    React.useEffect(() => {
+      if (!open) return;
+      const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+      document.addEventListener('keydown', handler);
+      return () => document.removeEventListener('keydown', handler);
+    }, [open, onClose]);
+    if (!open) return null;
+    return (
+      <div data-testid="dialog-shell-backdrop" onClick={onClose}>
+        <div data-testid="dialog-shell-panel" onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+          {children}
+        </div>
+      </div>
+    );
+  },
+  Button: ({ children, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => (
+    <button {...props}>{children}</button>
+  ),
 }));
 
 afterEach(() => {

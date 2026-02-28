@@ -37,7 +37,8 @@ describe('submitViaEmail', () => {
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.web3forms.com/submit');
     const body = opts.body as FormData;
-    expect(body.get('access_key')).toBe('59e250d7-881e-41bf-9cb7-842c33b866ac');
+    // Key comes from VITE_WEB3FORMS_KEY env var (empty in test environment)
+    expect(body.has('access_key')).toBe(true);
     expect(body.get('botcheck')).toBe('');
     expect(result.success).toBe(true);
   });

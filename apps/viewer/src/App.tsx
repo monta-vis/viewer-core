@@ -74,7 +74,8 @@ declare global {
           folderName: string,
           partToolId: string,
           imagePath: string,
-        ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
+          crop?: { x: number; y: number; width: number; height: number },
+        ) => Promise<{ success: boolean; vfaId?: string; junctionId?: string; isPreview?: boolean; error?: string }>;
       };
     };
   }

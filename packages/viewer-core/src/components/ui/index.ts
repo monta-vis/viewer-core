@@ -45,6 +45,10 @@ export type { NavbarProps } from './Navbar'
 export { PreferencesDialog } from './PreferencesDialog'
 export type { PreferencesDialogProps } from './PreferencesDialog'
 
+// Dialog Shell
+export { DialogShell } from './DialogShell'
+export type { DialogShellProps } from './DialogShell'
+
 // Text Input Modal
 export { TextInputModal } from './TextInputModal'
 export type { TextInputModalProps, TextInputSuggestion } from './TextInputModal'

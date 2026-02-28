@@ -547,7 +547,8 @@ export function uploadPartToolImage(
   folderName: string,
   partToolId: string,
   sourceImagePath: string,
-): { success: boolean; vfaId?: string; error?: string } {
+  crop?: { x: number; y: number; width: number; height: number },
+): { success: boolean; vfaId?: string; junctionId?: string; isPreview?: boolean; error?: string } {
   const basePath = getProjectsBasePath();
   const dbPath = path.join(basePath, folderName, "montavis.db");
 
@@ -597,17 +598,22 @@ export function uploadPartToolImage(
     try {
       const now = new Date().toISOString();
 
-      // Insert video_frame_areas row
+      // Insert video_frame_areas row with crop coordinates
+      const cx = crop?.x ?? 0;
+      const cy = crop?.y ?? 0;
+      const cw = crop?.width ?? 1;
+      const ch = crop?.height ?? 1;
       db.prepare(
         `INSERT INTO video_frame_areas (id, x, y, width, height, created_at, updated_at)
-         VALUES (?, 0, 0, 1, 1, ?, ?)`,
-      ).run(vfaId, now, now);
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).run(vfaId, cx, cy, cw, ch, now, now);
 
       // Insert junction row
+      const junctionId = crypto.randomUUID();
       db.prepare(
         `INSERT INTO part_tool_video_frame_areas (id, part_tool_id, video_frame_area_id, created_at, updated_at)
          VALUES (?, ?, ?, ?, ?)`,
-      ).run(crypto.randomUUID(), partToolId, vfaId, now, now);
+      ).run(junctionId, partToolId, vfaId, now, now);
 
       // Update part_tool preview_image_id
       db.prepare(
@@ -616,7 +622,7 @@ export function uploadPartToolImage(
 
       db.exec("COMMIT");
       db.close();
-      return { success: true, vfaId };
+      return { success: true, vfaId, junctionId, isPreview: true };
     } catch (txErr) {
       db.exec("ROLLBACK");
       db.close();

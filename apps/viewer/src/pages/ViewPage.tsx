@@ -15,12 +15,16 @@ import {
   IconButton,
   Navbar,
 } from "@monta-vis/viewer-core";
-import type { InstructionData, InstructionSnapshot, NoteLevel } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot, NoteLevel, PartToolRow } from "@monta-vis/viewer-core";
+import { buildMediaUrl } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
   useAutoSave,
   SubstepEditPopover,
+  PartToolListPanel,
+  createDefaultPartTool,
   type SafetyIconCatalog,
+  type NormalizedCrop,
 } from "@monta-vis/editor-core";
 import { createElectronAdapter } from "../persistence/electronAdapter";
 
@@ -284,6 +288,120 @@ export function ViewPage() {
     }
   }, []);
 
+  // ── PartToolListPanel state & callbacks ──
+  const [partToolListOpen, setPartToolListOpen] = useState(false);
+
+  const onOpenPartToolList = useCallback(() => {
+    setPartToolListOpen(true);
+  }, []);
+
+  const onAddPartTool = useCallback(() => {
+    const store = useEditorStore.getState();
+    const pt = createDefaultPartTool(getVersionId(), getInstructionId());
+    store.addPartTool(pt);
+  }, [getVersionId, getInstructionId]);
+
+  const onUpdatePartTool = useCallback((id: string, updates: Partial<PartToolRow>) => {
+    useEditorStore.getState().updatePartTool(id, updates);
+  }, []);
+
+  const onDeletePartToolFromList = useCallback((id: string) => {
+    const store = useEditorStore.getState();
+    // Delete all substep_part_tool junction rows for this partTool
+    const sptRows = Object.values(store.data?.substepPartTools ?? {})
+      .filter((spt) => spt.partToolId === id);
+    for (const spt of sptRows) {
+      store.deleteSubstepPartTool(spt.id);
+    }
+    // Delete all part_tool_video_frame_area junction rows + their VFAs
+    const ptvfaRows = Object.values(store.data?.partToolVideoFrameAreas ?? {})
+      .filter((row) => row.partToolId === id);
+    for (const row of ptvfaRows) {
+      store.deletePartToolVideoFrameArea(row.id);
+      store.deleteVideoFrameArea(row.videoFrameAreaId);
+    }
+    store.deletePartTool(id);
+  }, []);
+
+  const onUploadPartToolImage = useCallback(async (partToolId: string, image: File, crop: NormalizedCrop) => {
+    if (!decodedFolderName || !adapter.uploadPartToolImage) return;
+    // Electron File objects have a `path` property with the native file path
+    const filePath = (image as File & { path?: string }).path;
+    if (!filePath) return;
+
+    const result = await adapter.uploadPartToolImage(
+      decodedFolderName,
+      partToolId,
+      { type: 'path', path: filePath },
+      crop,
+    );
+
+    if (result.success && result.vfaId) {
+      const store = useEditorStore.getState();
+      // Add VFA row to store
+      store.addVideoFrameArea({
+        id: result.vfaId,
+        versionId: getVersionId(),
+        videoId: null,
+        frameNumber: null,
+        x: crop.x,
+        y: crop.y,
+        width: crop.width,
+        height: crop.height,
+        type: 'PartToolScan',
+        localPath: null,
+      });
+      // Add junction row to store
+      if (result.junctionId) {
+        store.addPartToolVideoFrameArea({
+          id: result.junctionId,
+          versionId: getVersionId(),
+          partToolId,
+          videoFrameAreaId: result.vfaId,
+          isPreviewImage: true,
+          order: 0,
+        });
+      }
+      // Update part tool's preview image
+      store.updatePartTool(partToolId, { previewImageId: result.vfaId });
+    }
+  }, [decodedFolderName, adapter, getVersionId]);
+
+  const onDeletePartToolImage = useCallback((partToolId: string, areaId: string) => {
+    const store = useEditorStore.getState();
+    // Find and delete the junction row
+    const junctionRow = Object.values(store.data?.partToolVideoFrameAreas ?? {})
+      .find((row) => row.partToolId === partToolId && row.videoFrameAreaId === areaId);
+    if (junctionRow) {
+      store.deletePartToolVideoFrameArea(junctionRow.id);
+    }
+    // Delete the VFA
+    if (areaId) {
+      store.deleteVideoFrameArea(areaId);
+    }
+    // Clear preview image if it was the deleted area
+    const pt = store.data?.partTools[partToolId];
+    if (pt?.previewImageId === areaId) {
+      store.updatePartTool(partToolId, { previewImageId: null });
+    }
+  }, []);
+
+  const getPartToolPreviewUrl = useCallback((partToolId: string): string | null => {
+    if (!decodedFolderName) return null;
+    const store = useEditorStore.getState();
+    const pt = store.data?.partTools[partToolId];
+    if (!pt?.previewImageId) return null;
+    return buildMediaUrl(decodedFolderName, `media/frames/${pt.previewImageId}/image`);
+  }, [decodedFolderName]);
+
+  const partToolListCallbacks = useMemo(() => ({
+    onAddPartTool,
+    onUpdatePartTool,
+    onDeletePartTool: onDeletePartToolFromList,
+    onUploadImage: onUploadPartToolImage,
+    onDeleteImage: onDeletePartToolImage,
+  }), [onAddPartTool, onUpdatePartTool, onDeletePartToolFromList, onUploadPartToolImage, onDeletePartToolImage]);
+
   // ── Memoized edit callbacks ──
   const editCallbacks = useMemo(() => ({
     onSaveDescription,
@@ -298,18 +416,21 @@ export function ViewPage() {
     onDeleteImage,
     onDeleteTutorial,
     onDeletePartTool,
+    onEditPartToolImage: onOpenPartToolList,
+    onUpdatePartTool,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
     onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
     onDeleteSubstep, onDeleteImage, onDeleteTutorial, onDeletePartTool,
+    onOpenPartToolList, onUpdatePartTool,
   ]);
 
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
   const renderEditPopover = useCallback(
     (props: Parameters<typeof SubstepEditPopover>[0]) => (
-      <SubstepEditPopover {...props} folderName={decodedFolderName} catalogs={safetyIconCatalogs} />
+      <SubstepEditPopover {...props} folderName={decodedFolderName} catalogs={safetyIconCatalogs} getPreviewUrl={getPartToolPreviewUrl} />
     ),
-    [decodedFolderName, safetyIconCatalogs],
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl],
   );
 
   if (isLoading) {
@@ -360,6 +481,16 @@ export function ViewPage() {
                   renderEditPopover={editEnabled ? renderEditPopover : undefined}
                 />
               </InstructionViewContainer>
+              {editEnabled && editModeActive && (
+                <PartToolListPanel
+                  open={partToolListOpen}
+                  onClose={() => setPartToolListOpen(false)}
+                  partTools={viewerData?.partTools ?? {}}
+                  substepPartTools={viewerData?.substepPartTools ?? {}}
+                  callbacks={partToolListCallbacks}
+                  getPreviewUrl={getPartToolPreviewUrl}
+                />
+              )}
             </ViewerDataProvider>
           </InstructionViewProvider>
         </VideoProvider>

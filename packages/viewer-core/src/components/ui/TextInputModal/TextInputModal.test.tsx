@@ -61,7 +61,7 @@ describe('TextInputModal', () => {
     render(<TextInputModal {...defaultProps} onCancel={onCancel} />);
 
     // Click the backdrop (the outermost fixed overlay)
-    const backdrop = screen.getByTestId('text-input-modal-backdrop');
+    const backdrop = screen.getByTestId('dialog-shell-backdrop');
     await user.click(backdrop);
 
     expect(onCancel).toHaveBeenCalled();

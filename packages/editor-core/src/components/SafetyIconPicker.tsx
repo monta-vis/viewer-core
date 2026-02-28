@@ -6,6 +6,7 @@ import {
   getCategoryColor,
   SAFETY_ICON_CATEGORIES,
 } from '@monta-vis/viewer-core';
+import { EditInput } from './EditInput';
 
 export interface SafetyIconItem {
   id: string;
@@ -67,12 +68,12 @@ export function SafetyIconPicker({
       {/* Search bar */}
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-text-muted)]" />
-        <input
+        <EditInput
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={t('editorCore.searchIcons', 'Search icons...')}
-          className="w-full pl-9 pr-3 py-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-base)] text-sm focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+          className="pl-9 pr-3 py-2"
         />
       </div>
 

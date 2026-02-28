@@ -206,8 +206,8 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "projects:upload-parttool-image",
-    (_event, folderName: string, partToolId: string, imagePath: string) =>
-      uploadPartToolImage(folderName, partToolId, imagePath),
+    (_event, folderName: string, partToolId: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
+      uploadPartToolImage(folderName, partToolId, imagePath, crop),
   );
 
   ipcMain.handle("catalogs:get-safety-icons", () => getSafetyIconCatalogs());

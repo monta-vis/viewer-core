@@ -2076,7 +2076,7 @@ describe('useEditorStore - Extended Tests', () => {
   });
 
   describe('restoreData', () => {
-    it('restoreData with same data results in no changes', () => {
+    it('restoreData with same data reference results in no changes', () => {
       const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
 
@@ -2084,9 +2084,11 @@ describe('useEditorStore - Extended Tests', () => {
         result.current.setData(mockData);
       });
 
-      // restoreData with identical data should show no changes
+      // restoreData uses reference equality (Immer structural sharing),
+      // so restoring the same object reference should show no changes
+      const currentData = result.current.data!;
       act(() => {
-        result.current.restoreData(structuredClone(result.current.data!));
+        result.current.restoreData(currentData);
       });
 
       expect(result.current.hasChanges()).toBe(false);

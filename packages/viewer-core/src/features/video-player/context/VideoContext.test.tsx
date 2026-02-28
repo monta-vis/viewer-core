@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { renderHook, act, waitFor, cleanup } from '@testing-library/react';
 import { VideoProvider, useVideo, useVideoState } from './VideoContext';
 import { createMockVideoElement } from '@/test/mocks';
+
+afterEach(() => { cleanup(); });
 
 describe('VideoContext', () => {
   describe('useVideo hook', () => {

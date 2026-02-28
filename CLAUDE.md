@@ -4,7 +4,7 @@ npm workspaces monorepo with three packages:
 
 - **`packages/viewer-core/`** — `@monta-vis/viewer-core` — read-only viewer components + types (published to GitHub Packages)
 - **`packages/editor-core/`** — `@monta-vis/editor-core` — editing layer: store, persistence, edit hooks (published)
-- **`packages/viewer-app/`** — `@monta-vis/montavis-viewer` — standalone Electron viewer app (private)
+- **`apps/viewer/`** — `@monta-vis/montavis-viewer` — standalone Electron viewer app (private)
 
 ## Quick Start
 

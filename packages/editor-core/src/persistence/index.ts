@@ -5,6 +5,7 @@ export type {
   PersistenceResult,
   ImageUploadResult,
   ImageSource,
+  NormalizedCrop,
 } from './types';
 
 export { PersistenceProvider, usePersistence } from './PersistenceContext';

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { TextInputPopover } from './TextInputPopover';
 import { ShapeRenderer, type ShapeData } from './ShapeRenderer';
 // Mock react-i18next
@@ -20,6 +20,8 @@ vi.mock('react-i18next', () => ({
   }),
   initReactI18next: { type: '3rdParty', init: () => {} },
 }));
+
+afterEach(() => { cleanup(); });
 
 describe('TextInputPopover size buttons', () => {
   const baseProps = {

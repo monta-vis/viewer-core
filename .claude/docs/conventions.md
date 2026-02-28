@@ -36,7 +36,7 @@ import { SubstepCard } from "@/features/instruction-view/components/SubstepCard"
 - `PersistenceAdapter` interface for platform-agnostic save/load
 - Consumed via `import { ... } from '@monta-vis/editor-core'`
 
-### viewer-app = Electron Shell
+### viewer-app (`apps/viewer/`) = Electron Shell
 - Electron-specific code (IPC, SQLite, main process)
 - Implements `createElectronAdapter()` for persistence
 

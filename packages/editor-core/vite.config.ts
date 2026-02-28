@@ -29,6 +29,8 @@ export default defineConfig({
         "react-i18next",
         "i18next",
         "lucide-react",
+        "react-image-crop",
+        "react-image-crop/dist/ReactCrop.css",
         "@monta-vis/viewer-core",
       ],
       output: {

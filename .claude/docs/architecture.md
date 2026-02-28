@@ -5,11 +5,12 @@
 npm workspaces monorepo with three packages:
 
 ```
-montavis-viewer/          (root — private, workspaces: packages/*)
+montavis-viewer/          (root — private, workspaces: packages/*, apps/*)
 ├── packages/
 │   ├── viewer-core/      @monta-vis/viewer-core (published library — read-only)
-│   ├── editor-core/      @monta-vis/editor-core (published library — editing layer)
-│   └── viewer-app/       @monta-vis/montavis-viewer (private Electron app)
+│   └── editor-core/      @monta-vis/editor-core (published library — editing layer)
+├── apps/
+│   └── viewer/           @monta-vis/montavis-viewer (private Electron app)
 ├── package.json          Root workspace config & convenience scripts
 ├── tsconfig.json          Solution-style references
 └── .github/workflows/    CI/CD (builds & publishes viewer-core + editor-core)
@@ -207,14 +208,14 @@ const adapter = createElectronAdapter(); // or createWebAdapter(), etc.
 </EditorProvider>
 ```
 
-## viewer-app (`packages/viewer-app/`)
+## viewer-app (`apps/viewer/`)
 
 Standalone Electron viewer app. `private: true` — never published. Depends on both `@monta-vis/viewer-core` and `@monta-vis/editor-core`.
 
 ### Structure
 
 ```
-packages/viewer-app/
+apps/viewer/
 ├── electron/                 Main process + preload
 ├── src/
 │   ├── App.tsx               Root component (HashRouter: Dashboard + ViewPage)

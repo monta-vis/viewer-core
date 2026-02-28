@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import { AreaHighlight } from './AreaHighlight';
 import type { AreaData } from '../types';
 
@@ -7,6 +7,8 @@ import type { AreaData } from '../types';
 vi.mock('../hooks/useShiftKey', () => ({
   useShiftKey: () => false,
 }));
+
+afterEach(() => { cleanup(); });
 
 const baseArea: AreaData = {
   id: 'area-1',

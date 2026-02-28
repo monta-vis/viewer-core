@@ -23,8 +23,17 @@ export interface PersistenceResult {
   error?: string;
 }
 
+export interface NormalizedCrop {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 export interface ImageUploadResult extends PersistenceResult {
   vfaId?: string;
+  junctionId?: string;
+  isPreview?: boolean;
 }
 
 export type ImageSource =
@@ -36,6 +45,6 @@ export interface PersistenceAdapter {
   listProjects(): Promise<ProjectListItem[]>;
   getProjectData(projectId: string): Promise<unknown>;
   saveChanges(projectId: string, changes: ProjectChanges): Promise<PersistenceResult>;
-  uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource): Promise<ImageUploadResult>;
+  uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource, crop?: NormalizedCrop): Promise<ImageUploadResult>;
   resolveMediaUrl(projectId: string, relativePath: string): string;
 }

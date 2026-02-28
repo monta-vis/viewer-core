@@ -1,6 +1,8 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { ColorSwatch } from './ColorSwatch'
+
+afterEach(() => { cleanup(); });
 
 describe('ColorSwatch', () => {
   it('renders with the specified color', () => {

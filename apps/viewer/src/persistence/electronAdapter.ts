@@ -13,6 +13,7 @@ import type {
   PersistenceResult,
   ImageUploadResult,
   ImageSource,
+  NormalizedCrop,
 } from '@monta-vis/editor-core';
 
 function getAPI() {
@@ -49,12 +50,13 @@ export function createElectronAdapter(): PersistenceAdapter {
       projectId: string,
       partToolId: string,
       image: ImageSource,
+      crop?: NormalizedCrop,
     ): Promise<ImageUploadResult> {
       const api = getAPI();
       if (image.type !== 'path') {
         return { success: false, error: 'Electron adapter only supports path-based images' };
       }
-      return api.projects.uploadPartToolImage(projectId, partToolId, image.path);
+      return api.projects.uploadPartToolImage(projectId, partToolId, image.path, crop);
     },
 
     resolveMediaUrl(projectId: string, relativePath: string): string {

@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { createDefaultPartTool, isPartToolNameValid, sortSubstepPartTools } from './partToolHelpers';
+import {
+  createDefaultPartTool,
+  isPartToolNameValid,
+  sortSubstepPartTools,
+  sortPartToolRows,
+  computeUsedAmount,
+} from './partToolHelpers';
 import type { EnrichedSubstepPartTool, PartToolRow } from '@monta-vis/viewer-core';
 
 describe('createDefaultPartTool', () => {
@@ -89,5 +95,69 @@ describe('sortSubstepPartTools', () => {
 
   it('handles empty array', () => {
     expect(sortSubstepPartTools([])).toEqual([]);
+  });
+});
+
+describe('sortPartToolRows', () => {
+  const makePtRow = (id: string, name: string, type: 'Part' | 'Tool'): PartToolRow => ({
+    id, versionId: 'v1', instructionId: 'i1', previewImageId: null,
+    name, type, partNumber: null, amount: 1,
+    description: null, unit: null, material: null, dimension: null, iconId: null,
+  });
+
+  it('sorts Parts before Tools', () => {
+    const rows: Record<string, PartToolRow> = {
+      t1: makePtRow('t1', 'Wrench', 'Tool'),
+      p1: makePtRow('p1', 'Bolt', 'Part'),
+    };
+    const sorted = sortPartToolRows(rows);
+    expect(sorted[0].type).toBe('Part');
+    expect(sorted[1].type).toBe('Tool');
+  });
+
+  it('sorts alphabetically within each group', () => {
+    const rows: Record<string, PartToolRow> = {
+      p2: makePtRow('p2', 'Screw', 'Part'),
+      p1: makePtRow('p1', 'Bolt', 'Part'),
+      t2: makePtRow('t2', 'Wrench', 'Tool'),
+      t1: makePtRow('t1', 'Hammer', 'Tool'),
+    };
+    const sorted = sortPartToolRows(rows);
+    expect(sorted.map((r) => r.name)).toEqual(['Bolt', 'Screw', 'Hammer', 'Wrench']);
+  });
+
+  it('returns empty array for empty record', () => {
+    expect(sortPartToolRows({})).toEqual([]);
+  });
+});
+
+describe('computeUsedAmount', () => {
+  it('sums amounts for Parts', () => {
+    const spts: Record<string, { partToolId: string; amount: number }> = {
+      spt1: { partToolId: 'p1', amount: 3 },
+      spt2: { partToolId: 'p1', amount: 2 },
+      spt3: { partToolId: 'p2', amount: 5 },
+    };
+    expect(computeUsedAmount('p1', 'Part', spts)).toBe(5);
+  });
+
+  it('takes max amount for Tools', () => {
+    const spts: Record<string, { partToolId: string; amount: number }> = {
+      spt1: { partToolId: 't1', amount: 1 },
+      spt2: { partToolId: 't1', amount: 3 },
+      spt3: { partToolId: 't1', amount: 2 },
+    };
+    expect(computeUsedAmount('t1', 'Tool', spts)).toBe(3);
+  });
+
+  it('returns 0 when no junctions exist for the partTool', () => {
+    const spts: Record<string, { partToolId: string; amount: number }> = {
+      spt1: { partToolId: 'other', amount: 5 },
+    };
+    expect(computeUsedAmount('p1', 'Part', spts)).toBe(0);
+  });
+
+  it('returns 0 for empty substepPartTools', () => {
+    expect(computeUsedAmount('p1', 'Part', {})).toBe(0);
   });
 });
