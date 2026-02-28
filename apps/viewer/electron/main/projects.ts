@@ -3,6 +3,17 @@ import path from "path";
 import fs from "fs";
 import crypto from "crypto";
 import Database from "better-sqlite3";
+import {
+  resolveFFmpegBinary,
+  processImage,
+  PARTTOOL_EXPORT_SIZE,
+  EXPORT_SIZE,
+} from "@monta-vis/media-utils";
+import {
+  saveProjectData as dbSaveProjectData,
+  type ProjectChanges as DbProjectChanges,
+  type SaveConfig,
+} from "@monta-vis/db-utils";
 
 /** Image extensions to search for, in priority order. */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'];
@@ -46,6 +57,10 @@ const ALLOWED_MEDIA_EXTENSIONS = new Set([
   ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff",
 ]);
 
+const ALLOWED_IMAGE_EXTENSIONS = new Set([
+  ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff",
+]);
+
 export function getProjectsBasePath(): string {
   return path.join(app.getPath("documents"), "Montavis");
 }
@@ -72,6 +87,33 @@ export function isInsideBasePath(filePath: string): boolean {
   const resolved = normalize(filePath);
   const base = normalize(getProjectsBasePath());
   return resolved.startsWith(base + path.sep) || resolved === base;
+}
+
+/** Verify the file is within a user-accessible directory (not system paths). */
+function isInsideUserHome(filePath: string): boolean {
+  const normalize =
+    process.platform === "win32"
+      ? (p: string) => path.resolve(p).toLowerCase()
+      : (p: string) => path.resolve(p);
+  return normalize(filePath).startsWith(normalize(app.getPath("home")));
+}
+
+/**
+ * Validate an image source path for upload: must exist, have an allowed
+ * image extension, and be inside the user's home directory.
+ */
+function validateImageSource(sourcePath: string): { valid: true; resolved: string } | { valid: false; error: string } {
+  const resolved = path.resolve(sourcePath);
+  if (!fs.existsSync(resolved)) {
+    return { valid: false, error: "Source image not found" };
+  }
+  if (!ALLOWED_IMAGE_EXTENSIONS.has(path.extname(resolved).toLowerCase())) {
+    return { valid: false, error: "Unsupported file type" };
+  }
+  if (!isInsideUserHome(resolved)) {
+    return { valid: false, error: "Source path is outside user directory" };
+  }
+  return { valid: true, resolved };
 }
 
 /**
@@ -177,33 +219,30 @@ const ALLOWED_TABLES: Record<string, keyof ElectronProjectData> = {
 // Save types & constants
 // ---------------------------------------------------------------------------
 
-/** Generic changes format — matches getChangedData() output from the Zustand store. */
-export interface ProjectChanges {
-  changed: Record<string, Record<string, unknown>[]>;
-  deleted: Record<string, string[]>;
-}
+/** Re-export ProjectChanges from db-utils for callers that import from here. */
+export type ProjectChanges = DbProjectChanges;
 
-/** Whitelist of tables that may be written to via the generic save path. */
-const SAVE_ALLOWED_TABLES = new Set([
-  "assemblies", "steps", "substeps", "videos", "video_sections",
-  "video_frame_areas", "viewport_keyframes", "drawings", "notes",
-  "part_tools", "substep_descriptions", "substep_notes", "substep_part_tools",
-  "substep_images", "substep_video_sections", "part_tool_video_frame_areas",
-  "branding", "translations", "substep_tutorials",
-]);
-
-/** Delete order: child/junction tables first, then parents (FK-safe). */
-const DELETE_ORDER: string[] = [
-  // Leaf / junction tables
-  "substep_tutorials", "substep_notes", "substep_part_tools",
-  "substep_images", "substep_video_sections", "substep_descriptions",
-  "part_tool_video_frame_areas", "viewport_keyframes", "translations",
-  "drawings", "branding",
-  // Mid-level
-  "video_frame_areas", "video_sections", "notes", "part_tools",
-  // Parent tables
-  "videos", "substeps", "steps", "assemblies",
-];
+/** Viewer save configuration — passed to the shared db-utils saveProjectData. */
+const VIEWER_SAVE_CONFIG: SaveConfig = {
+  allowedTables: new Set([
+    "assemblies", "steps", "substeps", "videos", "video_sections",
+    "video_frame_areas", "viewport_keyframes", "drawings", "notes",
+    "part_tools", "substep_descriptions", "substep_notes", "substep_part_tools",
+    "substep_images", "substep_video_sections", "part_tool_video_frame_areas",
+    "branding", "translations", "substep_tutorials",
+  ]),
+  deleteOrder: [
+    // Leaf / junction tables
+    "substep_tutorials", "substep_notes", "substep_part_tools",
+    "substep_images", "substep_video_sections", "substep_descriptions",
+    "part_tool_video_frame_areas", "viewport_keyframes", "translations",
+    "drawings", "branding",
+    // Mid-level
+    "video_frame_areas", "video_sections", "notes", "part_tools",
+    // Parent tables
+    "videos", "substeps", "steps", "assemblies",
+  ],
+};
 
 // ---------------------------------------------------------------------------
 // Get full project data (read-only)
@@ -411,8 +450,8 @@ export function listProjects(): ProjectListItem[] {
 
 /**
  * Save changes to a project's SQLite database.
- * Accepts the format from getChangedData() — arrays of snake_case row objects
- * keyed by table name, plus deleted IDs keyed as `{table}_ids`.
+ * Thin wrapper around @monta-vis/db-utils — handles path resolution, security,
+ * and DB open/close. The actual save logic lives in the shared package.
  */
 export function saveProjectData(
   folderName: string,
@@ -428,110 +467,11 @@ export function saveProjectData(
     return { success: false, error: `Project DB not found: ${folderName}` };
   }
 
+  const db = new Database(dbPath);
   try {
-    const db = new Database(dbPath);
-    db.pragma("foreign_keys = ON");
-    db.exec("BEGIN TRANSACTION");
-
-    try {
-      // Cache column + primary key info per table
-      const tableInfoCache: Record<string, { columns: Set<string>; pkColumns: string[] }> = {};
-      function getTableInfo(table: string) {
-        if (!tableInfoCache[table]) {
-          const info = db.pragma(`table_info("${table}")`) as Array<{ name: string; pk: number }>;
-          tableInfoCache[table] = {
-            columns: new Set(info.map((c) => c.name)),
-            pkColumns: info.filter((c) => c.pk > 0).sort((a, b) => a.pk - b.pk).map((c) => c.name),
-          };
-        }
-        return tableInfoCache[table];
-      }
-
-      // ── UPSERT changed rows ──
-      for (const [key, rows] of Object.entries(changes.changed)) {
-        const targetTable = key === "instruction" ? "instructions" : key;
-        if (!SAVE_ALLOWED_TABLES.has(key) && key !== "instruction") continue;
-
-        const { columns: tableColumns, pkColumns } = getTableInfo(targetTable);
-        if (tableColumns.size === 0) continue;
-
-        for (const row of rows) {
-          const cols = Object.keys(row).filter((k) => tableColumns.has(k));
-          if (cols.length === 0) continue;
-
-          const quotedCols = cols.map((c) => `"${c}"`);
-          const placeholders = cols.map(() => "?");
-          const pkSet = new Set(pkColumns);
-          const updateSet = cols
-            .filter((c) => !pkSet.has(c))
-            .map((c) => `"${c}" = excluded."${c}"`);
-
-          const conflictTarget = pkColumns.map((c) => `"${c}"`).join(", ");
-          const sql =
-            updateSet.length > 0 && pkColumns.length > 0
-              ? `INSERT INTO "${targetTable}" (${quotedCols.join(", ")}) VALUES (${placeholders.join(", ")}) ON CONFLICT(${conflictTarget}) DO UPDATE SET ${updateSet.join(", ")}`
-              : `INSERT OR IGNORE INTO "${targetTable}" (${quotedCols.join(", ")}) VALUES (${placeholders.join(", ")})`;
-
-          const values = cols.map((c) => {
-            const val = row[c];
-            if (typeof val === "boolean") return val ? 1 : 0;
-            return val ?? null;
-          });
-
-          db.prepare(sql).run(...values);
-        }
-
-        // Update updated_at for instructions
-        if (key === "instruction") {
-          db.prepare("UPDATE instructions SET updated_at = datetime('now')").run();
-        }
-      }
-
-      // ── DELETE rows ──
-      // Keys are formatted as `{table_name}_ids`
-      const deletedEntries = Object.entries(changes.deleted);
-      // Sort by DELETE_ORDER so FK constraints aren't violated
-      deletedEntries.sort((a, b) => {
-        const tA = a[0].replace(/_ids$/, "");
-        const tB = b[0].replace(/_ids$/, "");
-        const iA = DELETE_ORDER.indexOf(tA);
-        const iB = DELETE_ORDER.indexOf(tB);
-        return (iA === -1 ? 999 : iA) - (iB === -1 ? 999 : iB);
-      });
-
-      for (const [key, ids] of deletedEntries) {
-        const table = key.replace(/_ids$/, "");
-        if (!SAVE_ALLOWED_TABLES.has(table)) continue;
-
-        const deleteStmt = db.prepare(`DELETE FROM "${table}" WHERE "id" = ?`);
-        // Also clean up associated translations
-        const deleteTranslationsStmt = db.prepare(
-          "DELETE FROM translations WHERE entity_id = ?",
-        );
-
-        for (const id of ids) {
-          deleteStmt.run(id);
-          try {
-            deleteTranslationsStmt.run(id);
-          } catch {
-            // translations table may not exist — skip
-          }
-        }
-      }
-
-      db.exec("COMMIT");
-      db.close();
-      return { success: true };
-    } catch (txErr) {
-      db.exec("ROLLBACK");
-      db.close();
-      throw txErr;
-    }
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
+    return dbSaveProjectData(db, changes, VIEWER_SAVE_CONFIG);
+  } finally {
+    db.close();
   }
 }
 
@@ -543,12 +483,12 @@ export function saveProjectData(
  * Copy an image to the project's media folder and create the necessary DB rows.
  * Returns the new video_frame_area ID on success.
  */
-export function uploadPartToolImage(
+export async function uploadPartToolImage(
   folderName: string,
   partToolId: string,
   sourceImagePath: string,
   crop?: { x: number; y: number; width: number; height: number },
-): { success: boolean; vfaId?: string; junctionId?: string; isPreview?: boolean; error?: string } {
+): Promise<{ success: boolean; vfaId?: string; junctionId?: string; isPreview?: boolean; error?: string }> {
   const basePath = getProjectsBasePath();
   const dbPath = path.join(basePath, folderName, "montavis.db");
 
@@ -556,39 +496,22 @@ export function uploadPartToolImage(
     return { success: false, error: "Project not found" };
   }
 
-  // Resolve and validate source path to prevent arbitrary file reads
-  const resolvedSource = path.resolve(sourceImagePath);
-  if (!fs.existsSync(resolvedSource)) {
-    return { success: false, error: "Source image not found" };
+  const sourceCheck = validateImageSource(sourceImagePath);
+  if (!sourceCheck.valid) {
+    return { success: false, error: sourceCheck.error };
   }
-
-  // Only allow image extensions (no videos or other media)
-  const ext = path.extname(resolvedSource).toLowerCase();
-  const ALLOWED_IMAGE_EXTENSIONS = new Set([
-    ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tiff",
-  ]);
-  if (!ALLOWED_IMAGE_EXTENSIONS.has(ext)) {
-    return { success: false, error: "Unsupported file type" };
-  }
-
-  // Verify the file is within a user-accessible directory (not system paths)
-  const userHome = app.getPath("home");
-  const normalizeForCheck =
-    process.platform === "win32"
-      ? (p: string) => path.resolve(p).toLowerCase()
-      : (p: string) => path.resolve(p);
-  if (!normalizeForCheck(resolvedSource).startsWith(normalizeForCheck(userHome))) {
-    return { success: false, error: "Source path is outside user directory" };
-  }
+  const resolvedSource = sourceCheck.resolved;
 
   const vfaId = crypto.randomUUID();
   const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
-  const destFile = path.join(destDir, `image${ext}`);
+  const destFile = path.join(destDir, "image.jpg");
 
   try {
-    // Copy image to media folder
-    fs.mkdirSync(destDir, { recursive: true });
-    fs.copyFileSync(resolvedSource, destFile);
+    const ffmpegBin = resolveFFmpegBinary(
+      app.isPackaged ? process.resourcesPath : app.getAppPath(),
+      app.isPackaged,
+    );
+    await processImage(ffmpegBin, resolvedSource, destFile, crop, PARTTOOL_EXPORT_SIZE);
 
     // Create DB rows
     const db = new Database(dbPath);
@@ -627,6 +550,82 @@ export function uploadPartToolImage(
       db.exec("ROLLBACK");
       db.close();
       // Clean up copied file on failure
+      try {
+        fs.rmSync(destDir, { recursive: true });
+      } catch { /* ignore cleanup errors */ }
+      throw txErr;
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Cover image upload
+// ---------------------------------------------------------------------------
+
+/**
+ * Process and upload a cover image for a project.
+ * Creates a video_frame_area and links it to the instruction's cover_image_area_id.
+ */
+export async function uploadCoverImage(
+  folderName: string,
+  sourceImagePath: string,
+  crop?: { x: number; y: number; width: number; height: number },
+): Promise<{ success: boolean; vfaId?: string; error?: string }> {
+  const basePath = getProjectsBasePath();
+  const dbPath = path.join(basePath, folderName, "montavis.db");
+
+  if (!isInsideBasePath(dbPath) || !fs.existsSync(dbPath)) {
+    return { success: false, error: "Project not found" };
+  }
+
+  const sourceCheck = validateImageSource(sourceImagePath);
+  if (!sourceCheck.valid) {
+    return { success: false, error: sourceCheck.error };
+  }
+  const resolvedSource = sourceCheck.resolved;
+
+  const vfaId = crypto.randomUUID();
+  const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
+  const destFile = path.join(destDir, "image.jpg");
+
+  try {
+    const ffmpegBin = resolveFFmpegBinary(
+      app.isPackaged ? process.resourcesPath : app.getAppPath(),
+      app.isPackaged,
+    );
+    await processImage(ffmpegBin, resolvedSource, destFile, crop, EXPORT_SIZE);
+
+    const db = new Database(dbPath);
+    db.pragma("foreign_keys = ON");
+    db.exec("BEGIN TRANSACTION");
+
+    try {
+      const now = new Date().toISOString();
+      const cx = crop?.x ?? 0;
+      const cy = crop?.y ?? 0;
+      const cw = crop?.width ?? 1;
+      const ch = crop?.height ?? 1;
+
+      db.prepare(
+        `INSERT INTO video_frame_areas (id, x, y, width, height, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).run(vfaId, cx, cy, cw, ch, now, now);
+
+      db.prepare(
+        `UPDATE instructions SET cover_image_area_id = ?`,
+      ).run(vfaId);
+
+      db.exec("COMMIT");
+      db.close();
+      return { success: true, vfaId };
+    } catch (txErr) {
+      db.exec("ROLLBACK");
+      db.close();
       try {
         fs.rmSync(destDir, { recursive: true });
       } catch { /* ignore cleanup errors */ }

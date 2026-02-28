@@ -6,3 +6,6 @@ release/
 *.tsbuildinfo
 .vite/
 --db-path
+
+# FFmpeg binaries (large, copied from creator)
+apps/viewer/resources/ffmpeg/

@@ -76,6 +76,11 @@ declare global {
           imagePath: string,
           crop?: { x: number; y: number; width: number; height: number },
         ) => Promise<{ success: boolean; vfaId?: string; junctionId?: string; isPreview?: boolean; error?: string }>;
+        uploadCoverImage: (
+          folderName: string,
+          imagePath: string,
+          crop?: { x: number; y: number; width: number; height: number },
+        ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
       };
     };
   }

@@ -14,7 +14,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@monta-vis/db-utils": "*",
     "@monta-vis/editor-core": "*",
+    "@monta-vis/media-utils": "*",
     "@monta-vis/viewer-core": "*",
     "better-sqlite3": "^11.0.0",
     "extract-zip": "^2.0.1",
@@ -49,6 +51,13 @@
       "output": "release"
     },
     "npmRebuild": false,
+    "extraResources": [
+      {
+        "from": "resources/ffmpeg",
+        "to": "ffmpeg",
+        "filter": ["**/*"]
+      }
+    ],
     "fileAssociations": [
       {
         "ext": "mvis",

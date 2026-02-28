@@ -32,6 +32,17 @@ const electronAPI = {
         imagePath,
         crop,
       ),
+    uploadCoverImage: (
+      folderName: string,
+      imagePath: string,
+      crop?: { x: number; y: number; width: number; height: number },
+    ) =>
+      ipcRenderer.invoke(
+        "projects:upload-cover-image",
+        folderName,
+        imagePath,
+        crop,
+      ),
   },
 };
 

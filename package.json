@@ -5,16 +5,21 @@
   "scripts": {
     "build:core": "npm run build -w packages/viewer-core",
     "build:editor": "npm run build -w packages/editor-core",
+    "build:db": "npm run build -w packages/db-utils",
+    "build:media": "npm run build -w packages/media-utils",
     "build:app": "npm run build -w apps/viewer",
     "dev:core": "npm run dev -w packages/viewer-core",
     "dev:editor": "npm run dev -w packages/editor-core",
+    "dev:media": "npm run dev -w packages/media-utils",
     "dev:app": "npm run dev -w apps/viewer",
     "dev:electron": "npm run dev:electron -w apps/viewer",
-    "test": "npm run test -w packages/viewer-core && npm run test -w packages/editor-core",
+    "test": "npm run test -w packages/viewer-core && npm run test -w packages/editor-core && npm run test -w packages/db-utils && npm run test -w packages/media-utils",
     "test:core": "npm run test -w packages/viewer-core",
     "test:editor": "npm run test -w packages/editor-core",
+    "test:db": "npm run test -w packages/db-utils",
+    "test:media": "npm run test -w packages/media-utils",
     "typecheck": "tsc -b",
-    "build:electron": "npm run build:core && npm run build:editor && npm run build:electron -w apps/viewer",
-    "build:electron:dir": "npm run build:core && npm run build:editor && npm run build:electron:dir -w apps/viewer"
+    "build:electron": "npm run build:core && npm run build:editor && npm run build:db && npm run build:media && npm run build:electron -w apps/viewer",
+    "build:electron:dir": "npm run build:core && npm run build:editor && npm run build:db && npm run build:media && npm run build:electron:dir -w apps/viewer"
   }
 }

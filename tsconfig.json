@@ -3,6 +3,8 @@
   "references": [
     { "path": "packages/viewer-core" },
     { "path": "packages/editor-core" },
+    { "path": "packages/db-utils" },
+    { "path": "packages/media-utils" },
     { "path": "apps/viewer" }
   ]
 }

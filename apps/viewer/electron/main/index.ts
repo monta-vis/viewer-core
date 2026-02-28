@@ -8,6 +8,7 @@ import {
   getProjectData,
   saveProjectData,
   uploadPartToolImage,
+  uploadCoverImage,
   resolveMediaPath,
 } from "./projects.js";
 import type { ProjectChanges } from "./projects.js";
@@ -206,8 +207,14 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(
     "projects:upload-parttool-image",
-    (_event, folderName: string, partToolId: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
-      uploadPartToolImage(folderName, partToolId, imagePath, crop),
+    async (_event, folderName: string, partToolId: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
+      await uploadPartToolImage(folderName, partToolId, imagePath, crop),
+  );
+
+  ipcMain.handle(
+    "projects:upload-cover-image",
+    async (_event, folderName: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
+      await uploadCoverImage(folderName, imagePath, crop),
   );
 
   ipcMain.handle("catalogs:get-safety-icons", () => getSafetyIconCatalogs());

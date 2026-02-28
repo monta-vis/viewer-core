@@ -12,6 +12,7 @@ import type {
   ProjectChanges,
   PersistenceResult,
   ImageUploadResult,
+  CoverImageUploadResult,
   ImageSource,
   NormalizedCrop,
 } from '@monta-vis/editor-core';
@@ -57,6 +58,18 @@ export function createElectronAdapter(): PersistenceAdapter {
         return { success: false, error: 'Electron adapter only supports path-based images' };
       }
       return api.projects.uploadPartToolImage(projectId, partToolId, image.path, crop);
+    },
+
+    async uploadCoverImage(
+      projectId: string,
+      image: ImageSource,
+      crop?: NormalizedCrop,
+    ): Promise<CoverImageUploadResult> {
+      const api = getAPI();
+      if (image.type !== 'path') {
+        return { success: false, error: 'Electron adapter only supports path-based images' };
+      }
+      return api.projects.uploadCoverImage(projectId, image.path, crop);
     },
 
     resolveMediaUrl(projectId: string, relativePath: string): string {

@@ -2,13 +2,15 @@
 
 ## Monorepo Structure
 
-npm workspaces monorepo with three packages:
+npm workspaces monorepo:
 
 ```
 montavis-viewer/          (root — private, workspaces: packages/*, apps/*)
 ├── packages/
 │   ├── viewer-core/      @monta-vis/viewer-core (published library — read-only)
-│   └── editor-core/      @monta-vis/editor-core (published library — editing layer)
+│   ├── editor-core/      @monta-vis/editor-core (published library — editing layer)
+│   ├── db-utils/         @monta-vis/db-utils (shared SQLite save utilities)
+│   └── media-utils/      @monta-vis/media-utils (shared FFmpeg media processing)
 ├── apps/
 │   └── viewer/           @monta-vis/montavis-viewer (private Electron app)
 ├── package.json          Root workspace config & convenience scripts
@@ -20,8 +22,9 @@ montavis-viewer/          (root — private, workspaces: packages/*, apps/*)
 
 ```
 viewer-app  →  editor-core  →  viewer-core
-                                    ↑
-                        (future: viewer-mobile, viewer-web)
+    ↓↓                              ↑
+ db-utils            (future: viewer-mobile, viewer-web)
+ media-utils
 ```
 
 ## viewer-core (`packages/viewer-core/`)
@@ -90,7 +93,8 @@ interface PersistenceAdapter {
   listProjects(): Promise<ProjectListItem[]>;
   getProjectData(projectId: string): Promise<unknown>;
   saveChanges(projectId: string, changes: ProjectChanges): Promise<PersistenceResult>;
-  uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource): Promise<ImageUploadResult>;
+  uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource, crop?: NormalizedCrop): Promise<ImageUploadResult>;
+  uploadCoverImage?(projectId: string, image: ImageSource, crop?: NormalizedCrop): Promise<CoverImageUploadResult>;
   resolveMediaUrl(projectId: string, relativePath: string): string;
 }
 ```
@@ -208,6 +212,50 @@ const adapter = createElectronAdapter(); // or createWebAdapter(), etc.
 </EditorProvider>
 ```
 
+## db-utils (`packages/db-utils/`)
+
+Shared SQLite save utilities. Pure Node.js (no React). `better-sqlite3` as peerDependency. Built with plain `tsc`.
+
+### Key Exports
+
+| Export | Purpose |
+|---|---|
+| `saveProjectData(db, changes, config)` | Main save function: upsert + delete + audit + backfill in a transaction |
+| `SaveConfig` | Config interface: allowedTables, deleteOrder, auditTableMap, etc. |
+| `ProjectChanges` | Generic changes format (changed rows + deleted IDs) |
+| `recordAudit` / `buildAuditInsert` | Audit table utilities |
+| `getTableInfo` / `toSqliteValue` | SQL helpers |
+
+### Design
+
+- `db` handle passed in (caller handles open/close/path resolution)
+- Config-driven (allowedTables, deleteOrder, auditTableMap are all per-app config)
+- PK-aware upsert via `PRAGMA table_info` + `ON CONFLICT`
+- Transaction wrapping with rollback on error
+
+## media-utils (`packages/media-utils/`)
+
+Shared FFmpeg media processing utilities. Pure Node.js (no React, no Electron). Built with plain `tsc`.
+
+### Key Exports
+
+| Export | Purpose |
+|---|---|
+| `resolveFFmpegBinary(basePath, isPackaged)` | Find FFmpeg binary (parameterized, no Electron import) |
+| `readImageDimensions(filePath)` | Read PNG/JPEG dimensions from binary headers |
+| `computeProcessingHash(...params)` | SHA-256 cache key for idempotent processing |
+| `isProcessingCurrent(outputDir, hash)` | Check `params.hash` sidecar matches |
+| `buildImageProcessArgs(ffmpegBin, src, dest, crop?, maxHeight)` | Build FFmpeg args for crop+scale+JPEG |
+| `processImage(ffmpegBin, src, dest, crop?, maxHeight)` | Orchestrate FFmpeg + write hash sidecar |
+| `PARTTOOL_EXPORT_SIZE` / `EXPORT_SIZE` | Max output heights (720px / 1040px) |
+
+### Design
+
+- No Electron dependency — all platform paths passed as parameters
+- Idempotent via `params.hash` sidecar files
+- Uses `child_process.execFile` (not `exec`) to prevent shell injection
+- Only downscales, preserves aspect ratio, width divisible by 2
+
 ## viewer-app (`apps/viewer/`)
 
 Standalone Electron viewer app. `private: true` — never published. Depends on both `@monta-vis/viewer-core` and `@monta-vis/editor-core`.
@@ -232,4 +280,6 @@ apps/viewer/
 
 1. `npm run build:core`
 2. `npm run build:editor`
-3. `npm run build:app`
+3. `npm run build:db`
+4. `npm run build:media`
+5. `npm run build:app`
