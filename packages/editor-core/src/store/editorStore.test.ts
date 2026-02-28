@@ -573,8 +573,8 @@ describe('useEditorStore', () => {
         versionId: 'ver-1',
         instructionId: 'inst-1',
         text: 'Important note',
-        level: 'Info' as const,
-        safetyIconId: null,
+        safetyIconId: 'W001-Allgemeines-Warnzeichen.png',
+        safetyIconCategory: 'Warnzeichen' as const,
       };
 
       act(() => {
@@ -1912,7 +1912,7 @@ describe('useEditorStore - Extended Tests', () => {
       const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.notes = {
-        'n-1': { id: 'n-1', versionId: 'ver-1', text: 'Old', level: 'Info' },
+        'n-1': { id: 'n-1', versionId: 'ver-1', instructionId: 'inst-1', text: 'Old', safetyIconId: 'W001-Allgemeines-Warnzeichen.png', safetyIconCategory: 'Warnzeichen' as const },
       };
 
       act(() => {

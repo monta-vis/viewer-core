@@ -32,19 +32,34 @@ vi.mock('../hooks/useSessionHistory', () => ({
   }),
 }));
 
+// Mock ImageCropDialog — renders confirm/cancel buttons for testing
+let mockCropOnConfirm: ((crop: { x: number; y: number; width: number; height: number }) => void) | null = null;
+let mockCropOnCancel: (() => void) | null = null;
+vi.mock('./ImageCropDialog', () => ({
+  ImageCropDialog: ({ open, onConfirm, onCancel }: { open: boolean; onConfirm: (crop: { x: number; y: number; width: number; height: number }) => void; onCancel: () => void }) => {
+    mockCropOnConfirm = onConfirm;
+    mockCropOnCancel = onCancel;
+    if (!open) return null;
+    return (
+      <div data-testid="crop-dialog">
+        <button data-testid="crop-confirm" onClick={() => onConfirm({ x: 0.1, y: 0.1, width: 0.8, height: 0.8 })}>Confirm</button>
+        <button data-testid="crop-cancel" onClick={() => onCancel()}>Cancel</button>
+      </div>
+    );
+  },
+}));
+
 // Mock viewer-core exports used by inline note editing
 vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    categoryToNoteLevel: (cat: string) => {
-      const map: Record<string, string> = {
-        Verbote: 'Critical',
-        Gebote: 'Warning',
-        Warnzeichen: 'Warning',
-        Sonstige: 'Info',
-      };
-      return map[cat] ?? 'Info';
+    NOTE_CATEGORY_STYLES: {
+      Verbotszeichen: { bg: 'bg-red', border: 'border-red', text: 'text-red' },
+      Warnzeichen: { bg: 'bg-yellow', border: 'border-yellow', text: 'text-yellow' },
+      Gefahrstoffe: { bg: 'bg-red', border: 'border-red', text: 'text-red' },
+      Gebotszeichen: { bg: 'bg-blue', border: 'border-blue', text: 'text-blue' },
+      'Piktogramme-Leitern': { bg: 'bg-gray', border: 'border-gray', text: 'text-gray' },
     },
     SAFETY_ICON_MANIFEST: [],
     buildMediaUrl: (folder: string, path: string) => `mvis-media://${folder}/${path}`,
@@ -56,7 +71,6 @@ afterEach(() => {
 });
 
 const callbacks = {
-  onEditImage: vi.fn(),
   onDeleteImage: vi.fn(),
   onEditVideo: vi.fn(),
   onDeleteVideo: vi.fn(),
@@ -79,10 +93,13 @@ const callbacks = {
   onDeleteSubstep: vi.fn(),
 };
 
+const mockOnUploadSubstepImage = vi.fn();
+
 const baseProps: SubstepEditPopoverProps = {
   open: true,
   onClose: vi.fn(),
   callbacks,
+  onUploadSubstepImage: mockOnUploadSubstepImage,
   descriptions: [
     { id: 'desc-1', substepId: 's1', text: 'First description', order: 1 },
     { id: 'desc-2', substepId: 's1', text: 'Second description', order: 2 },
@@ -93,7 +110,7 @@ const baseProps: SubstepEditPopoverProps = {
       substepId: 's1',
       noteId: 'note-1',
       order: 1,
-      note: { id: 'note-1', versionId: 'v1', instructionId: 'i1', text: 'Safety note', level: 'Warning', safetyIconId: null, safetyIconCategory: null },
+      note: { id: 'note-1', versionId: 'v1', instructionId: 'i1', text: 'Safety note', safetyIconId: 'W001-Allgemeines-Warnzeichen.png', safetyIconCategory: 'Warnzeichen' },
     },
   ],
   partTools: [
@@ -136,6 +153,9 @@ const baseProps: SubstepEditPopoverProps = {
 beforeEach(() => {
   Object.values(callbacks).forEach((fn) => fn.mockClear());
   (baseProps.onClose as ReturnType<typeof vi.fn>).mockClear();
+  mockOnUploadSubstepImage.mockClear();
+  mockCropOnConfirm = null;
+  mockCropOnCancel = null;
   mockCaptureSnapshot.mockClear();
   mockUndo.mockClear();
   mockRedo.mockClear();
@@ -224,17 +244,72 @@ describe('SubstepEditPopover — media', () => {
     expect(screen.getByTestId('media-video-row')).toBeInTheDocument();
   });
 
-  it('fires onEditImage WITHOUT closing when image edit is clicked', async () => {
+  it('clicking edit-image pencil opens the file input (no close)', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     const row = screen.getByTestId('media-image-row');
     const editBtn = row.querySelector('[aria-label="Edit image"]');
     expect(editBtn).toBeTruthy();
+
+    // Mock click on hidden file input
+    const fileInput = screen.getByTestId('substep-image-file-input') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click');
+
     await user.click(editBtn!);
-    expect(callbacks.onEditImage).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
+    expect(clickSpy).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
+    clickSpy.mockRestore();
+  });
+
+  it('selecting a file opens the crop dialog', async () => {
+    render(<SubstepEditPopover {...baseProps} />);
+
+    const fileInput = screen.getByTestId('substep-image-file-input') as HTMLInputElement;
+    const testFile = new File(['test'], 'photo.png', { type: 'image/png' });
+
+    // Simulate file selection
+    await userEvent.upload(fileInput, testFile);
+
+    expect(screen.getByTestId('crop-dialog')).toBeInTheDocument();
+  });
+
+  it('crop confirm calls onUploadSubstepImage(file, crop)', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    const fileInput = screen.getByTestId('substep-image-file-input') as HTMLInputElement;
+    const testFile = new File(['test'], 'photo.png', { type: 'image/png' });
+
+    await userEvent.upload(fileInput, testFile);
+    expect(screen.getByTestId('crop-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('crop-confirm'));
+
+    expect(mockOnUploadSubstepImage).toHaveBeenCalledOnce();
+    expect(mockOnUploadSubstepImage).toHaveBeenCalledWith(
+      expect.any(File),
+      { x: 0.1, y: 0.1, width: 0.8, height: 0.8 },
+    );
+    expect(mockCaptureSnapshot).toHaveBeenCalled();
+    // Crop dialog should be closed
+    expect(screen.queryByTestId('crop-dialog')).not.toBeInTheDocument();
+  });
+
+  it('crop cancel cleans up state without calling onUploadSubstepImage', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    const fileInput = screen.getByTestId('substep-image-file-input') as HTMLInputElement;
+    const testFile = new File(['test'], 'photo.png', { type: 'image/png' });
+
+    await userEvent.upload(fileInput, testFile);
+    expect(screen.getByTestId('crop-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('crop-cancel'));
+
+    expect(mockOnUploadSubstepImage).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('crop-dialog')).not.toBeInTheDocument();
   });
 
   it('fires onDeleteImage WITHOUT closing when image delete is clicked', async () => {
@@ -279,6 +354,11 @@ describe('SubstepEditPopover — media', () => {
   it('media image row still has edit pencil button (regression guard)', () => {
     render(<SubstepEditPopover {...baseProps} />);
     expect(screen.getByLabelText('Edit image')).toBeInTheDocument();
+  });
+
+  it('does not show file input when hasImage=false', () => {
+    render(<SubstepEditPopover {...baseProps} hasImage={false} hasVideo={false} />);
+    expect(screen.queryByTestId('substep-image-file-input')).not.toBeInTheDocument();
   });
 });
 
@@ -413,7 +493,7 @@ describe('SubstepEditPopover — notes', () => {
     expect(screen.getByTestId('inline-icon-picker')).toBeInTheDocument();
   });
 
-  it('save on note calls onSaveNote(id, text, level, iconId, iconCat)', async () => {
+  it('save on note calls onSaveNote(id, text, iconId, category)', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
@@ -429,9 +509,8 @@ describe('SubstepEditPopover — notes', () => {
     expect(callbacks.onSaveNote).toHaveBeenCalledWith(
       'note-row-1',
       'Updated note',
-      'Info', // categoryToNoteLevel('Sonstige') returns 'Info' (no category selected)
-      null,
-      null,
+      'W001-Allgemeines-Warnzeichen.png',
+      'Warnzeichen',
     );
     expect(mockCaptureSnapshot).toHaveBeenCalled();
   });
@@ -454,7 +533,7 @@ describe('SubstepEditPopover — notes', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('clicking "+" shows inline add note, save calls onAddNote', async () => {
+  it('clicking "+" shows inline add note, save without icon does not call onAddNote', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
@@ -464,15 +543,10 @@ describe('SubstepEditPopover — notes', () => {
     const input = screen.getByTestId('inline-add-note-input');
     await user.type(input, 'New note text');
 
+    // Save without selecting an icon — should not call onAddNote (icon required)
     await user.click(screen.getByTestId('save-add-note'));
 
-    expect(callbacks.onAddNote).toHaveBeenCalledWith(
-      'New note text',
-      'Info', // default category 'Sonstige' -> 'Info'
-      null,
-      null,
-    );
-    expect(mockCaptureSnapshot).toHaveBeenCalled();
+    expect(callbacks.onAddNote).not.toHaveBeenCalled();
   });
 });
 
@@ -715,29 +789,29 @@ describe('SubstepEditPopover — media preview', () => {
 });
 
 // ============================================================
-// Note level badges
+// Note category badges
 // ============================================================
-describe('SubstepEditPopover — note level badges', () => {
-  it('shows note level text in each note row', () => {
+describe('SubstepEditPopover — note category badges', () => {
+  it('shows note category text in each note row', () => {
     render(<SubstepEditPopover {...baseProps} />);
     const noteRow = screen.getByTestId('popover-note-note-row-1');
-    expect(noteRow).toHaveTextContent('Warning');
+    expect(noteRow).toHaveTextContent('Warnzeichen');
   });
 
-  it('shows level text for each note level', () => {
+  it('shows category text for each note category', () => {
     const multiNotes = [
       {
         id: 'nr-1', versionId: 'v1', substepId: 's1', noteId: 'n-1', order: 1,
-        note: { id: 'n-1', versionId: 'v1', instructionId: 'i1', text: 'Critical note', level: 'Critical' as const, safetyIconId: null, safetyIconCategory: null },
+        note: { id: 'n-1', versionId: 'v1', instructionId: 'i1', text: 'Prohibition note', safetyIconId: 'P001-Allgemeines-Verbotszeichen.png', safetyIconCategory: 'Verbotszeichen' as const },
       },
       {
         id: 'nr-2', versionId: 'v1', substepId: 's1', noteId: 'n-2', order: 2,
-        note: { id: 'n-2', versionId: 'v1', instructionId: 'i1', text: 'Info note', level: 'Info' as const, safetyIconId: null, safetyIconCategory: null },
+        note: { id: 'n-2', versionId: 'v1', instructionId: 'i1', text: 'Mandatory note', safetyIconId: 'M001_Allgemeines-Gebotszeichen.png', safetyIconCategory: 'Gebotszeichen' as const },
       },
     ];
     render(<SubstepEditPopover {...baseProps} notes={multiNotes} />);
-    expect(screen.getByTestId('popover-note-nr-1')).toHaveTextContent('Critical');
-    expect(screen.getByTestId('popover-note-nr-2')).toHaveTextContent('Info');
+    expect(screen.getByTestId('popover-note-nr-1')).toHaveTextContent('Verbotszeichen');
+    expect(screen.getByTestId('popover-note-nr-2')).toHaveTextContent('Gebotszeichen');
   });
 });
 

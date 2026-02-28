@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import {
   Pencil, Trash2, Plus, Image, Video, Package,
   GraduationCap, Repeat, StickyNote, AlignLeft, X, Check,
-  AlertCircle, AlertTriangle, CheckCircle, Info,
   Undo2, Redo2,
 } from 'lucide-react';
 import type {
@@ -15,13 +14,15 @@ import type {
   PartToolRow,
 } from '@monta-vis/viewer-core';
 import {
-  categoryToNoteLevel,
-  type NoteLevel,
+  NOTE_CATEGORY_STYLES,
   type SafetyIconCategory,
 } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
+import { ImageCropDialog } from './ImageCropDialog';
+import type { NormalizedCrop } from '../persistence/types';
 import { SafetyIconPicker } from './SafetyIconPicker';
-import { PartToolTable, type PartToolTableItem } from './PartToolTable';
+import { PartToolTable, type PartToolTableItem, type PartToolTableImageCallbacks } from './PartToolTable';
+import type { PartToolImageItem } from './PartToolImagePicker';
 import { SectionCard } from './SectionCard';
 import { EditInput, EditTextarea } from './EditInput';
 import {
@@ -57,22 +58,13 @@ export interface SubstepEditPopoverProps {
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
   /** Resolve a partTool ID to a thumbnail URL (or null). */
   getPreviewUrl?: (partToolId: string) => string | null;
+  /** Resolve all images for a partTool (for image picker gallery). */
+  getPartToolImages?: (partToolId: string) => PartToolImageItem[];
+  /** Image upload/delete/set-preview callbacks (enables thumbnail interaction). */
+  imageCallbacks?: PartToolTableImageCallbacks;
+  /** Called when the user picks + crops a new substep image via the edit-image pencil. */
+  onUploadSubstepImage?: (file: File, crop: NormalizedCrop) => void;
 }
-
-/* ── Note level styling ── */
-const NOTE_LEVEL_ICONS = {
-  Critical: AlertCircle,
-  Warning: AlertTriangle,
-  Quality: CheckCircle,
-  Info: Info,
-} as const;
-
-const NOTE_LEVEL_COLORS: Record<NoteLevel, string> = {
-  Critical: 'bg-[var(--color-note-critical-bg)] text-[var(--color-note-critical-text)] border-[var(--color-note-critical-border)]',
-  Warning: 'bg-[var(--color-note-warning-bg)] text-white border-[var(--color-note-warning-border)]',
-  Quality: 'bg-[var(--color-note-quality-bg)] text-[var(--color-note-quality-text)] border-[var(--color-note-quality-border)]',
-  Info: 'bg-[var(--color-note-info-bg)] text-[var(--color-note-info-text)] border-[var(--color-note-info-border)]',
-};
 
 /* ── Inline edit state types ── */
 
@@ -130,6 +122,9 @@ export function SubstepEditPopover({
   catalogs = [],
   allSubstepPartTools,
   getPreviewUrl,
+  getPartToolImages,
+  imageCallbacks,
+  onUploadSubstepImage,
 }: SubstepEditPopoverProps) {
   const { t, i18n } = useTranslation();
   const { canUndo, canRedo, captureSnapshot, undo, redo, reset } = useSessionHistory();
@@ -138,6 +133,40 @@ export function SubstepEditPopover({
   const [editState, setEditState] = useState<InlineEditState>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // ── File-upload + crop state for substep image replacement ──
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingFileRef = useRef<File | null>(null);
+  const [cropDialogSrc, setCropDialogSrc] = useState<string | null>(null);
+
+  const handleUploadClick = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    pendingFileRef.current = file;
+    setCropDialogSrc(URL.createObjectURL(file));
+    e.target.value = '';
+  }, []);
+
+  const handleCropConfirm = useCallback((crop: NormalizedCrop) => {
+    const file = pendingFileRef.current;
+    if (file && onUploadSubstepImage) {
+      onUploadSubstepImage(file, crop);
+      captureSnapshot();
+    }
+    if (cropDialogSrc) URL.revokeObjectURL(cropDialogSrc);
+    setCropDialogSrc(null);
+    pendingFileRef.current = null;
+  }, [onUploadSubstepImage, captureSnapshot, cropDialogSrc]);
+
+  const handleCropCancel = useCallback(() => {
+    if (cropDialogSrc) URL.revokeObjectURL(cropDialogSrc);
+    setCropDialogSrc(null);
+    pendingFileRef.current = null;
+  }, [cropDialogSrc]);
 
   // Build icon list and URL resolver for note editing
   const icons = useMemo(() => buildIconList(catalogs, i18n.language), [catalogs, i18n.language]);
@@ -277,16 +306,14 @@ export function SubstepEditPopover({
     if (!editState) return;
     if (editState.kind === 'edit-note' || editState.kind === 'add-note') {
       const trimmed = editState.text.trim();
-      if (!trimmed && !editState.selectedIconId) {
+      if (!editState.selectedIconId || !editState.selectedCategory) {
         setEditState(null);
         return;
       }
-      const category = editState.selectedCategory ?? 'Sonstige';
-      const level = categoryToNoteLevel(category as SafetyIconCategory);
       if (editState.kind === 'edit-note') {
-        callbacks.onSaveNote?.(editState.noteRowId, trimmed, level, editState.selectedIconId, editState.selectedCategory);
+        callbacks.onSaveNote?.(editState.noteRowId, trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory);
       } else {
-        callbacks.onAddNote?.(trimmed, level, editState.selectedIconId, editState.selectedCategory);
+        callbacks.onAddNote?.(trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory);
       }
       captureSnapshot();
     }
@@ -405,12 +432,28 @@ export function SubstepEditPopover({
                       <div className={ROW_CLASS} data-testid="media-image-row">
                         <Image className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
                         <span className="flex-1 truncate">{t('editorCore.image', 'Image')}</span>
-                        <button type="button" aria-label={t('editorCore.editImage', 'Edit image')} className={EDIT_BTN_CLASS} onClick={() => fire(callbacks.onEditImage)}>
+                        <button type="button" aria-label={t('editorCore.editImage', 'Edit image')} className={EDIT_BTN_CLASS} onClick={handleUploadClick}>
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button type="button" aria-label={t('editorCore.deleteImage', 'Delete image')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteImage)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          data-testid="substep-image-file-input"
+                          onChange={handleFileSelect}
+                        />
+                        {cropDialogSrc && (
+                          <ImageCropDialog
+                            open
+                            imageSrc={cropDialogSrc}
+                            onConfirm={handleCropConfirm}
+                            onCancel={handleCropCancel}
+                          />
+                        )}
                       </div>
                     )}
                     {/* Video row */}
@@ -528,9 +571,9 @@ export function SubstepEditPopover({
                 {notes.length > 0 || editState?.kind === 'add-note' ? (
                   <>
                     {notes.map((noteRow) => {
-                      const level = noteRow.note.level as NoteLevel;
-                      const LevelIcon = NOTE_LEVEL_ICONS[level] ?? Info;
-                      const badgeColors = NOTE_LEVEL_COLORS[level] ?? NOTE_LEVEL_COLORS.Info;
+                      const category = (noteRow.note.safetyIconCategory ?? 'Warnzeichen') as SafetyIconCategory;
+                      const catStyles = NOTE_CATEGORY_STYLES[category] ?? NOTE_CATEGORY_STYLES.Warnzeichen;
+                      const badgeColors = `${catStyles.bg} ${catStyles.text} ${catStyles.border}`;
                       const isEditing = editState?.kind === 'edit-note' && editState.noteRowId === noteRow.id;
 
                       if (isEditing) {
@@ -568,8 +611,7 @@ export function SubstepEditPopover({
                       return (
                         <div key={noteRow.id} className={ROW_CLASS} data-testid={`popover-note-${noteRow.id}`}>
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${badgeColors}`}>
-                            <LevelIcon className="h-3 w-3" />
-                            {level}
+                            {category}
                           </span>
                           <button type="button" className="flex-1 truncate cursor-pointer text-left" onClick={() => startEditNote(noteRow.id, noteRow.note.text, noteRow.note.safetyIconId, noteRow.note.safetyIconCategory ?? null)}>{noteRow.note.text}</button>
                           <button type="button" aria-label={t('editorCore.deleteNote', 'Delete note')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteNote, noteRow.id)}>
@@ -683,21 +725,16 @@ export function SubstepEditPopover({
                 }
                 emptyText={undefined}
               >
-                {tutorials.length > 0 ? (
-                  <>
-                    {tutorials.map((ref, idx) => (
-                      <div key={`${ref.kind}-${idx}`} className={ROW_CLASS} data-testid={`popover-tutorial-${idx}`}>
-                        <GraduationCap className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-                        <button type="button" className="flex-1 truncate cursor-pointer text-left" onClick={() => fireWithArg(callbacks.onEditTutorial, idx)}>{ref.label}</button>
-                        <button type="button" aria-label={t('editorCore.deleteTutorial', 'Delete tutorial')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteTutorial, idx)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </>
-                ) : undefined}
+                {tutorials.length > 0 ? tutorials.map((ref, idx) => (
+                  <div key={`${ref.kind}-${idx}`} className={ROW_CLASS} data-testid={`popover-tutorial-${idx}`}>
+                    <GraduationCap className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+                    <button type="button" className="flex-1 truncate cursor-pointer text-left" onClick={() => fireWithArg(callbacks.onEditTutorial, idx)}>{ref.label}</button>
+                    <button type="button" aria-label={t('editorCore.deleteTutorial', 'Delete tutorial')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteTutorial, idx)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )) : undefined}
               </SectionCard>
-
 
             </div>{/* end right column */}
           </div>{/* end two-column grid */}
@@ -721,6 +758,8 @@ export function SubstepEditPopover({
                 callbacks={partToolCallbacks}
                 allSubstepPartTools={allSubstepPartTools}
                 getPreviewUrl={getPreviewUrl}
+                getPartToolImages={getPartToolImages}
+                imageCallbacks={imageCallbacks}
               />
             ) : undefined}
           </SectionCard>

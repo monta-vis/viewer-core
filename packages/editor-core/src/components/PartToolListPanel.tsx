@@ -6,6 +6,7 @@ import type { PartToolRow, SubstepPartToolRow } from '@monta-vis/viewer-core';
 import { sortPartToolRows } from '../utils/partToolHelpers';
 import { ICON_BTN_CLASS } from './editButtonStyles';
 import { PartToolTable, type PartToolTableItem, type PartToolTableCallbacks, type PartToolTableImageCallbacks } from './PartToolTable';
+import type { PartToolImageItem } from './PartToolImagePicker';
 import type { NormalizedCrop } from '../persistence/types';
 
 export interface PartToolListPanelCallbacks {
@@ -19,7 +20,7 @@ export interface PartToolListPanelCallbacks {
   /** Optional platform feature: delete image from a part/tool. */
   onDeleteImage?: (partToolId: string, areaId: string) => void;
   /** Optional platform feature: set preview image for a part/tool. */
-  onSetPreviewImage?: (partToolId: string, junctionId: string) => void;
+  onSetPreviewImage?: (partToolId: string, junctionId: string, areaId: string) => void;
 }
 
 export interface PartToolListPanelProps {
@@ -30,10 +31,11 @@ export interface PartToolListPanelProps {
   callbacks: PartToolListPanelCallbacks;
   /** Optional image data for thumbnails. */
   getPreviewUrl?: (partToolId: string) => string | null;
+  /** Resolve all images for a partTool (for image picker gallery). */
+  getPartToolImages?: (partToolId: string) => PartToolImageItem[];
   /** Whether an import is currently in progress. */
   isImporting?: boolean;
 }
-
 
 /** Instruction-level part/tool management panel. */
 export function PartToolListPanel({
@@ -43,6 +45,7 @@ export function PartToolListPanel({
   substepPartTools,
   callbacks,
   getPreviewUrl,
+  getPartToolImages,
   isImporting,
 }: PartToolListPanelProps) {
   const { t } = useTranslation();
@@ -76,14 +79,13 @@ export function PartToolListPanel({
     onDelete: callbacks.onDeletePartTool,
   }), [callbacks]);
 
-  // Convert substepPartTools for "Used" column
-  const allSubstepPartTools = useMemo(() => {
-    const result: Record<string, { partToolId: string; amount: number }> = {};
-    for (const [id, spt] of Object.entries(substepPartTools)) {
-      result[id] = { partToolId: spt.partToolId, amount: spt.amount };
-    }
-    return result;
-  }, [substepPartTools]);
+  // Convert substepPartTools for "Used" column (narrow to the fields PartToolTable needs)
+  const allSubstepPartTools = useMemo(
+    () => Object.fromEntries(
+      Object.entries(substepPartTools).map(([id, spt]) => [id, { partToolId: spt.partToolId, amount: spt.amount }]),
+    ),
+    [substepPartTools],
+  );
 
   // Image callbacks (optional)
   const imageCallbacks: PartToolTableImageCallbacks | undefined = useMemo(() => {
@@ -91,8 +93,9 @@ export function PartToolListPanel({
     return {
       onUploadImage: callbacks.onUploadImage,
       onDeleteImage: callbacks.onDeleteImage,
+      onSetPreviewImage: callbacks.onSetPreviewImage,
     };
-  }, [callbacks.onUploadImage, callbacks.onDeleteImage]);
+  }, [callbacks.onUploadImage, callbacks.onDeleteImage, callbacks.onSetPreviewImage]);
 
   if (!open) return null;
 
@@ -161,13 +164,9 @@ export function PartToolListPanel({
             allSubstepPartTools={allSubstepPartTools}
             getPreviewUrl={getPreviewUrl}
             imageCallbacks={imageCallbacks}
+            getPartToolImages={getPartToolImages}
             testIdPrefix="parttool-list-row"
           />
-          {tableRows.length === 0 && (
-            <div className="flex items-center justify-center text-sm italic text-[var(--color-text-muted)] py-8">
-              {t('editorCore.noPartsTools', 'No parts/tools')}
-            </div>
-          )}
         </div>
       </div>
     </div>,

@@ -6,6 +6,7 @@ import { computeUsedAmount } from '../utils/partToolHelpers';
 import { usePartToolFieldState } from '../hooks/usePartToolFieldState';
 import { EditInput } from './EditInput';
 import { ImageCropDialog } from './ImageCropDialog';
+import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
 import type { NormalizedCrop } from '../persistence/types';
 
 export interface PartToolTableItem {
@@ -23,6 +24,7 @@ export interface PartToolTableCallbacks {
 export interface PartToolTableImageCallbacks {
   onUploadImage: (partToolId: string, image: File, crop: NormalizedCrop) => void;
   onDeleteImage?: (partToolId: string, areaId: string) => void;
+  onSetPreviewImage?: (partToolId: string, junctionId: string, areaId: string) => void;
 }
 
 export interface PartToolTableProps {
@@ -34,6 +36,8 @@ export interface PartToolTableProps {
   getPreviewUrl?: (partToolId: string) => string | null;
   /** Image upload/delete callbacks (enables thumbnail column interaction). */
   imageCallbacks?: PartToolTableImageCallbacks;
+  /** Resolve all images for a partTool (for image picker gallery). */
+  getPartToolImages?: (partToolId: string) => PartToolImageItem[];
   /** Prefix for data-testid attributes (default "parttool-row"). */
   testIdPrefix?: string;
 }
@@ -45,6 +49,7 @@ export function PartToolTable({
   allSubstepPartTools,
   getPreviewUrl,
   imageCallbacks,
+  getPartToolImages,
   testIdPrefix = 'parttool-row',
 }: PartToolTableProps) {
   const { t } = useTranslation();
@@ -80,6 +85,7 @@ export function PartToolTable({
             allSubstepPartTools={allSubstepPartTools}
             getPreviewUrl={getPreviewUrl}
             imageCallbacks={imageCallbacks}
+            getPartToolImages={getPartToolImages}
             testIdPrefix={testIdPrefix}
           />
         ))}
@@ -96,6 +102,7 @@ interface RowProps {
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
   getPreviewUrl?: (partToolId: string) => string | null;
   imageCallbacks?: PartToolTableImageCallbacks;
+  getPartToolImages?: (partToolId: string) => PartToolImageItem[];
   testIdPrefix: string;
 }
 
@@ -105,6 +112,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
   allSubstepPartTools,
   getPreviewUrl,
   imageCallbacks,
+  getPartToolImages,
   testIdPrefix,
 }: RowProps) {
   const { t } = useTranslation();
@@ -112,6 +120,8 @@ const PartToolTableRow = memo(function PartToolTableRow({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cropDialogSrc, setCropDialogSrc] = useState<string | null>(null);
   const pendingFileRef = useRef<File | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerPos, setPickerPos] = useState<{ left: number; bottom: number } | null>(null);
 
   const onCommitAmount = useCallback((parsed: number) => {
     if (parsed !== row.amount) {
@@ -170,38 +180,89 @@ const PartToolTableRow = memo(function PartToolTableRow({
       {/* Thumbnail (optional) */}
       {getPreviewUrl && (
         <td className="px-1 py-0.5">
-          {previewUrl ? (
-            <div className="relative group h-6 w-6">
-              <img
-                src={previewUrl}
-                alt={pt.name}
+          {getPartToolImages ? (
+            /* Gallery mode: clickable thumbnail opens PartToolImagePicker */
+            <>
+              <button
+                type="button"
                 data-testid={`${testIdPrefix}-thumbnail-${row.rowId}`}
-                className="h-6 w-6 object-cover rounded"
+                aria-label={t('editorCore.openImagePicker', 'Open image picker')}
+                className="h-6 w-6 rounded overflow-hidden cursor-pointer hover:ring-1 hover:ring-[var(--color-secondary)] transition-all"
+                onClick={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setPickerPos({ left: rect.left, bottom: window.innerHeight - rect.top + 4 });
+                  setPickerOpen(true);
+                }}
+              >
+                {previewUrl ? (
+                  <img src={previewUrl} alt={pt.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="h-full w-full bg-[var(--color-bg-hover)] flex items-center justify-center text-[var(--color-text-muted)]">
+                    <ImagePlus className="h-3 w-3" />
+                  </div>
+                )}
+              </button>
+              <PartToolImagePicker
+                open={pickerOpen}
+                onClose={() => setPickerOpen(false)}
+                position={pickerPos ?? { left: 0, bottom: 0 }}
+                images={getPartToolImages(pt.id)}
+                onSelect={(junctionId, areaId) => {
+                  imageCallbacks?.onSetPreviewImage?.(pt.id, junctionId, areaId);
+                  setPickerOpen(false);
+                }}
+                onAdd={() => {
+                  setPickerOpen(false);
+                  handleUploadClick();
+                }}
+                onDelete={imageCallbacks?.onDeleteImage
+                  ? (_junctionId, areaId) => imageCallbacks.onDeleteImage!(pt.id, areaId)
+                  : undefined}
               />
-              {imageCallbacks?.onDeleteImage && (
-                <button
-                  type="button"
-                  data-testid={`${testIdPrefix}-delete-image-${row.rowId}`}
-                  aria-label={t('editorCore.deleteImage', 'Delete image')}
-                  className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  onClick={() => imageCallbacks.onDeleteImage!(pt.id, pt.previewImageId ?? '')}
-                >
-                  <X className="h-2 w-2" />
-                </button>
-              )}
-            </div>
-          ) : imageCallbacks?.onUploadImage ? (
-            <button
-              type="button"
-              data-testid={`${testIdPrefix}-upload-${row.rowId}`}
-              aria-label={t('editorCore.uploadImage', 'Upload image')}
-              className="h-6 w-6 rounded bg-[var(--color-bg-hover)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-secondary)] transition-colors cursor-pointer"
-              onClick={handleUploadClick}
-            >
-              <ImagePlus className="h-3 w-3" />
-            </button>
+            </>
           ) : (
-            <div className="h-6 w-6 rounded bg-[var(--color-bg-hover)]" />
+            /* Legacy mode: static thumbnail + upload/delete overlay */
+            <>
+              {(() => {
+                if (previewUrl) {
+                  return (
+                    <div className="relative group h-6 w-6">
+                      <img
+                        src={previewUrl}
+                        alt={pt.name}
+                        data-testid={`${testIdPrefix}-thumbnail-${row.rowId}`}
+                        className="h-6 w-6 object-cover rounded"
+                      />
+                      {imageCallbacks?.onDeleteImage && (
+                        <button
+                          type="button"
+                          data-testid={`${testIdPrefix}-delete-image-${row.rowId}`}
+                          aria-label={t('editorCore.deleteImage', 'Delete image')}
+                          className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          onClick={() => imageCallbacks.onDeleteImage!(pt.id, pt.previewImageId ?? '')}
+                        >
+                          <X className="h-2 w-2" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                }
+                if (imageCallbacks?.onUploadImage) {
+                  return (
+                    <button
+                      type="button"
+                      data-testid={`${testIdPrefix}-upload-${row.rowId}`}
+                      aria-label={t('editorCore.uploadImage', 'Upload image')}
+                      className="h-6 w-6 rounded bg-[var(--color-bg-hover)] flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-secondary)] transition-colors cursor-pointer"
+                      onClick={handleUploadClick}
+                    >
+                      <ImagePlus className="h-3 w-3" />
+                    </button>
+                  );
+                }
+                return <div className="h-6 w-6 rounded bg-[var(--color-bg-hover)]" />;
+              })()}
+            </>
           )}
           {imageCallbacks?.onUploadImage && (
             <input

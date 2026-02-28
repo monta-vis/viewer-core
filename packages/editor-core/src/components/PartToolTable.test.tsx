@@ -1,3 +1,4 @@
+import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -11,6 +12,15 @@ vi.mock('react-image-crop', () => ({
   ),
 }));
 vi.mock('react-image-crop/dist/ReactCrop.css', () => ({}));
+
+// Mock viewer-core useMenuClose (used by PartToolImagePicker)
+vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
+  const actual = await importOriginal<Record<string, unknown>>();
+  return {
+    ...actual,
+    useMenuClose: vi.fn(),
+  };
+});
 
 afterEach(() => {
   cleanup();
@@ -255,5 +265,87 @@ describe('PartToolTable', () => {
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
     expect(screen.queryByTestId('parttool-row-thumbnail-spt-1')).not.toBeInTheDocument();
     expect(screen.queryByTestId('parttool-row-upload-spt-1')).not.toBeInTheDocument();
+  });
+
+  // ── Image Picker integration ──
+
+  it('thumbnail click opens image picker when getPartToolImages provided', async () => {
+    const user = userEvent.setup();
+    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
+    const getPartToolImages = vi.fn().mockReturnValue([
+      { junctionId: 'j-1', areaId: 'a-1', url: 'http://example.com/img.jpg', isPreview: true },
+    ]);
+    render(
+      <PartToolTable
+        rows={rows}
+        callbacks={makeCallbacks()}
+        getPreviewUrl={() => 'http://example.com/img.jpg'}
+        imageCallbacks={{ onUploadImage: vi.fn(), onSetPreviewImage: vi.fn() }}
+        getPartToolImages={getPartToolImages}
+      />,
+    );
+
+    // Picker not open yet
+    expect(screen.queryByTestId('picker-add-image')).not.toBeInTheDocument();
+
+    // Click thumbnail
+    const thumbnail = screen.getByTestId('parttool-row-thumbnail-spt-1');
+    await user.click(thumbnail);
+
+    // Picker is now open
+    expect(screen.getByTestId('picker-add-image')).toBeInTheDocument();
+  });
+
+  it('image picker select calls onSetPreviewImage and closes picker', async () => {
+    const user = userEvent.setup();
+    const onSetPreviewImage = vi.fn();
+    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
+    const getPartToolImages = vi.fn().mockReturnValue([
+      { junctionId: 'j-1', areaId: 'a-1', url: 'http://example.com/img1.jpg', isPreview: true },
+      { junctionId: 'j-2', areaId: 'a-2', url: 'http://example.com/img2.jpg', isPreview: false },
+    ]);
+    render(
+      <PartToolTable
+        rows={rows}
+        callbacks={makeCallbacks()}
+        getPreviewUrl={() => 'http://example.com/img1.jpg'}
+        imageCallbacks={{ onUploadImage: vi.fn(), onSetPreviewImage }}
+        getPartToolImages={getPartToolImages}
+      />,
+    );
+
+    // Open picker
+    await user.click(screen.getByTestId('parttool-row-thumbnail-spt-1'));
+
+    // Select second image
+    await user.click(screen.getByTestId('picker-image-j-2'));
+    expect(onSetPreviewImage).toHaveBeenCalledWith('pt-1', 'j-2', 'a-2');
+
+    // Picker should be closed
+    expect(screen.queryByTestId('picker-add-image')).not.toBeInTheDocument();
+  });
+
+  it('image picker add triggers file input flow', async () => {
+    const user = userEvent.setup();
+    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
+    const getPartToolImages = vi.fn().mockReturnValue([]);
+    render(
+      <PartToolTable
+        rows={rows}
+        callbacks={makeCallbacks()}
+        getPreviewUrl={() => null}
+        imageCallbacks={{ onUploadImage: vi.fn() }}
+        getPartToolImages={getPartToolImages}
+      />,
+    );
+
+    // Open picker
+    await user.click(screen.getByTestId('parttool-row-thumbnail-spt-1'));
+
+    // Click add button
+    await user.click(screen.getByTestId('picker-add-image'));
+
+    // Picker should close (file input triggered)
+    expect(screen.queryByTestId('picker-add-image')).not.toBeInTheDocument();
   });
 });

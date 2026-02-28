@@ -80,6 +80,13 @@ export {
   type PartToolListPanelCallbacks,
 } from './components/PartToolListPanel';
 
+// PartToolImagePicker (gallery picker for partTool images)
+export {
+  PartToolImagePicker,
+  type PartToolImagePickerProps,
+  type PartToolImageItem,
+} from './components/PartToolImagePicker';
+
 // ImageCropDialog (image crop dialog for part/tool images)
 export { ImageCropDialog, type ImageCropDialogProps } from './components/ImageCropDialog';
 

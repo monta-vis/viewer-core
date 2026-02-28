@@ -3,8 +3,6 @@ import { useTranslation } from 'react-i18next';
 import {
   DialogShell,
   Button,
-  categoryToNoteLevel,
-  type NoteLevel,
   type SafetyIconCategory,
 } from '@monta-vis/viewer-core';
 import { SafetyIconPicker, type SafetyIconItem } from './SafetyIconPicker';
@@ -19,7 +17,7 @@ export interface NoteEditDialogProps {
   initialSafetyIconCategory: string | null;
   folderName?: string;
   catalogs?: SafetyIconCatalog[];
-  onSave: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
+  onSave: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => void;
   onClose: () => void;
 }
 
@@ -62,20 +60,15 @@ export function NoteEditDialog({
     setSelectedCategory(icon.category);
   }, []);
 
+  const canSave = !!selectedIconId && !!selectedCategory;
+
   const handleSave = useCallback(() => {
     const trimmed = text.trim();
-    if (!trimmed && !selectedIconId) {
-      onClose();
-      return;
-    }
+    if (!canSave) return;
 
-    // Derive level from category
-    const category = selectedCategory ?? 'Sonstige';
-    const level = categoryToNoteLevel(category as SafetyIconCategory);
-
-    onSave(trimmed, level, selectedIconId, selectedCategory);
+    onSave(trimmed, selectedIconId!, selectedCategory as SafetyIconCategory);
     onClose();
-  }, [text, selectedIconId, selectedCategory, onSave, onClose]);
+  }, [text, selectedIconId, selectedCategory, canSave, onSave, onClose]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -111,7 +104,7 @@ export function NoteEditDialog({
         <Button variant="ghost" onClick={onClose}>
           {t('common.cancel', 'Cancel')}
         </Button>
-        <Button variant="primary" onClick={handleSave} disabled={!text.trim() && !selectedIconId}>
+        <Button variant="primary" onClick={handleSave} disabled={!canSave}>
           {t('common.save', 'Save')}
         </Button>
       </div>

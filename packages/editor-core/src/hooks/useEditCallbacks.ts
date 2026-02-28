@@ -20,7 +20,6 @@ import { createDefaultPartTool } from '../utils/partToolHelpers';
  * Defined here so editor-core consumers can type their overrides.
  */
 export interface EditCallbacks {
-  onEditImage?: (substepId: string) => void;
   onDeleteImage?: (substepId: string) => void;
   onEditVideo?: (substepId: string) => void;
   onDeleteVideo?: (substepId: string) => void;

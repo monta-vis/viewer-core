@@ -15,23 +15,21 @@ vi.mock('react-i18next', () => ({
 
 // Mock viewer-core
 vi.mock('@monta-vis/viewer-core', () => ({
-  categoryToNoteLevel: (cat: string) => {
-    const map: Record<string, string> = {
-      Gefahr: 'Critical',
-      Warnung: 'Warning',
-      Qualitaet: 'Quality',
-      Sonstige: 'Info',
-    };
-    return map[cat] ?? 'Info';
-  },
   SAFETY_ICON_MANIFEST: [
-    { filename: 'builtin-1.png', category: 'Sonstige' },
-    { filename: 'builtin-2.png', category: 'Warnung' },
+    { filename: 'W001-Allgemeines-Warnzeichen.png', category: 'Warnzeichen' },
+    { filename: 'P001-Allgemeines-Verbotszeichen.png', category: 'Verbotszeichen' },
   ],
   buildMediaUrl: (_folder: string, path: string) => `mvis-media://${path}`,
   getCategoryPriority: () => 0,
   getCategoryColor: () => '#888',
-  SAFETY_ICON_CATEGORIES: {},
+  SAFETY_ICON_CATEGORIES: {
+    Verbotszeichen: { color: '#CC0000', label: 'editor.safetyCategory.prohibition', priority: 0 },
+    Warnzeichen: { color: '#FFD700', label: 'editor.safetyCategory.warning', priority: 1 },
+  },
+  NOTE_CATEGORY_STYLES: {
+    Verbotszeichen: { bg: 'bg-red', border: 'border-red', text: 'text-red' },
+    Warnzeichen: { bg: 'bg-yellow', border: 'border-yellow', text: 'text-yellow' },
+  },
   DialogShell: ({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) => {
     React.useEffect(() => {
       if (!open) return;
@@ -118,20 +116,38 @@ describe('NoteEditDialog — catalogs prop', () => {
 });
 
 // ============================================================
-// Save with level derivation
+// Save requires icon selection
 // ============================================================
 describe('NoteEditDialog — save', () => {
-  it('calls onSave with text, derived level, and icon info', async () => {
+  it('save button is disabled when no icon is selected', () => {
+    render(<NoteEditDialog {...defaultProps} />);
+    const saveBtn = screen.getByText('Save');
+    expect(saveBtn).toBeDisabled();
+  });
+
+  it('does not call onSave when no icon is selected', async () => {
     const user = userEvent.setup();
     render(<NoteEditDialog {...defaultProps} />);
 
     await user.click(screen.getByText('Save'));
-    // Default category is 'Sonstige' → level 'Info'
+    expect(defaultProps.onSave).not.toHaveBeenCalled();
+  });
+
+  it('calls onSave with text, safetyIconId, and category when icon is selected', async () => {
+    const user = userEvent.setup();
+    render(
+      <NoteEditDialog
+        {...defaultProps}
+        initialSafetyIconId="W001-Allgemeines-Warnzeichen.png"
+        initialSafetyIconCategory="Warnzeichen"
+      />,
+    );
+
+    await user.click(screen.getByText('Save'));
     expect(defaultProps.onSave).toHaveBeenCalledWith(
       'Safety warning',
-      'Info',
-      null,
-      null,
+      'W001-Allgemeines-Warnzeichen.png',
+      'Warnzeichen',
     );
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
@@ -166,9 +182,15 @@ describe('NoteEditDialog — cancel', () => {
 // Keyboard shortcut — Ctrl+Enter
 // ============================================================
 describe('NoteEditDialog — keyboard shortcuts', () => {
-  it('saves on Ctrl+Enter', async () => {
+  it('saves on Ctrl+Enter when icon is selected', async () => {
     const user = userEvent.setup();
-    render(<NoteEditDialog {...defaultProps} />);
+    render(
+      <NoteEditDialog
+        {...defaultProps}
+        initialSafetyIconId="W001-Allgemeines-Warnzeichen.png"
+        initialSafetyIconCategory="Warnzeichen"
+      />,
+    );
 
     const input = screen.getByPlaceholderText('Enter note...');
     await user.click(input);
