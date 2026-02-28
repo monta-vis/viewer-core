@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { InstructionSnapshot } from '@/types/snapshot';
 import type { InstructionData } from '@/features/instruction';
+import { LEGACY_LEVEL_TO_ICON, LEGACY_LEVEL_TO_CATEGORY, getCategoryFromFilename, type SafetyIconCategory } from '@/features/instruction';
 
 export function transformSnapshotToStore(snapshot: InstructionSnapshot): InstructionData {
   const versionId = '';  // Local .mvis files have no version tracking
@@ -38,7 +39,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
     }
   }
 
-  return {
+  const result: InstructionData = {
     instructionId: snapshot.instruction.id,
     instructionName: snapshot.instruction.name,
     instructionDescription: snapshot.instruction.description ?? null,
@@ -149,7 +150,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         id: pt.id,
         versionId,
         instructionId: pt.instruction_id,
-        previewImageId: null,
+        previewImageId: pt.preview_image_id ?? null,
         name: pt.name,
         type: pt.type as 'Part' | 'Tool',
         partNumber: pt.part_number,
@@ -163,15 +164,29 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
       }])
     ),
     notes: Object.fromEntries(
-      Object.values(snapshot.notes).map(n => [n.id, {
-        id: n.id,
-        versionId,
-        instructionId: n.instruction_id,
-        text: n.text,
-        level: n.level as 'Info' | 'Quality' | 'Warning' | 'Critical',
-        safetyIconId: n.safety_icon_id ?? null,
-        safetyIconCategory: n.safety_icon_category ?? null,
-      }])
+      Object.values(snapshot.notes).map(n => {
+        // Backward compat: old notes have level strings and no safety icon
+        let safetyIconId = n.safety_icon_id ?? '';
+        let safetyIconCategory: SafetyIconCategory = (n.safety_icon_category as SafetyIconCategory) ?? 'Warnzeichen';
+
+        if (!n.safety_icon_id && n.level && LEGACY_LEVEL_TO_ICON[n.level]) {
+          // Assign legacy icon from old level
+          safetyIconId = LEGACY_LEVEL_TO_ICON[n.level];
+          safetyIconCategory = LEGACY_LEVEL_TO_CATEGORY[n.level];
+        } else if (n.safety_icon_id && !n.safety_icon_category) {
+          // Has icon but no category — derive from filename
+          safetyIconCategory = getCategoryFromFilename(n.safety_icon_id) ?? 'Warnzeichen';
+        }
+
+        return [n.id, {
+          id: n.id,
+          versionId,
+          instructionId: n.instruction_id,
+          text: n.text,
+          safetyIconId,
+          safetyIconCategory,
+        }];
+      })
     ),
     substepImages: Object.fromEntries(
       Object.values(snapshot.substepImages).map(si => [si.id, {
@@ -276,4 +291,16 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
       }])
     ),
   };
+
+  // Backfill previewImageId from junction table for old DBs
+  for (const ptvfa of Object.values(result.partToolVideoFrameAreas)) {
+    if (ptvfa.isPreviewImage) {
+      const pt = result.partTools[ptvfa.partToolId];
+      if (pt && !pt.previewImageId) {
+        pt.previewImageId = ptvfa.videoFrameAreaId;
+      }
+    }
+  }
+
+  return result;
 }

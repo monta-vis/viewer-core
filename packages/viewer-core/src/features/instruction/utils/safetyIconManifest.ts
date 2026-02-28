@@ -2,6 +2,9 @@
  * Static manifest of all safety icons in public/SafetyIcons/.
  * Category derived from filename prefix at build time.
  * Generated from the flat public/SafetyIcons/ folder.
+ *
+ * Only includes icons from the 5 remaining categories:
+ * Verbotszeichen, Warnzeichen, Gefahrstoffe, Gebotszeichen, Piktogramme-Leitern
  */
 
 import { getCategoryFromFilename, type SafetyIconCategory } from './safetyIcons';
@@ -11,31 +14,11 @@ export interface SafetyIconEntry {
   category: SafetyIconCategory;
 }
 
-/** All icon filenames from public/SafetyIcons/. */
+/** All icon filenames from public/SafetyIcons/ (excluding removed categories). */
 const FILENAMES = [
-  'Beispiel-Rettungsweg-Notausgang-E002-Zusatzzeichen.png',
-  'D-E019_Notausstieg.png',
   'D-P006-Zutritt-fuer-Unbefugte-verboten.png',
   'D-P022-Besteigen-fuer-Unbefugte-verboten.png',
   'D-W021-Warnung-vor-explosionsfaehiger-Atmosphaere.png',
-  'E001-Rettungsweg-Notausgang-links.png',
-  'E002-Rettungsweg-Notausgang-rechts.png',
-  'E003-Erste-Hilfe.png',
-  'E004-Notruftelefon.png',
-  'E007-Sammelstelle.png',
-  'E009-Arzt.png',
-  'E010-Automatisierter-Externer-Defibrillator-AED.png',
-  'E011-Augenspueleinrichtung.png',
-  'E012-Notdusche.png',
-  'E013-Krankentrage.png',
-  'E016-Notausstieg-mit-Fluchtleiter.png',
-  'E017-Rettungsausstieg.png',
-  'F001-Feuerloescher.png',
-  'F002-Loeschschlauch.png',
-  'F003-Feuerleiter.png',
-  'F004-Mittel-und-Geraete-zur-Brandbekaempfung.png',
-  'F005-Brandmelder.png',
-  'F006-Brandmeldetelefon.png',
   'GHS_01_gr.png',
   'GHS_02_gr.png',
   'GHS_03_gr.png',
@@ -103,11 +86,6 @@ const FILENAMES = [
   'PI014_Nicht_als_Anlegeleiter_nutzen.png',
   'PI015_Nicht_uebersteigen.png',
   'PI016_Spreizsicherung_einlegen.png',
-  'Reichtungspfeil_rechts.png',
-  'Reichtungspfeil_Rettung_rechts.png',
-  'Rettungsweg-Notausgang-E002-Zusatzzeichen.png',
-  'Richtungspfeil_rechts_unten.png',
-  'Richtungspfeil_Rettung_rechts_unten.png',
   'W001-Allgemeines-Warnzeichen.png',
   'W002 Warnung vor explosionsgefährlichen Stoffen.png',
   'W003_Warnung_vor_radioaktiven_Stoffen_oder_ionisierender_Strahlung.png',
@@ -135,15 +113,12 @@ const FILENAMES = [
   'W028-Warnung-vor-brandfoerdernden-Stoffen.png',
   'W029-Warnung-vor-Gasflaschen.png',
   'W041-Warnung-vor-Erstickungsgefahr.png',
-  'WSE001-Oeffentliche-Rettungsausruestung.png',
-  'WSM001-Rettungsweste-benutzen.png',
-  'WSP001-Laufen-verboten.png',
 ] as const;
 
 /** Complete manifest: filename + derived category for every icon. */
 export const SAFETY_ICON_MANIFEST: SafetyIconEntry[] = FILENAMES.map((filename) => ({
   filename,
-  category: getCategoryFromFilename(filename),
+  category: getCategoryFromFilename(filename)!,
 }));
 
 /** Quick lookup: filename → manifest entry. */

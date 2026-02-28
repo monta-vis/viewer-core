@@ -42,7 +42,7 @@ const baseProps = {
       substepId: 's1',
       noteId: 'note-1',
       order: 1,
-      note: { id: 'note-1', text: 'Safety note', level: 'Warning', safetyIconId: null },
+      note: { id: 'note-1', text: 'Safety note', safetyIconCategory: 'Warnzeichen', safetyIconId: 'W001-Allgemeines-Warnzeichen.png' },
     },
   ] as EnrichedSubstepNote[],
   partTools: [
@@ -74,7 +74,6 @@ const minimalProps = {
 };
 
 const editCallbacks = {
-  onEditImage: vi.fn(),
   onDeleteImage: vi.fn(),
   onEditVideo: vi.fn(),
   onDeleteVideo: vi.fn(),

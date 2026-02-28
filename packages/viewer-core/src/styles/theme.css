@@ -126,22 +126,26 @@
   --transition-normal: 200ms;
   --transition-slow: 300ms;
 
-  /* ── Note Level Colors ── */
-  --color-note-info-bg: hsla(var(--hue-brand), 70%, 50%, 0.85);
-  --color-note-info-border: hsl(var(--hue-brand), 70%, 50%);
-  --color-note-info-text: hsl(var(--hue-brand), 70%, 70%);
+  /* ── Note Category Colors ── */
+  --color-note-verbotszeichen-bg: hsla(var(--hue-red), 70%, 54%, 0.85);
+  --color-note-verbotszeichen-border: hsl(var(--hue-red), 70%, 54%);
+  --color-note-verbotszeichen-text: hsl(var(--hue-red), 70%, 70%);
 
-  --color-note-warning-bg: hsla(var(--hue-yellow), 100%, 51%, 0.85);
-  --color-note-warning-border: hsl(var(--hue-yellow), 100%, 51%);
-  --color-note-warning-text: hsl(var(--hue-yellow), 100%, 70%);
+  --color-note-warnzeichen-bg: hsla(var(--hue-yellow), 100%, 51%, 0.85);
+  --color-note-warnzeichen-border: hsl(var(--hue-yellow), 100%, 51%);
+  --color-note-warnzeichen-text: hsl(var(--hue-yellow), 100%, 70%);
 
-  --color-note-critical-bg: hsla(var(--hue-red), 70%, 54%, 0.85);
-  --color-note-critical-border: hsl(var(--hue-red), 70%, 54%);
-  --color-note-critical-text: hsl(var(--hue-red), 70%, 70%);
+  --color-note-gefahrstoffe-bg: hsla(var(--hue-red), 70%, 54%, 0.85);
+  --color-note-gefahrstoffe-border: hsl(var(--hue-red), 70%, 54%);
+  --color-note-gefahrstoffe-text: hsl(var(--hue-red), 70%, 70%);
 
-  --color-note-quality-bg: hsla(var(--hue-green), 71%, 45%, 0.85);
-  --color-note-quality-border: hsl(var(--hue-green), 71%, 45%);
-  --color-note-quality-text: hsl(var(--hue-green), 71%, 65%);
+  --color-note-gebotszeichen-bg: hsla(200, 80%, 45%, 0.85);
+  --color-note-gebotszeichen-border: hsl(200, 80%, 45%);
+  --color-note-gebotszeichen-text: hsl(200, 80%, 70%);
+
+  --color-note-piktogramme-leitern-bg: hsla(0, 0%, 60%, 0.85);
+  --color-note-piktogramme-leitern-border: hsl(0, 0%, 60%);
+  --color-note-piktogramme-leitern-text: hsl(0, 0%, 80%);
 
   /* ── Shadows ── */
   --shadow-sm: 0 0.0625rem 0.125rem hsla(0, 0%, 0%, 0.3);
@@ -221,22 +225,26 @@
   --color-secondary: hsl(var(--hue-brand), var(--saturation-brand), var(--lightness-brand));
   --color-info: hsl(var(--hue-brand), 70%, 35%);
 
-  /* Note Level Colors */
-  --color-note-info-bg: hsla(var(--hue-brand), 70%, 50%, 0.8);
-  --color-note-info-border: hsl(var(--hue-brand), 70%, 40%);
-  --color-note-info-text: hsl(var(--hue-brand), 70%, 30%);
+  /* Note Category Colors */
+  --color-note-verbotszeichen-bg: hsla(var(--hue-red), 70%, 54%, 0.8);
+  --color-note-verbotszeichen-border: hsl(var(--hue-red), 70%, 45%);
+  --color-note-verbotszeichen-text: hsl(var(--hue-red), 70%, 35%);
 
-  --color-note-warning-bg: hsla(var(--hue-yellow), 100%, 51%, 0.8);
-  --color-note-warning-border: hsl(var(--hue-yellow), 100%, 40%);
-  --color-note-warning-text: hsl(var(--hue-yellow), 100%, 25%);
+  --color-note-warnzeichen-bg: hsla(var(--hue-yellow), 100%, 51%, 0.8);
+  --color-note-warnzeichen-border: hsl(var(--hue-yellow), 100%, 40%);
+  --color-note-warnzeichen-text: hsl(var(--hue-yellow), 100%, 25%);
 
-  --color-note-critical-bg: hsla(var(--hue-red), 70%, 54%, 0.8);
-  --color-note-critical-border: hsl(var(--hue-red), 70%, 45%);
-  --color-note-critical-text: hsl(var(--hue-red), 70%, 35%);
+  --color-note-gefahrstoffe-bg: hsla(var(--hue-red), 70%, 54%, 0.8);
+  --color-note-gefahrstoffe-border: hsl(var(--hue-red), 70%, 45%);
+  --color-note-gefahrstoffe-text: hsl(var(--hue-red), 70%, 35%);
 
-  --color-note-quality-bg: hsla(var(--hue-green), 71%, 45%, 0.8);
-  --color-note-quality-border: hsl(var(--hue-green), 71%, 35%);
-  --color-note-quality-text: hsl(var(--hue-green), 71%, 25%);
+  --color-note-gebotszeichen-bg: hsla(200, 80%, 45%, 0.8);
+  --color-note-gebotszeichen-border: hsl(200, 80%, 35%);
+  --color-note-gebotszeichen-text: hsl(200, 80%, 25%);
+
+  --color-note-piktogramme-leitern-bg: hsla(0, 0%, 60%, 0.8);
+  --color-note-piktogramme-leitern-border: hsl(0, 0%, 50%);
+  --color-note-piktogramme-leitern-text: hsl(0, 0%, 30%);
 
   /* Shadows */
   --shadow-sm: 0 0.0625rem 0.125rem hsla(0, 0%, 0%, 0.05);

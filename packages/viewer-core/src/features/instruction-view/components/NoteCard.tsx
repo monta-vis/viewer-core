@@ -1,48 +1,13 @@
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-react';
-import { getCategoryFromFilename, getCategoryPriority, safetyIconUrl, type NoteLevel } from '@/features/instruction';
+import { getCategoryPriority, safetyIconUrl, NOTE_CATEGORY_STYLES, type SafetyIconCategory } from '@/features/instruction';
 import { buildMediaUrl } from '@/lib/media';
-
-const NOTE_ICONS = {
-  Critical: AlertCircle,
-  Warning: AlertTriangle,
-  Quality: CheckCircle,
-  Info: Info,
-} as const;
-
-const NOTE_STYLES = {
-  Critical: {
-    bg: 'bg-[var(--color-note-critical-bg)]',
-    border: 'border-[var(--color-note-critical-border)]',
-    icon: 'text-[var(--color-note-critical-text)]',
-    text: 'text-[var(--color-note-critical-text)]',
-  },
-  Warning: {
-    bg: 'bg-[var(--color-note-warning-bg)]',
-    border: 'border-[var(--color-note-warning-border)]',
-    icon: 'text-white',
-    text: 'text-white',
-  },
-  Quality: {
-    bg: 'bg-[var(--color-note-quality-bg)]',
-    border: 'border-[var(--color-note-quality-border)]',
-    icon: 'text-[var(--color-note-quality-text)]',
-    text: 'text-[var(--color-note-quality-text)]',
-  },
-  Info: {
-    bg: 'bg-[var(--color-note-info-bg)]',
-    border: 'border-[var(--color-note-info-border)]',
-    icon: 'text-[var(--color-note-info-text)]',
-    text: 'text-[var(--color-note-info-text)]',
-  },
-} as const;
 
 /** Unified note card: fixed icon + sliding text panel. */
 interface NoteCardProps {
-  level: NoteLevel;
+  safetyIconCategory: SafetyIconCategory;
   text: string;
-  safetyIconId?: string | null;
+  safetyIconId: string;
   isExpanded: boolean;
   onToggle: () => void;
   /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
@@ -51,22 +16,22 @@ interface NoteCardProps {
   videoFrameAreas?: Record<string, { localPath?: string | null }>;
 }
 
-export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, folderName, videoFrameAreas }: NoteCardProps) {
+export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, onToggle, folderName, videoFrameAreas }: NoteCardProps) {
   const { t } = useTranslation();
-  const Icon = NOTE_ICONS[level];
-  const styles = NOTE_STYLES[level];
-  const levelLabel = t(`instructionView.noteLevel.${level.toLowerCase()}`, level);
+  const styles = NOTE_CATEGORY_STYLES[safetyIconCategory] ?? NOTE_CATEGORY_STYLES.Warnzeichen;
+  const categoryLabel = t(`editor.safetyCategory.${safetyIconCategory}`, safetyIconCategory);
   const hasText = text.trim().length > 0;
 
   // Resolve safety icon URL: VFA UUID uses buildMediaUrl (Electron) or localPath (mweb)
-  const isLegacy = safetyIconId ? /\.(png|jpg|gif)$/i.test(safetyIconId) : false;
-  const iconUrl = safetyIconId
-    ? isLegacy
-      ? safetyIconUrl(safetyIconId)
-      : folderName
-        ? buildMediaUrl(folderName, `media/frames/${safetyIconId}/image.png`)
-        : videoFrameAreas?.[safetyIconId]?.localPath ?? null
-    : null;
+  const isLegacy = /\.(png|jpg|gif)$/i.test(safetyIconId);
+  let iconUrl: string | null;
+  if (isLegacy) {
+    iconUrl = safetyIconUrl(safetyIconId);
+  } else if (folderName) {
+    iconUrl = buildMediaUrl(folderName, `media/frames/${safetyIconId}/image.png`);
+  } else {
+    iconUrl = videoFrameAreas?.[safetyIconId]?.localPath ?? null;
+  }
 
   return (
     <button
@@ -76,7 +41,7 @@ export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, fold
         'flex items-center cursor-pointer focus:outline-none rounded-lg w-full',
         hasText && isExpanded && ['border-2', styles.bg, styles.border, 'backdrop-blur-md'],
       )}
-      aria-label={hasText ? `${levelLabel}: ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}` : levelLabel}
+      aria-label={hasText ? `${categoryLabel}: ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}` : categoryLabel}
       aria-expanded={isExpanded}
     >
       {/* Icon — fixed size, never moves or resizes */}
@@ -84,11 +49,11 @@ export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, fold
         {iconUrl ? (
           <img
             src={iconUrl}
-            alt={levelLabel}
+            alt={categoryLabel}
             className="w-full h-full object-contain"
           />
         ) : (
-          <Icon className={clsx('h-10 w-10', styles.icon)} />
+          <span className={clsx('text-xs font-bold uppercase', styles.text)}>{safetyIconCategory.slice(0, 3)}</span>
         )}
       </span>
       {/* Text panel — slides via max-width + opacity transition; hidden entirely for icon-only notes */}
@@ -100,11 +65,6 @@ export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, fold
           )}
         >
           <span className="flex items-center gap-2 pl-2 pr-1">
-            {!safetyIconId && (
-              <span className={clsx('text-xs font-semibold uppercase', styles.text)}>
-                {levelLabel}
-              </span>
-            )}
             <span className="text-lg leading-relaxed text-white">
               {text}
             </span>
@@ -115,15 +75,7 @@ export function NoteCard({ level, text, safetyIconId, isExpanded, onToggle, fold
   );
 }
 
-/** Sort priority for notes: uses category priority from safety icon, or legacy level priority. */
-export function getNoteSortPriority(note: { level: NoteLevel; safetyIconId?: string | null; safetyIconCategory?: string | null }): number {
-  if (note.safetyIconCategory) {
-    return getCategoryPriority(note.safetyIconCategory);
-  }
-  if (note.safetyIconId && /\.(png|jpg|gif)$/i.test(note.safetyIconId)) {
-    // Legacy filename-based icon
-    return getCategoryPriority(getCategoryFromFilename(note.safetyIconId));
-  }
-  const LEGACY: Record<NoteLevel, number> = { Critical: 0, Warning: 1, Quality: 4, Info: 6 };
-  return LEGACY[note.level];
+/** Sort priority for notes: uses category priority directly. */
+export function getNoteSortPriority(note: { safetyIconCategory: SafetyIconCategory }): number {
+  return getCategoryPriority(note.safetyIconCategory);
 }

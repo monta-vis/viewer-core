@@ -19,7 +19,8 @@ vi.mock('@/lib/media', () => ({
 
 describe('NoteCard safety icon resolution', () => {
   const baseProps = {
-    level: 'Warning' as const,
+    safetyIconCategory: 'Warnzeichen' as const,
+    safetyIconId: 'W001-Allgemeines-Warnzeichen.png',
     text: 'Caution',
     isExpanded: true,
     onToggle: vi.fn(),
@@ -64,9 +65,10 @@ describe('NoteCard safety icon resolution', () => {
     expect(img.getAttribute('src')).toBe('/SafetyIcons/W001-Allgemeines-Warnzeichen.png');
   });
 
-  it('returns null icon when no safetyIconId and renders lucide icon', () => {
-    render(<NoteCard {...baseProps} />);
-    // No <img> tag — lucide icon is rendered instead
+  it('renders fallback text when icon URL cannot be resolved (VFA without folderName or localPath)', () => {
+    render(<NoteCard {...baseProps} safetyIconId="unknown-vfa-uuid" />);
+    // No <img> tag — fallback category text abbreviation is rendered
     expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('War')).toBeInTheDocument(); // first 3 chars of 'Warnzeichen'
   });
 });

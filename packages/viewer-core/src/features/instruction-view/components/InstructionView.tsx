@@ -9,7 +9,7 @@ import type { TextInputSuggestion } from '@/components/ui';
 import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
-import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, ViewportKeyframeRow, SubstepRow, RichTutorialDisplay, NoteLevel } from '@/features/instruction';
+import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, ViewportKeyframeRow, SubstepRow, RichTutorialDisplay, SafetyIconCategory } from '@/features/instruction';
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
@@ -86,16 +86,15 @@ interface InstructionViewProps {
   editModeActive?: boolean;
   /** Edit callbacks per substep (substepId passed as first arg) */
   editCallbacks?: {
-    onEditImage?: (substepId: string) => void;
     onDeleteImage?: (substepId: string) => void;
     onEditVideo?: (substepId: string) => void;
     onDeleteVideo?: (substepId: string) => void;
     onSaveDescription?: (descriptionId: string, text: string, substepId: string) => void;
     onDeleteDescription?: (descriptionId: string, substepId: string) => void;
     onAddDescription?: (text: string, substepId: string) => void;
-    onSaveNote?: (noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => void;
+    onSaveNote?: (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string) => void;
     onDeleteNote?: (noteRowId: string, substepId: string) => void;
-    onAddNote?: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null, substepId: string) => void;
+    onAddNote?: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string) => void;
     onSaveRepeat?: (count: number, label: string | null, substepId: string) => void;
     onDeleteRepeat?: (substepId: string) => void;
     onEditTutorial?: (tutorialIndex: number, substepId: string) => void;
@@ -268,16 +267,15 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     (substepId: string): SubstepEditCallbacks | undefined => {
       if (!effectiveEditMode || !editCallbacks) return undefined;
       return {
-        onEditImage: () => editCallbacks.onEditImage?.(substepId),
         onDeleteImage: () => editCallbacks.onDeleteImage?.(substepId),
         onEditVideo: () => editCallbacks.onEditVideo?.(substepId),
         onDeleteVideo: () => editCallbacks.onDeleteVideo?.(substepId),
         onSaveDescription: (descId, text) => editCallbacks.onSaveDescription?.(descId, text, substepId),
         onDeleteDescription: (descId) => editCallbacks.onDeleteDescription?.(descId, substepId),
         onAddDescription: (text) => editCallbacks.onAddDescription?.(text, substepId),
-        onSaveNote: (noteRowId, text, level, iconId, iconCat) => editCallbacks.onSaveNote?.(noteRowId, text, level, iconId, iconCat, substepId),
+        onSaveNote: (noteRowId, text, iconId, iconCat) => editCallbacks.onSaveNote?.(noteRowId, text, iconId, iconCat, substepId),
         onDeleteNote: (noteRowId) => editCallbacks.onDeleteNote?.(noteRowId, substepId),
-        onAddNote: (text, level, iconId, iconCat) => editCallbacks.onAddNote?.(text, level, iconId, iconCat, substepId),
+        onAddNote: (text, iconId, iconCat) => editCallbacks.onAddNote?.(text, iconId, iconCat, substepId),
         onSaveRepeat: (count, label) => editCallbacks.onSaveRepeat?.(count, label, substepId),
         onDeleteRepeat: () => editCallbacks.onDeleteRepeat?.(substepId),
         onEditTutorial: (refIdx) => editCallbacks.onEditTutorial?.(refIdx, substepId),

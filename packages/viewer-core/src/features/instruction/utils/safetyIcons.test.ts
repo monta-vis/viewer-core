@@ -3,9 +3,8 @@ import {
   getCategoryFromFilename,
   getCategoryColor,
   getCategoryPriority,
-  categoryToNoteLevel,
-  isLegacyLevel,
   SAFETY_ICON_CATEGORIES,
+  NOTE_CATEGORY_STYLES,
   LEGACY_LEVEL_TO_ICON,
   type SafetyIconCategory,
 } from './safetyIcons';
@@ -23,14 +22,6 @@ describe('getCategoryFromFilename', () => {
     expect(getCategoryFromFilename('M001_Allgemeines-Gebotszeichen.jpg')).toBe('Gebotszeichen');
   });
 
-  it('returns Rettungszeichen for E-prefixed files', () => {
-    expect(getCategoryFromFilename('E003-Erste-Hilfe.jpg')).toBe('Rettungszeichen');
-  });
-
-  it('returns Brandschutz for F-prefixed files', () => {
-    expect(getCategoryFromFilename('F001-Feuerloescher.jpg')).toBe('Brandschutz');
-  });
-
   it('returns Gefahrstoffe for GHS-prefixed files', () => {
     expect(getCategoryFromFilename('GHS_01_gr.gif')).toBe('Gefahrstoffe');
   });
@@ -43,23 +34,32 @@ describe('getCategoryFromFilename', () => {
     expect(getCategoryFromFilename('D-P006-Zutritt-fuer-Unbefugte-verboten.jpg')).toBe('Verbotszeichen');
   });
 
-  it('returns Rettungszeichen for D-E country-specific variants', () => {
-    expect(getCategoryFromFilename('D-E019_Notausstieg.jpg')).toBe('Rettungszeichen');
-  });
-
   it('returns Warnzeichen for D-W country-specific variants', () => {
     expect(getCategoryFromFilename('D-W021-Warnung-vor-explosionsfaehiger-Atmosphaere.jpg')).toBe('Warnzeichen');
   });
 
-  it('returns Warnzeichen for WS-prefixed warning supplementals', () => {
+  it('returns Verbotszeichen for WSP-prefixed files', () => {
     expect(getCategoryFromFilename('WSP001-Laufen-verboten.jpg')).toBe('Verbotszeichen');
-    expect(getCategoryFromFilename('WSE001-Oeffentliche-Rettungsausruestung.jpg')).toBe('Rettungszeichen');
+  });
+
+  it('returns Gebotszeichen for WSM-prefixed files', () => {
     expect(getCategoryFromFilename('WSM001-Rettungsweste-benutzen.jpg')).toBe('Gebotszeichen');
   });
 
-  it('returns Sonstige for unrecognized prefixes', () => {
-    expect(getCategoryFromFilename('Reichtungspfeil_rechts.jpg')).toBe('Sonstige');
-    expect(getCategoryFromFilename('Beispiel-Rettungsweg-Notausgang-E002-Zusatzzeichen.jpg')).toBe('Sonstige');
+  it('no longer returns deleted categories', () => {
+    // E-prefixed files (Rettungszeichen) — category removed, should not appear
+    // F-prefixed files (Brandschutz) — category removed, should not appear
+    // Unrecognized prefixes no longer return 'Sonstige' — returns null
+    const result = getCategoryFromFilename('Reichtungspfeil_rechts.jpg');
+    expect(result).toBeNull();
+  });
+
+  it('returns null for E-prefixed files (Rettungszeichen removed)', () => {
+    expect(getCategoryFromFilename('E003-Erste-Hilfe.jpg')).toBeNull();
+  });
+
+  it('returns null for F-prefixed files (Brandschutz removed)', () => {
+    expect(getCategoryFromFilename('F001-Feuerloescher.jpg')).toBeNull();
   });
 });
 
@@ -72,12 +72,16 @@ describe('getCategoryColor', () => {
     expect(getCategoryColor('Warnzeichen')).toBe('#FFD700');
   });
 
-  it('returns green for Rettungszeichen', () => {
-    expect(getCategoryColor('Rettungszeichen')).toBe('#009933');
-  });
-
   it('returns blue for Gebotszeichen', () => {
     expect(getCategoryColor('Gebotszeichen')).toBe('#0066CC');
+  });
+
+  it('returns red for Gefahrstoffe', () => {
+    expect(getCategoryColor('Gefahrstoffe')).toBe('#CC0000');
+  });
+
+  it('returns light gray for Piktogramme-Leitern', () => {
+    expect(getCategoryColor('Piktogramme-Leitern')).toBe('#E0E0E0');
   });
 
   it('returns gray for unknown category', () => {
@@ -90,30 +94,12 @@ describe('getCategoryPriority', () => {
     expect(getCategoryPriority('Verbotszeichen')).toBeLessThan(getCategoryPriority('Warnzeichen'));
   });
 
-  it('sorts Warnzeichen before Rettungszeichen', () => {
-    expect(getCategoryPriority('Warnzeichen')).toBeLessThan(getCategoryPriority('Rettungszeichen'));
-  });
-
   it('sorts Gefahrstoffe before Gebotszeichen', () => {
     expect(getCategoryPriority('Gefahrstoffe')).toBeLessThan(getCategoryPriority('Gebotszeichen'));
   });
 
   it('returns 99 for unknown categories', () => {
     expect(getCategoryPriority('Unknown')).toBe(99);
-  });
-});
-
-describe('isLegacyLevel', () => {
-  it('returns true for old note levels', () => {
-    expect(isLegacyLevel('Critical')).toBe(true);
-    expect(isLegacyLevel('Warning')).toBe(true);
-    expect(isLegacyLevel('Quality')).toBe(true);
-    expect(isLegacyLevel('Info')).toBe(true);
-  });
-
-  it('returns false for non-level strings', () => {
-    expect(isLegacyLevel('something')).toBe(false);
-    expect(isLegacyLevel('')).toBe(false);
   });
 });
 
@@ -130,52 +116,26 @@ describe('LEGACY_LEVEL_TO_ICON', () => {
     expect(LEGACY_LEVEL_TO_ICON.Quality).toBe('M001_Allgemeines-Gebotszeichen.png');
   });
 
-  it('maps Info to E003', () => {
-    expect(LEGACY_LEVEL_TO_ICON.Info).toBe('E003-Erste-Hilfe.png');
-  });
-});
-
-describe('categoryToNoteLevel', () => {
-  it('maps Verbotszeichen to Critical', () => {
-    expect(categoryToNoteLevel('Verbotszeichen')).toBe('Critical');
-  });
-
-  it('maps Warnzeichen to Warning', () => {
-    expect(categoryToNoteLevel('Warnzeichen')).toBe('Warning');
-  });
-
-  it('maps Gefahrstoffe to Critical', () => {
-    expect(categoryToNoteLevel('Gefahrstoffe')).toBe('Critical');
-  });
-
-  it('maps Brandschutz to Critical', () => {
-    expect(categoryToNoteLevel('Brandschutz')).toBe('Critical');
-  });
-
-  it('maps Gebotszeichen to Quality', () => {
-    expect(categoryToNoteLevel('Gebotszeichen')).toBe('Quality');
-  });
-
-  it('maps Piktogramme-Leitern to Info', () => {
-    expect(categoryToNoteLevel('Piktogramme-Leitern')).toBe('Info');
-  });
-
-  it('maps Rettungszeichen to Info', () => {
-    expect(categoryToNoteLevel('Rettungszeichen')).toBe('Info');
-  });
-
-  it('maps Sonstige to Info', () => {
-    expect(categoryToNoteLevel('Sonstige')).toBe('Info');
-  });
-
-  it('returns Info for unknown categories', () => {
-    expect(categoryToNoteLevel('Unknown' as SafetyIconCategory)).toBe('Info');
+  it('maps Info to W001 (fallback to warning)', () => {
+    expect(LEGACY_LEVEL_TO_ICON.Info).toBe('W001-Allgemeines-Warnzeichen.png');
   });
 });
 
 describe('SAFETY_ICON_CATEGORIES', () => {
-  it('has all 8 categories (including Sonstige)', () => {
-    expect(Object.keys(SAFETY_ICON_CATEGORIES)).toHaveLength(8);
+  it('has exactly 5 categories', () => {
+    expect(Object.keys(SAFETY_ICON_CATEGORIES)).toHaveLength(5);
+  });
+
+  it('only contains the 5 remaining categories', () => {
+    const keys = Object.keys(SAFETY_ICON_CATEGORIES);
+    expect(keys).toContain('Verbotszeichen');
+    expect(keys).toContain('Warnzeichen');
+    expect(keys).toContain('Gefahrstoffe');
+    expect(keys).toContain('Gebotszeichen');
+    expect(keys).toContain('Piktogramme-Leitern');
+    expect(keys).not.toContain('Rettungszeichen');
+    expect(keys).not.toContain('Brandschutz');
+    expect(keys).not.toContain('Sonstige');
   });
 
   it('each category has color, label, priority', () => {
@@ -183,6 +143,20 @@ describe('SAFETY_ICON_CATEGORIES', () => {
       expect(cat).toHaveProperty('color');
       expect(cat).toHaveProperty('label');
       expect(typeof cat.priority).toBe('number');
+    }
+  });
+});
+
+describe('NOTE_CATEGORY_STYLES', () => {
+  it('has a style entry for each category', () => {
+    const categories: SafetyIconCategory[] = [
+      'Verbotszeichen', 'Warnzeichen', 'Gefahrstoffe', 'Gebotszeichen', 'Piktogramme-Leitern',
+    ];
+    for (const cat of categories) {
+      expect(NOTE_CATEGORY_STYLES[cat]).toBeDefined();
+      expect(NOTE_CATEGORY_STYLES[cat]).toHaveProperty('bg');
+      expect(NOTE_CATEGORY_STYLES[cat]).toHaveProperty('border');
+      expect(NOTE_CATEGORY_STYLES[cat]).toHaveProperty('text');
     }
   });
 });

@@ -20,7 +20,7 @@ import { toggleCardSpeed, computeSkipTime, computeSeekTime, SKIP_SECONDS, type C
 import { VideoFrameCapture } from './VideoFrameCapture';
 import { LoupeOverlay } from './LoupeOverlay';
 import { NoteCard, getNoteSortPriority } from './NoteCard';
-import type { NoteLevel } from '@/features/instruction';
+import type { SafetyIconCategory } from '@/features/instruction';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { computeContentBounds } from '../utils/computeContentBounds';
 import { useLongPress } from '../hooks/useLongPress';
@@ -31,16 +31,15 @@ let lastPlayingCloseFn: (() => void) | null = null;
 
 /** Callbacks for edit controls. Only used when editMode=true. */
 export interface SubstepEditCallbacks {
-  onEditImage?: () => void;
   onDeleteImage?: () => void;
   onEditVideo?: () => void;
   onDeleteVideo?: () => void;
   onSaveDescription?: (descriptionId: string, text: string) => void;
   onDeleteDescription?: (descriptionId: string) => void;
   onAddDescription?: (text: string) => void;
-  onSaveNote?: (noteRowId: string, text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
+  onSaveNote?: (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => void;
   onDeleteNote?: (noteRowId: string) => void;
-  onAddNote?: (text: string, level: NoteLevel, safetyIconId: string | null, safetyIconCategory: string | null) => void;
+  onAddNote?: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => void;
   onSaveRepeat?: (count: number, label: string | null) => void;
   onDeleteRepeat?: () => void;
   onEditRepeat?: () => void;
@@ -455,7 +454,6 @@ export const SubstepCard = memo(function SubstepCard({
     };
   }, [isPlayingInline, closeInlinePlayback]);
 
-
   // Sort notes by safety icon category priority (or legacy level priority)
   const sortedNotes = useMemo(() => {
     return [...notes].sort((a, b) =>
@@ -781,7 +779,7 @@ export const SubstepCard = memo(function SubstepCard({
             {sortedNotes.map((noteRow) => (
               <div key={noteRow.id} className="flex items-center gap-1">
                 <NoteCard
-                  level={noteRow.note.level as NoteLevel}
+                  safetyIconCategory={noteRow.note.safetyIconCategory}
                   text={noteRow.note.text}
                   safetyIconId={noteRow.note.safetyIconId}
                   isExpanded={expandedNoteIds.has(noteRow.id)}

@@ -71,14 +71,14 @@ export {
   getCategoryFromFilename,
   getCategoryPriority,
   getCategoryColor,
-  categoryToNoteLevel,
   safetyIconUrl,
   safetyIconLabel,
-  isLegacyLevel,
   SAFETY_ICON_CATEGORIES,
   LEGACY_LEVEL_TO_ICON,
+  LEGACY_LEVEL_TO_CATEGORY,
+  NOTE_CATEGORY_STYLES,
 } from './utils/safetyIcons';
-export type { NoteLevel, SafetyIconCategory } from './utils/safetyIcons';
+export type { SafetyIconCategory } from './utils/safetyIcons';
 export { SAFETY_ICON_MANIFEST, SAFETY_ICON_BY_FILENAME } from './utils/safetyIconManifest';
 export type { SafetyIconEntry } from './utils/safetyIconManifest';
 

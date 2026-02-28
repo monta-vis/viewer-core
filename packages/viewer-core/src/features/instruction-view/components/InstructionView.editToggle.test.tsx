@@ -105,7 +105,6 @@ afterEach(() => {
 // ---------- Helpers ----------
 
 const editCallbacks = {
-  onEditImage: vi.fn(),
   onDeleteImage: vi.fn(),
   onAddSubstep: vi.fn(),
 };

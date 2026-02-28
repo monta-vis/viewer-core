@@ -28,11 +28,8 @@ export type SafetyIconCategory =
   | 'Verbotszeichen'
   | 'Warnzeichen'
   | 'Gefahrstoffe'
-  | 'Brandschutz'
   | 'Gebotszeichen'
-  | 'Piktogramme-Leitern'
-  | 'Rettungszeichen'
-  | 'Sonstige';
+  | 'Piktogramme-Leitern';
 
 interface CategoryConfig {
   color: string;
@@ -44,37 +41,39 @@ interface CategoryConfig {
 export const SAFETY_ICON_CATEGORIES: Record<SafetyIconCategory, CategoryConfig> = {
   Verbotszeichen:        { color: '#CC0000', label: 'editor.safetyCategory.prohibition',  priority: 0 },
   Warnzeichen:           { color: '#FFD700', label: 'editor.safetyCategory.warning',      priority: 1 },
-  Gefahrstoffe:          { color: '#FF6600', label: 'editor.safetyCategory.hazardous',    priority: 2 },
-  Brandschutz:           { color: '#CC0000', label: 'editor.safetyCategory.fireSafety',   priority: 3 },
-  Gebotszeichen:         { color: '#0066CC', label: 'editor.safetyCategory.mandatory',    priority: 4 },
-  'Piktogramme-Leitern': { color: '#333333', label: 'editor.safetyCategory.ladders',      priority: 5 },
-  Rettungszeichen:       { color: '#009933', label: 'editor.safetyCategory.emergency',    priority: 6 },
-  Sonstige:              { color: '#666666', label: 'editor.safetyCategory.other',         priority: 7 },
+  Gefahrstoffe:          { color: '#CC0000', label: 'editor.safetyCategory.hazardous',    priority: 2 },
+  Gebotszeichen:         { color: '#0066CC', label: 'editor.safetyCategory.mandatory',    priority: 3 },
+  'Piktogramme-Leitern': { color: '#E0E0E0', label: 'editor.safetyCategory.ladders',      priority: 4 },
+};
+
+/** Category-based note card styles (CSS class strings). */
+export const NOTE_CATEGORY_STYLES: Record<SafetyIconCategory, { bg: string; border: string; text: string }> = {
+  Verbotszeichen:        { bg: 'bg-[var(--color-note-verbotszeichen-bg)]', border: 'border-[var(--color-note-verbotszeichen-border)]', text: 'text-[var(--color-note-verbotszeichen-text)]' },
+  Warnzeichen:           { bg: 'bg-[var(--color-note-warnzeichen-bg)]',    border: 'border-[var(--color-note-warnzeichen-border)]',    text: 'text-[var(--color-note-warnzeichen-text)]' },
+  Gefahrstoffe:          { bg: 'bg-[var(--color-note-gefahrstoffe-bg)]',   border: 'border-[var(--color-note-gefahrstoffe-border)]',   text: 'text-[var(--color-note-gefahrstoffe-text)]' },
+  Gebotszeichen:         { bg: 'bg-[var(--color-note-gebotszeichen-bg)]',  border: 'border-[var(--color-note-gebotszeichen-border)]',  text: 'text-[var(--color-note-gebotszeichen-text)]' },
+  'Piktogramme-Leitern': { bg: 'bg-[var(--color-note-piktogramme-leitern-bg)]', border: 'border-[var(--color-note-piktogramme-leitern-border)]', text: 'text-[var(--color-note-piktogramme-leitern-text)]' },
 };
 
 /** Prefix rules: order matters — longer prefixes first to avoid false matches. */
 const PREFIX_RULES: Array<{ prefix: string; category: SafetyIconCategory }> = [
   { prefix: 'D-P',  category: 'Verbotszeichen' },
-  { prefix: 'D-E',  category: 'Rettungszeichen' },
   { prefix: 'D-W',  category: 'Warnzeichen' },
   { prefix: 'GHS',  category: 'Gefahrstoffe' },
   { prefix: 'WSP',  category: 'Verbotszeichen' },
-  { prefix: 'WSE',  category: 'Rettungszeichen' },
   { prefix: 'WSM',  category: 'Gebotszeichen' },
   { prefix: 'PI',   category: 'Piktogramme-Leitern' },
   { prefix: 'P',    category: 'Verbotszeichen' },
   { prefix: 'W',    category: 'Warnzeichen' },
   { prefix: 'M',    category: 'Gebotszeichen' },
-  { prefix: 'E',    category: 'Rettungszeichen' },
-  { prefix: 'F',    category: 'Brandschutz' },
 ];
 
-/** Derive category from filename prefix (e.g. "W001-..." → "Warnzeichen"). */
-export function getCategoryFromFilename(filename: string): SafetyIconCategory {
+/** Derive category from filename prefix (e.g. "W001-..." → "Warnzeichen"). Returns null for unrecognized files. */
+export function getCategoryFromFilename(filename: string): SafetyIconCategory | null {
   for (const { prefix, category } of PREFIX_RULES) {
     if (filename.startsWith(prefix)) return category;
   }
-  return 'Sonstige';
+  return null;
 }
 
 /** Get the ISO standard color for a category. */
@@ -87,37 +86,18 @@ export function getCategoryPriority(category: string): number {
   return (SAFETY_ICON_CATEGORIES as Record<string, CategoryConfig>)[category]?.priority ?? 99;
 }
 
-const LEGACY_LEVELS = new Set(['Critical', 'Warning', 'Quality', 'Info']);
-
-/** Check if a string is one of the old note level values. */
-export function isLegacyLevel(value: string): boolean {
-  return LEGACY_LEVELS.has(value);
-}
-
-/** Maps old note levels to their equivalent generic safety icon filenames. */
+/** Maps old note levels to their equivalent generic safety icon filenames (for backward compat in transformSnapshotToStore). */
 export const LEGACY_LEVEL_TO_ICON: Record<string, string> = {
   Critical: 'P001-Allgemeines-Verbotszeichen.png',
   Warning:  'W001-Allgemeines-Warnzeichen.png',
   Quality:  'M001_Allgemeines-Gebotszeichen.png',
-  Info:     'E003-Erste-Hilfe.png',
+  Info:     'W001-Allgemeines-Warnzeichen.png',
 };
 
-/** Note severity level. Shared between editor and instruction-view. */
-export type NoteLevel = 'Critical' | 'Warning' | 'Quality' | 'Info';
-
-/** Map a safety icon category to a note severity level (for backward compat). */
-const CATEGORY_TO_LEVEL: Record<SafetyIconCategory, NoteLevel> = {
-  Verbotszeichen:        'Critical',
-  Warnzeichen:           'Warning',
-  Gefahrstoffe:          'Critical',
-  Brandschutz:           'Critical',
-  Gebotszeichen:         'Quality',
-  'Piktogramme-Leitern': 'Info',
-  Rettungszeichen:       'Info',
-  Sonstige:              'Info',
+/** Maps old note levels to a SafetyIconCategory (for backward compat in transformSnapshotToStore). */
+export const LEGACY_LEVEL_TO_CATEGORY: Record<string, SafetyIconCategory> = {
+  Critical: 'Verbotszeichen',
+  Warning:  'Warnzeichen',
+  Quality:  'Gebotszeichen',
+  Info:     'Warnzeichen',
 };
-
-/** Derive the note level from a safety icon category. */
-export function categoryToNoteLevel(category: SafetyIconCategory): NoteLevel {
-  return CATEGORY_TO_LEVEL[category] ?? 'Info';
-}

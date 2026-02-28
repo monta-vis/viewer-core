@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, AlertTriangle, Info, CheckCircle, AlertCircle, Package, Wrench } from 'lucide-react';
+import { X, Package, Wrench } from 'lucide-react';
 import clsx from 'clsx';
 
 import { VideoPlayer, useVideo, useVideoViewportInterpolation } from '@/features/video-player';
+import { NOTE_CATEGORY_STYLES, safetyIconUrl, type SafetyIconCategory } from '@/features/instruction';
 import type { EnrichedSubstepVideoSection, EnrichedSubstepNote, EnrichedSubstepPartTool, SubstepDescriptionRow, ViewportKeyframeRow } from '@/features/instruction';
 interface InlineVideoPlayerProps {
   videoSection: EnrichedSubstepVideoSection | null;
@@ -26,36 +27,6 @@ interface InlineVideoPlayerProps {
   /** If true, uses raw video (startFrame/endFrame as-is). If false, exported file (starts at 0) */
   useRawVideo?: boolean;
 }
-
-const NOTE_ICONS = {
-  Info: Info,
-  Quality: CheckCircle,
-  Warning: AlertTriangle,
-  Critical: AlertCircle,
-} as const;
-
-const NOTE_STYLES = {
-  Info: {
-    text: 'text-[var(--color-note-info-text)]',
-    bg: 'bg-[var(--color-note-info-bg)]',
-    border: 'border-[var(--color-note-info-border)]',
-  },
-  Quality: {
-    text: 'text-[var(--color-note-quality-text)]',
-    bg: 'bg-[var(--color-note-quality-bg)]',
-    border: 'border-[var(--color-note-quality-border)]',
-  },
-  Warning: {
-    text: 'text-[var(--color-note-warning-text)]',
-    bg: 'bg-[var(--color-note-warning-bg)]',
-    border: 'border-[var(--color-note-warning-border)]',
-  },
-  Critical: {
-    text: 'text-[var(--color-note-critical-text)]',
-    bg: 'bg-[var(--color-note-critical-bg)]',
-    border: 'border-[var(--color-note-critical-border)]',
-  },
-} as const;
 
 export function InlineVideoPlayer({
   videoSection,
@@ -281,12 +252,18 @@ export function InlineVideoPlayer({
                 </div>
               )}
               {notes.map((n) => {
-                const Icon = NOTE_ICONS[n.note.level];
-                const styles = NOTE_STYLES[n.note.level];
+                const category = n.note.safetyIconCategory as SafetyIconCategory;
+                const styles = NOTE_CATEGORY_STYLES[category] ?? NOTE_CATEGORY_STYLES.Warnzeichen;
+                const iconUrl = n.note.safetyIconId ? safetyIconUrl(n.note.safetyIconId) : null;
+                const isHighPriority = category === 'Verbotszeichen' || category === 'Warnzeichen' || category === 'Gefahrstoffe';
                 return (
                   <div key={n.id} className={clsx('flex items-center gap-2.5 rounded-lg px-3 py-2.5 border', styles.bg, styles.border)}>
-                    <Icon className={clsx('h-5 w-5 flex-shrink-0', styles.text)} />
-                    <span className={clsx('text-base leading-snug', styles.text, n.note.level === 'Critical' || n.note.level === 'Warning' ? 'font-semibold' : 'font-medium')}>{n.note.text}</span>
+                    {iconUrl ? (
+                      <img src={iconUrl} alt={category} className="h-5 w-5 flex-shrink-0 object-contain" />
+                    ) : (
+                      <span className={clsx('h-5 w-5 flex-shrink-0 text-xs font-bold', styles.text)}>{category.slice(0, 3)}</span>
+                    )}
+                    <span className={clsx('text-base leading-snug', styles.text, isHighPriority ? 'font-semibold' : 'font-medium')}>{n.note.text}</span>
                   </div>
                 );
               })}

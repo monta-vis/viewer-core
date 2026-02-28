@@ -150,9 +150,10 @@ export interface NoteRow {
   versionId: string;
   instructionId: string;
   text: string;
-  level: 'Info' | 'Quality' | 'Warning' | 'Critical';
-  safetyIconId: string | null;
-  safetyIconCategory: string | null;
+  /** Safety icon category — drives note card styling. */
+  safetyIconCategory: import('../utils/safetyIcons').SafetyIconCategory;
+  /** Safety icon identifier (filename or VFA UUID). */
+  safetyIconId: string;
 }
 
 export interface SafetyIconRow {
