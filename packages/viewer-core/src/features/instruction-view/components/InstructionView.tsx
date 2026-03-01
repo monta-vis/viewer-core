@@ -915,14 +915,14 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       {/* Content area wrapper - relative for overlay positioning */}
       <div className="flex-1 relative overflow-hidden isolate">
           {/* Substep Cards - responsive grid */}
-          <div ref={gridContainerRef} className="h-full overflow-y-auto overscroll-y-contain scrollbar-subtle pt-3 px-1 sm:px-2">
+          <div ref={gridContainerRef} className="h-full overflow-y-auto overscroll-y-contain scrollbar-subtle pt-3 px-1 sm:px-2" style={isSingleColumn ? { scrollSnapType: 'y proximity' } : undefined}>
               {substeps.length === 0 ? (
                 <div className="h-full flex items-center justify-center text-[var(--color-text-muted)]">
                   <p>{t('instructionView.noSubsteps', 'No substeps in this step')}</p>
                 </div>
               ) : (
                 <div
-                  className="grid"
+                  className="grid justify-center"
                   style={{
                     gridTemplateColumns: `repeat(${effectiveColumns}, minmax(${CARD_MIN_WIDTH_REM}rem, ${CARD_MAX_WIDTH_REM}rem))`,
                     gap: `${CARD_GAP_REM}rem`,
@@ -987,7 +987,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
                   return (
                     <Fragment key={substep.id}>
-                    <div className="relative" ref={index === substeps.length - 1 ? lastCardRef : undefined}>
+                    <div className="relative" ref={index === substeps.length - 1 ? lastCardRef : undefined} style={isSingleColumn ? { scrollSnapAlign: 'start' } : undefined}>
                         <div
                           className={`rounded-xl transition-shadow duration-300 ${activeTutorial?.targetSubstepIds.includes(substep.id) ? 'ring-3 ring-[var(--color-element-tutorial)] shadow-lg' : ''}`}
                           ref={(el) => { if (el) substepRefsMap.current.set(substep.id, el); }}
@@ -1139,11 +1139,14 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
             )}
           </div>
 
-        {/* Scroll-down hint arrow when substeps overflow */}
-        {showScrollHint && (
-          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 pointer-events-none animate-bounce-subtle" aria-hidden="true">
-            <div className="bg-[var(--color-bg-surface)]/90 backdrop-blur-sm rounded-full p-2 shadow-lg border border-[var(--color-secondary)]/20">
-              <ChevronDown className="h-6 w-6 text-[var(--color-secondary)]" />
+        {/* Scroll-down hint: fade gradient + chevron when substeps overflow */}
+        {showScrollHint && isSingleColumn && (
+          <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" aria-hidden="true">
+            <div className="h-16 bg-gradient-to-t from-[var(--color-bg-base)] to-transparent" />
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 animate-bounce-subtle">
+              <div className="bg-[var(--color-secondary)] backdrop-blur-sm rounded-full p-2 shadow-lg border border-[var(--color-bg-surface)]/20">
+                <ChevronDown className="h-6 w-6 text-[var(--color-bg-surface)]" />
+              </div>
             </div>
           </div>
         )}
