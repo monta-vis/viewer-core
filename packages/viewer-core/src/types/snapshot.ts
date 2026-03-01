@@ -67,6 +67,9 @@ export interface SnapshotVideo {
   order: number;
   viewport_keyframe_ids: string[];
   video_path?: string;
+  width?: number | null;
+  height?: number | null;
+  duration?: number | null;
 }
 
 export interface SnapshotVideoSection {
@@ -130,6 +133,7 @@ export interface SnapshotPartTool {
   id: string;
   instruction_id: string;
   name: string;
+  label?: string | null;
   part_number: string | null;
   type: string;
   amount?: number;
@@ -141,7 +145,7 @@ export interface SnapshotPartTool {
   /** @deprecated Inert — kept for backwards compat with old exports */
   icon_id?: string | null;
   /** @deprecated Inert — kept for backwards compat with old exports */
-  icon_is_preview?: number;
+  icon_is_preview?: boolean | number;
 }
 
 // ============================================

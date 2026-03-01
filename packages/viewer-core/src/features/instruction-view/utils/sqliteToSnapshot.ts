@@ -182,13 +182,16 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
   // Build videos with viewport_keyframe_ids
   const videos: InstructionSnapshot['videos'] = {};
   for (const row of data.videos) {
-    const r = row as { id: string; fps: number; order: number; video_path?: string };
+    const r = row as { id: string; fps: number; order: number; video_path?: string; width?: number | null; height?: number | null; duration?: number | null };
     videos[r.id] = {
       id: r.id,
       fps: r.fps,
       order: r.order,
       viewport_keyframe_ids: kfByVideo[r.id] || [],
       video_path: r.video_path,
+      width: r.width ?? null,
+      height: r.height ?? null,
+      duration: r.duration ?? null,
     };
   }
 

@@ -1,9 +1,10 @@
 import { type ReactNode, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
-import { X, Languages, Sun, Moon, Type, Play, Check } from 'lucide-react';
+import { X, Languages, Sun, Moon, Type, Play } from 'lucide-react';
 import { Card } from '../Card';
 import { IconButton } from '../IconButton';
+import { OptionButton } from '../OptionButton';
 import { useTheme, usePlaybackSpeed, type PlaybackSpeed, useFontSize, type FontSize } from '@/hooks';
 import { SUPPORTED_LANGUAGES } from '@/lib/languages';
 import { useInstructionViewOptional, type InstructionLanguage } from '@/features/instruction-view';
@@ -194,41 +195,3 @@ export function PreferencesDialog({
   );
 }
 
-// ── Internal helpers ──
-
-const activeClass = 'border-[var(--color-secondary)] bg-[var(--color-secondary)]/10 text-[var(--color-text-base)]';
-const inactiveClass = 'border-[var(--color-border-base)] bg-[var(--color-bg-elevated)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)] hover:text-[var(--color-text-base)]';
-
-function OptionButton({
-  active,
-  onClick,
-  children,
-  showCheck = false,
-  icon,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: ReactNode;
-  showCheck?: boolean;
-  icon?: ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={clsx(
-        'flex items-center justify-between px-3 py-2 rounded-lg text-sm',
-        'border transition-all duration-150',
-        active ? activeClass : inactiveClass
-      )}
-    >
-      <span className="flex items-center gap-2">
-        {icon}
-        {children}
-      </span>
-      {showCheck && active && (
-        <Check className="w-4 h-4 text-[var(--color-secondary)]" />
-      )}
-    </button>
-  );
-}

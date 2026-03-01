@@ -128,6 +128,7 @@ interface InstructionViewProps {
     tutorials: Array<{ kind: string; label: string }>;
     hasImage: boolean;
     hasVideo: boolean;
+    substepId?: string;
   }) => ReactNode;
 }
 
@@ -1016,6 +1017,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                             videoFrameAreas={data.videoFrameAreas}
                             editMode={effectiveEditMode}
                             editCallbacks={substepEditCallbacksMap.get(substep.id)}
+                            substepId={substep.id}
                             renderEditPopover={renderEditPopover}
                           />
                         </div>

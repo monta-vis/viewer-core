@@ -64,6 +64,7 @@ export interface VideoRow {
   proxyStatus: ProxyStatus;
   width: number | null;
   height: number | null;
+  duration: number | null;
 }
 
 /**
@@ -132,6 +133,7 @@ export interface PartToolRow {
   instructionId: string;
   previewImageId: string | null;
   name: string;
+  label: string | null;
   type: 'Part' | 'Tool';
   partNumber: string | null;
   amount: number;

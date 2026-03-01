@@ -45,6 +45,14 @@ export type { NavbarProps } from './Navbar'
 export { PreferencesDialog } from './PreferencesDialog'
 export type { PreferencesDialogProps } from './PreferencesDialog'
 
+// Search Input
+export { SearchInput } from './SearchInput'
+export type { SearchInputProps } from './SearchInput'
+
+// Option Button
+export { OptionButton } from './OptionButton'
+export type { OptionButtonProps } from './OptionButton'
+
 // Dialog Shell
 export { DialogShell } from './DialogShell'
 export type { DialogShellProps } from './DialogShell'

@@ -42,6 +42,7 @@ function makeItem(overrides: Partial<AggregatedPartTool['partTool']> = {}): Aggr
       instructionId: 'i1',
       previewImageId: null,
       name: 'Steel Bolt',
+      label: null,
       type: 'Part',
       partNumber: 'BLT-001',
       amount: 4,

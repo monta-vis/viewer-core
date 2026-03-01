@@ -18,6 +18,7 @@ export function usePartToolFieldState({
   onCommitAmount,
 }: PartToolFieldStateOptions) {
   const [name, setName] = useState(pt.name);
+  const [label, setLabel] = useState(pt.label ?? '');
   const [partNumber, setPartNumber] = useState(pt.partNumber ?? '');
   const [amount, setAmount] = useState(String(externalAmount));
   const [unit, setUnit] = useState(pt.unit ?? '');
@@ -27,6 +28,7 @@ export function usePartToolFieldState({
 
   // Sync local state when props change externally (e.g. undo/redo)
   useEffect(() => { setName(pt.name); }, [pt.name]);
+  useEffect(() => { setLabel(pt.label ?? ''); }, [pt.label]);
   useEffect(() => { setPartNumber(pt.partNumber ?? ''); }, [pt.partNumber]);
   useEffect(() => { setAmount(String(externalAmount)); }, [externalAmount]);
   useEffect(() => { setUnit(pt.unit ?? ''); }, [pt.unit]);
@@ -34,8 +36,12 @@ export function usePartToolFieldState({
   useEffect(() => { setDimension(pt.dimension ?? ''); }, [pt.dimension]);
   useEffect(() => { setDescription(pt.description ?? ''); }, [pt.description]);
 
+  type StringNullableField = {
+    [K in keyof PartToolRow]-?: PartToolRow[K] extends string | null | undefined ? K : never;
+  }[keyof PartToolRow] & string;
+
   const commitField = useCallback(
-    (field: keyof PartToolRow, value: string) => {
+    (field: StringNullableField, value: string) => {
       const prev = pt[field];
       const next = value.trim() === '' ? null : value.trim();
       if (next !== prev) {
@@ -63,6 +69,7 @@ export function usePartToolFieldState({
     onUpdatePartTool(pt.id, { type: pt.type === 'Tool' ? 'Part' : 'Tool' });
   }, [pt.id, pt.type, onUpdatePartTool]);
 
+  const blurLabel = useCallback(() => commitField('label', label), [commitField, label]);
   const blurPartNumber = useCallback(() => commitField('partNumber', partNumber), [commitField, partNumber]);
   const blurUnit = useCallback(() => commitField('unit', unit), [commitField, unit]);
   const blurMaterial = useCallback(() => commitField('material', material), [commitField, material]);
@@ -73,6 +80,7 @@ export function usePartToolFieldState({
 
   return {
     name, setName, commitName, nameValid,
+    label, setLabel, blurLabel,
     partNumber, setPartNumber, blurPartNumber,
     amount, setAmount, commitAmount,
     unit, setUnit, blurUnit,

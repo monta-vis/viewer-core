@@ -26,7 +26,7 @@ vi.mock('react-i18next', () => ({
 
 const makePt = (id: string, name: string, type: 'Part' | 'Tool', amount = 1): PartToolRow => ({
   id, versionId: 'v1', instructionId: 'i1', previewImageId: null,
-  name, type, partNumber: null, amount,
+  name, label: null, type, partNumber: null, amount,
   description: null, unit: null, material: null, dimension: null, iconId: null,
 });
 
@@ -51,7 +51,7 @@ function renderPanel(overrides: Partial<PartToolListPanelProps> = {}) {
 describe('PartToolListPanel', () => {
   it('does not render when closed', () => {
     renderPanel({ open: false });
-    expect(screen.queryByTestId('parttool-list-panel')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('dialog-shell-backdrop')).not.toBeInTheDocument();
   });
 
   it('renders table with sorted rows (Parts first, then Tools, alpha)', () => {
@@ -160,7 +160,7 @@ describe('PartToolListPanel', () => {
     const onClose = vi.fn();
     renderPanel({ onClose });
 
-    const backdrop = screen.getByTestId('parttool-list-backdrop');
+    const backdrop = screen.getByTestId('dialog-shell-backdrop');
     await user.click(backdrop);
     expect(onClose).toHaveBeenCalledOnce();
   });

@@ -96,8 +96,9 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         fps: v.fps,
         order: v.order,
         proxyStatus: 'NotNeeded' as const,
-        width: null,
-        height: null,
+        width: v.width ?? null,
+        height: v.height ?? null,
+        duration: v.duration ?? null,
         sectionIds: videoSectionsByVideo[v.id] || [],
         frameAreaIds: frameAreasByVideo[v.id] || [],
         viewportKeyframeIds: autoKeyframeByVideo[v.id]
@@ -152,6 +153,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         instructionId: pt.instruction_id,
         previewImageId: pt.preview_image_id ?? null,
         name: pt.name,
+        label: pt.label ?? null,
         type: pt.type as 'Part' | 'Tool',
         partNumber: pt.part_number,
         amount: pt.amount ?? 0,
@@ -160,7 +162,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         material: pt.material ?? null,
         dimension: pt.dimension ?? null,
         iconId: pt.icon_id ?? null,
-        iconIsPreview: !!(pt as unknown as Record<string, unknown>).icon_is_preview,
+        iconIsPreview: !!pt.icon_is_preview,
       }])
     ),
     notes: Object.fromEntries(

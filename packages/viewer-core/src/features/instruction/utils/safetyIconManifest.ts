@@ -29,6 +29,7 @@ const FILENAMES = [
   'GHS_08_gr.png',
   'GHS_09_gr.png',
   'M001_Allgemeines-Gebotszeichen.png',
+  'M002_Allgemeines-Infozeichen.png',
   'M003_Gehoerschutz-benutzen.png',
   'M004_Augenschutz-benutzen.png',
   'M008_Fussschutz-benutzen.png',

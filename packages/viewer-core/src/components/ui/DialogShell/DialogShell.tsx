@@ -1,4 +1,5 @@
 import { useEffect, useCallback, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import clsx from 'clsx';
 
 export interface DialogShellProps {
@@ -40,7 +41,7 @@ export function DialogShell({
 
   if (!open) return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -62,6 +63,7 @@ export function DialogShell({
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

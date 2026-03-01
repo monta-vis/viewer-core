@@ -5,6 +5,7 @@ import { Package, Wrench } from 'lucide-react';
 
 interface PartToolCardProps {
   name: string;
+  label?: string | null;
   partNumber?: string | null;
   type: 'part' | 'tool';
   totalAmount: number;
@@ -23,6 +24,7 @@ interface PartToolCardProps {
  */
 export function PartToolCard({
   name,
+  label,
   partNumber,
   type,
   totalAmount,
@@ -253,14 +255,31 @@ export function PartToolCard({
           </div>
         </div>
 
-        {/* Name */}
-        <div
-          className={clsx(
-            'font-semibold text-[var(--color-text-base)] truncate leading-tight',
-            compact ? 'text-xs' : 'text-sm'
+        {/* Name + Label */}
+        <div className="flex items-center gap-1">
+          <div
+            className={clsx(
+              'font-semibold text-[var(--color-text-base)] truncate leading-tight',
+              compact ? 'text-xs' : 'text-sm'
+            )}
+          >
+            {name}
+          </div>
+          {label && (
+            <span
+              className={clsx(
+                'flex-shrink-0 rounded font-bold tabular-nums',
+                compact ? 'text-[0.5rem] px-1' : 'text-[0.6rem] px-1.5 py-0.5'
+              )}
+              style={{
+                background: colors.bg,
+                color: colors.accent,
+                border: `1px solid ${colors.border}`,
+              }}
+            >
+              {label}
+            </span>
           )}
-        >
-          {name}
         </div>
 
         {/* Part number */}

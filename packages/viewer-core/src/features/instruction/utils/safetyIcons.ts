@@ -91,7 +91,7 @@ export const LEGACY_LEVEL_TO_ICON: Record<string, string> = {
   Critical: 'P001-Allgemeines-Verbotszeichen.png',
   Warning:  'W001-Allgemeines-Warnzeichen.png',
   Quality:  'M001_Allgemeines-Gebotszeichen.png',
-  Info:     'W001-Allgemeines-Warnzeichen.png',
+  Info:     'M002_Allgemeines-Infozeichen.png',
 };
 
 /** Maps old note levels to a SafetyIconCategory (for backward compat in transformSnapshotToStore). */
@@ -99,5 +99,5 @@ export const LEGACY_LEVEL_TO_CATEGORY: Record<string, SafetyIconCategory> = {
   Critical: 'Verbotszeichen',
   Warning:  'Warnzeichen',
   Quality:  'Gebotszeichen',
-  Info:     'Warnzeichen',
+  Info:     'Gebotszeichen',
 };

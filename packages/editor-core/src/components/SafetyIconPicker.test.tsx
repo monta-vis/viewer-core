@@ -22,6 +22,9 @@ vi.mock('@monta-vis/viewer-core', () => ({
     Warning: { label: 'Warning' },
     Info: { label: 'Info' },
   },
+  SearchInput: ({ value, onChange, placeholder, 'aria-label': ariaLabel }: { value: string; onChange: (v: string) => void; placeholder?: string; 'aria-label'?: string }) => (
+    <input type="text" value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
+  ),
 }));
 
 afterEach(() => {

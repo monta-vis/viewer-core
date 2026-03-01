@@ -81,6 +81,11 @@ declare global {
           imagePath: string,
           crop?: { x: number; y: number; width: number; height: number },
         ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
+        uploadSubstepVideo: (
+          folderName: string,
+          substepId: string,
+          args: { sourceVideoPath: string },
+        ) => Promise<{ success: boolean; videoId?: string; sectionId?: string; substepVideoSectionId?: string; frameCount?: number; error?: string }>;
       };
     };
   }

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Package, Wrench, Hash, Layers, FileText, Ruler, Box, Scale, ImageIcon, Trash2 } from 'lucide-react';
+import { X, Package, Wrench, Hash, Layers, FileText, Ruler, Box, Scale, ImageIcon, Trash2, Tag } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
@@ -280,6 +280,16 @@ export function PartToolDetailModal({ item, onClose, folderName, partToolVideoFr
                 {item.partTool.name}
               </h2>
             </div>
+
+            {/* Label — read-only display */}
+            {item.partTool.label && (
+              <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
+                <Tag className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+                <span className="font-semibold text-sm">
+                  {item.partTool.label}
+                </span>
+              </div>
+            )}
 
             {/* Part Number — read-only display (always, no edit controls) */}
             {item.partTool.partNumber && (

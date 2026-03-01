@@ -1,12 +1,11 @@
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Search } from 'lucide-react';
 import {
   getCategoryPriority,
   getCategoryColor,
   SAFETY_ICON_CATEGORIES,
+  SearchInput,
 } from '@monta-vis/viewer-core';
-import { EditInput } from './EditInput';
 
 export interface SafetyIconItem {
   id: string;
@@ -66,16 +65,12 @@ export function SafetyIconPicker({
   return (
     <div className="flex flex-col gap-2">
       {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-text-muted)]" />
-        <EditInput
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder={t('editorCore.searchIcons', 'Search icons...')}
-          className="pl-9 pr-3 py-2"
-        />
-      </div>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder={t('editorCore.searchIcons', 'Search icons...')}
+        aria-label={t('editorCore.searchIcons', 'Search icons...')}
+      />
 
       {/* Category tabs */}
       {categories.length > 0 && (

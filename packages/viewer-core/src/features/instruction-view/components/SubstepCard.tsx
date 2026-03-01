@@ -98,6 +98,8 @@ interface SubstepCardProps {
   /** Edit callbacks — only used when editMode=true */
   editCallbacks?: SubstepEditCallbacks;
   /** Render function for the edit popover (provided by editor-core via app shell) */
+  /** Substep ID — forwarded to the edit popover so it can associate uploads with the correct substep */
+  substepId?: string;
   renderEditPopover?: (props: {
     open: boolean;
     onClose: () => void;
@@ -110,6 +112,7 @@ interface SubstepCardProps {
     tutorials: Array<{ kind: string; label: string }>;
     hasImage: boolean;
     hasVideo: boolean;
+    substepId?: string;
     /** Pre-rendered media preview (image / video frame capture) matching SubstepCard appearance */
     mediaPreview?: ReactNode;
   }) => ReactNode;
@@ -143,6 +146,7 @@ export const SubstepCard = memo(function SubstepCard({
   videoFrameAreas,
   editMode = false,
   editCallbacks,
+  substepId,
   renderEditPopover,
 }: SubstepCardProps) {
   const { t } = useTranslation();
@@ -621,6 +625,7 @@ export const SubstepCard = memo(function SubstepCard({
               tutorials: tutorials.map((r) => ({ kind: r.kind, label: r.label })),
               hasImage: !!(imageUrl || frameCaptureData),
               hasVideo: !!videoData,
+              substepId,
               mediaPreview: frameCaptureData ? (
                 <VideoFrameCapture
                   videoId={frameCaptureData.videoId}

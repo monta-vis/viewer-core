@@ -116,8 +116,8 @@ describe('LEGACY_LEVEL_TO_ICON', () => {
     expect(LEGACY_LEVEL_TO_ICON.Quality).toBe('M001_Allgemeines-Gebotszeichen.png');
   });
 
-  it('maps Info to W001 (fallback to warning)', () => {
-    expect(LEGACY_LEVEL_TO_ICON.Info).toBe('W001-Allgemeines-Warnzeichen.png');
+  it('maps Info to M002 (info icon in Gebotszeichen)', () => {
+    expect(LEGACY_LEVEL_TO_ICON.Info).toBe('M002_Allgemeines-Infozeichen.png');
   });
 });
 

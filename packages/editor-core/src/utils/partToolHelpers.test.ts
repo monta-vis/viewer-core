@@ -75,7 +75,7 @@ describe('sortSubstepPartTools', () => {
     order,
     partTool: {
       id: `pt-${id}`, versionId: 'v1', instructionId: 'i1', previewImageId: null,
-      name: `Part ${id}`, type: 'Part', partNumber: null, amount: 1,
+      name: `Part ${id}`, label: null, type: 'Part', partNumber: null, amount: 1,
       description: null, unit: null, material: null, dimension: null, iconId: null,
     },
   });
@@ -101,7 +101,7 @@ describe('sortSubstepPartTools', () => {
 describe('sortPartToolRows', () => {
   const makePtRow = (id: string, name: string, type: 'Part' | 'Tool'): PartToolRow => ({
     id, versionId: 'v1', instructionId: 'i1', previewImageId: null,
-    name, type, partNumber: null, amount: 1,
+    name, label: null, type, partNumber: null, amount: 1,
     description: null, unit: null, material: null, dimension: null, iconId: null,
   });
 
