@@ -26,6 +26,7 @@ import {
   type SafetyIconCatalog,
   type NormalizedCrop,
   type PartToolImageItem,
+  type TrimmedFile,
 } from "@monta-vis/editor-core";
 import { createElectronAdapter } from "../persistence/electronAdapter";
 
@@ -437,6 +438,73 @@ export function ViewPage() {
     onSetPreviewImage,
   }), [onAddPartTool, onUpdatePartTool, onDeletePartToolFromList, onUploadPartToolImage, onDeletePartToolImage, onSetPreviewImage]);
 
+  // ── Video upload callback ──
+  const onUploadSubstepVideo = useCallback(async (substepId: string, trimmedFile: TrimmedFile) => {
+    if (!decodedFolderName || !adapter.uploadSubstepVideo) return;
+
+    // In Electron, File objects have a `path` property with the native file path
+    const nativePath = (trimmedFile.file as File & { path?: string }).path;
+    if (!nativePath) return;
+
+    const result = await adapter.uploadSubstepVideo(decodedFolderName, substepId, {
+      sourceVideoPath: nativePath,
+    });
+
+    if (result.success && result.videoId && result.sectionId && result.substepVideoSectionId) {
+      const store = useEditorStore.getState();
+      const versionId = getVersionId();
+      const instructionId = getInstructionId();
+
+      // Snapshot IDs before loop — store mutations are applied in-place
+      const toDelete = Object.values(store.data?.substepVideoSections ?? {})
+        .filter((svs) => svs.substepId === substepId)
+        .map((svs) => ({ id: svs.id, videoSectionId: svs.videoSectionId }));
+      for (const { id, videoSectionId } of toDelete) {
+        store.deleteSubstepVideoSection(id);
+        if (videoSectionId) {
+          store.deleteVideoSection(videoSectionId);
+        }
+      }
+
+      // Add new video record to store (needed for substepVideoDataMap resolution)
+      store.addVideo({
+        id: result.videoId,
+        instructionId,
+        orderId: '',
+        userId: null,
+        videoPath: result.videoPath ?? '',
+        fps: result.fps ?? 30,
+        order: 0,
+        proxyStatus: 'NotNeeded',
+        width: null,
+        height: null,
+        duration: null,
+        sectionIds: [result.sectionId],
+        frameAreaIds: [],
+        viewportKeyframeIds: [],
+      });
+
+      // Add new video section to store
+      store.addVideoSection({
+        id: result.sectionId,
+        versionId,
+        videoId: result.videoId,
+        startFrame: 0,
+        endFrame: result.frameCount ?? 0,
+        localPath: null,
+      });
+
+      // Add new junction row
+      store.addSubstepVideoSection({
+        id: result.substepVideoSectionId,
+        versionId,
+        substepId,
+        videoSectionId: result.sectionId,
+        order: 0,
+      });
+    }
+  }, [decodedFolderName, adapter, getVersionId]);
+
   // ── Memoized edit callbacks ──
   const editCallbacks = useMemo(() => ({
     onSaveDescription,
@@ -465,14 +533,16 @@ export function ViewPage() {
     (props: Parameters<typeof SubstepEditPopover>[0]) => (
       <SubstepEditPopover
         {...props}
+        allPartTools={Object.values(viewerData?.partTools ?? {})}
         folderName={decodedFolderName}
         catalogs={safetyIconCatalogs}
         getPreviewUrl={getPartToolPreviewUrl}
         getPartToolImages={getPartToolImages}
         imageCallbacks={imageCallbacks}
+        onUploadSubstepVideo={onUploadSubstepVideo}
       />
     ),
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks],
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, onUploadSubstepVideo, viewerData?.partTools],
   );
 
   if (isLoading) {
