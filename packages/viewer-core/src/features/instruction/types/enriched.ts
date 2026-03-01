@@ -102,6 +102,7 @@ export interface VideoSectionRow {
   videoId: string;
   startFrame: number;
   endFrame: number;
+  contentAspectRatio: number | null;
   localPath: string | null;
 }
 

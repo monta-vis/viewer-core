@@ -64,6 +64,8 @@ export interface SubstepEditPopoverProps {
   imageCallbacks?: PartToolTableImageCallbacks;
   /** Called when the user picks + crops a new substep image via the edit-image pencil. */
   onUploadSubstepImage?: (file: File, crop: NormalizedCrop) => void;
+  /** Instruction-level partTool catalog for autocomplete suggestions. */
+  allPartTools?: PartToolRow[];
 }
 
 /* ── Inline edit state types ── */
@@ -125,6 +127,7 @@ export function SubstepEditPopover({
   getPartToolImages,
   imageCallbacks,
   onUploadSubstepImage,
+  allPartTools,
 }: SubstepEditPopoverProps) {
   const { t, i18n } = useTranslation();
   const { canUndo, canRedo, captureSnapshot, undo, redo, reset } = useSessionHistory();
@@ -255,6 +258,10 @@ export function SubstepEditPopover({
     },
     onDelete: (sptId: string) => {
       callbacks.onDeleteSubstepPartTool?.(sptId);
+      captureSnapshot();
+    },
+    onSelectPartTool: (sptId: string, partToolId: string) => {
+      callbacks.onReplaceSubstepPartTool?.(sptId, partToolId);
       captureSnapshot();
     },
   }), [callbacks, captureSnapshot]);
@@ -757,6 +764,7 @@ export function SubstepEditPopover({
                 rows={partToolTableRows}
                 callbacks={partToolCallbacks}
                 allSubstepPartTools={allSubstepPartTools}
+                allPartTools={allPartTools}
                 getPreviewUrl={getPreviewUrl}
                 getPartToolImages={getPartToolImages}
                 imageCallbacks={imageCallbacks}

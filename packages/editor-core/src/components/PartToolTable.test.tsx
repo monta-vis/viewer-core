@@ -325,6 +325,58 @@ describe('PartToolTable', () => {
     expect(screen.queryByTestId('picker-add-image')).not.toBeInTheDocument();
   });
 
+  // ── Autocomplete integration ──
+
+  it('no autocomplete when allPartTools not provided (plain EditInput)', () => {
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
+    // Name input is a plain input, not wrapped in autocomplete
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  it('autocomplete dropdown appears when typing in name field with allPartTools', async () => {
+    const user = userEvent.setup();
+    const allPartTools = [
+      makePt('cat-1', 'Wrench', 'Tool'),
+      makePt('cat-2', 'Bolt', 'Part'),
+    ];
+    const rows = [makeRow('1', '', 'Part', 1)];
+    const cbs = makeCallbacks();
+    const { rerender } = render(
+      <PartToolTable rows={rows} callbacks={cbs} allPartTools={allPartTools} />,
+    );
+
+    const nameInput = screen.getByTestId('parttool-row-name-spt-1');
+    await user.click(nameInput);
+    await user.type(nameInput, 'Wre');
+
+    // The dropdown should appear with matching suggestion
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByText('Wrench')).toBeInTheDocument();
+  });
+
+  it('selecting autocomplete suggestion calls onSelectPartTool', async () => {
+    const user = userEvent.setup();
+    const allPartTools = [
+      makePt('cat-1', 'Wrench', 'Tool'),
+      makePt('cat-2', 'Bolt', 'Part'),
+    ];
+    const rows = [makeRow('1', '', 'Part', 1)];
+    const onSelectPartTool = vi.fn();
+    const cbs = { ...makeCallbacks(), onSelectPartTool };
+    render(
+      <PartToolTable rows={rows} callbacks={cbs} allPartTools={allPartTools} />,
+    );
+
+    const nameInput = screen.getByTestId('parttool-row-name-spt-1');
+    await user.click(nameInput);
+    await user.type(nameInput, 'Bolt');
+
+    // Select the suggestion
+    await user.click(screen.getByText('Bolt'));
+    expect(onSelectPartTool).toHaveBeenCalledWith('spt-1', 'pt-cat-2');
+  });
+
   it('image picker add triggers file input flow', async () => {
     const user = userEvent.setup();
     const rows = [makeRow('1', 'Bolt', 'Part', 1)];

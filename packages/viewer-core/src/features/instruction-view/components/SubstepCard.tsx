@@ -51,6 +51,8 @@ export interface SubstepEditCallbacks {
   onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
   onAddSubstepPartTool?: () => void;
   onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
+  /** Replace a substepPartTool's partTool reference with another instruction-level partTool. */
+  onReplaceSubstepPartTool?: (substepPartToolId: string, newPartToolId: string) => void;
   onDeleteSubstep?: () => void;
 }
 
@@ -69,7 +71,7 @@ interface SubstepCardProps {
   landscape?: boolean;
   isViewed?: boolean;
   onPartToolClick?: () => void;
-  videoData?: { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; sections?: { startFrame: number; endFrame: number }[] } | null;
+  videoData?: { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number }[] } | null;
   /** Static drawings on the substep image (shown when not playing) */
   imageDrawings?: DrawingRow[];
   /** Video drawings for this substep (filtered by frame during playback) */
@@ -473,14 +475,23 @@ export const SubstepCard = memo(function SubstepCard({
 
   const altText = title || `${t('instructionView.substep', 'Substep')} ${stepOrder}`;
 
-  // Compute drawing bounds to match the letterboxed image area
+  // Compute drawing bounds to match the letterboxed content area.
+  // During processed video playback, use contentAspectRatio (baked letterbox in square video).
+  // Otherwise use the actual content natural size (image / frame capture).
   const contentBounds = useMemo(() => {
+    if (isPlayingInline && videoData?.contentAspectRatio && imageAreaSize.width > 0) {
+      // Processed video: square container with letterboxed content
+      return computeContentBounds(
+        imageAreaSize.width, imageAreaSize.height,
+        videoData.contentAspectRatio, 1, // use ratio as virtual width, 1 as height
+      ) ?? { x: 0, y: 0, width: 100, height: 100 };
+    }
     if (!contentNaturalSize) return { x: 0, y: 0, width: 100, height: 100 };
     return computeContentBounds(
       imageAreaSize.width, imageAreaSize.height,
       contentNaturalSize.width, contentNaturalSize.height,
     ) ?? { x: 0, y: 0, width: 100, height: 100 };
-  }, [imageAreaSize, contentNaturalSize]);
+  }, [imageAreaSize, contentNaturalSize, isPlayingInline, videoData]);
 
   // Resolve which drawings to show: video drawings during playback, image drawings otherwise
   const activeDrawings = useMemo(() =>

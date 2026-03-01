@@ -428,7 +428,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
   // Compute per-substep video data for inline card playback
   const substepVideoDataMap = useMemo(() => {
-    const map = new Map<string, { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; sections?: { startFrame: number; endFrame: number }[] }>();
+    const map = new Map<string, { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number }[] }>();
     if (!data) return map;
 
     for (const substep of substeps) {
@@ -506,6 +506,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
           fps: video.fps,
           viewportKeyframes: [], // viewport already baked into processed clips
           videoAspectRatio: 1, // processed clips are square
+          contentAspectRatio: videoSection.contentAspectRatio, // actual content AR within letterboxed square
         });
       }
     }
@@ -548,7 +549,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
   // Pre-compute video data for cross-step reference targets
   const activeRefVideoData = useMemo(() => {
-    const map = new Map<string, { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; sections?: { startFrame: number; endFrame: number }[] }>();
+    const map = new Map<string, { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number }[] }>();
     if (!activeTutorial || activeTutorial.isSameStep || !data) return map;
 
     for (const targetId of activeTutorial.targetSubstepIds) {
@@ -614,6 +615,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
           fps: video.fps,
           viewportKeyframes: [],
           videoAspectRatio: 1,
+          contentAspectRatio: videoSection.contentAspectRatio,
         });
       }
     }

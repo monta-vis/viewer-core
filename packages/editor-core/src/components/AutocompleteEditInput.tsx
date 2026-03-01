@@ -7,16 +7,16 @@ export interface AutocompleteSuggestion {
   sublabel?: string;
 }
 
-export interface AutocompleteEditInputProps extends EditInputProps {
+export interface AutocompleteEditInputProps extends Omit<EditInputProps, 'onSelect'> {
   suggestions: AutocompleteSuggestion[];
-  onSelect: (id: string) => void;
+  onSelectSuggestion: (id: string) => void;
   /** Minimum characters before showing suggestions (default 1). */
   minChars?: number;
 }
 
 export function AutocompleteEditInput({
   suggestions,
-  onSelect,
+  onSelectSuggestion,
   minChars = 1,
   value,
   onChange,
@@ -66,11 +66,11 @@ export function AutocompleteEditInput({
 
   const handleSelect = useCallback(
     (id: string) => {
-      onSelect(id);
+      onSelectSuggestion(id);
       setFocused(false);
       setHighlightIndex(-1);
     },
-    [onSelect],
+    [onSelectSuggestion],
   );
 
   const handleKeyDown = useCallback(

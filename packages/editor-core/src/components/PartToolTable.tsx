@@ -5,6 +5,7 @@ import type { PartToolRow } from '@monta-vis/viewer-core';
 import { computeUsedAmount } from '../utils/partToolHelpers';
 import { usePartToolFieldState } from '../hooks/usePartToolFieldState';
 import { EditInput } from './EditInput';
+import { AutocompleteEditInput, type AutocompleteSuggestion } from './AutocompleteEditInput';
 import { ImageCropDialog } from './ImageCropDialog';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
 import type { NormalizedCrop } from '../persistence/types';
@@ -19,6 +20,8 @@ export interface PartToolTableCallbacks {
   onUpdatePartTool: (partToolId: string, updates: Partial<PartToolRow>) => void;
   onUpdateAmount: (rowId: string, amount: number) => void;
   onDelete: (rowId: string) => void;
+  /** Called when user selects a partTool from autocomplete suggestions. */
+  onSelectPartTool?: (rowId: string, partToolId: string) => void;
 }
 
 export interface PartToolTableImageCallbacks {
@@ -32,6 +35,8 @@ export interface PartToolTableProps {
   callbacks: PartToolTableCallbacks;
   /** All substepPartTools for computing "Used" amounts. */
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
+  /** Instruction-level partTool catalog for autocomplete suggestions. */
+  allPartTools?: PartToolRow[];
   /** Resolve a partTool ID to a thumbnail URL (or null). */
   getPreviewUrl?: (partToolId: string) => string | null;
   /** Image upload/delete callbacks (enables thumbnail column interaction). */
@@ -47,6 +52,7 @@ export function PartToolTable({
   rows,
   callbacks,
   allSubstepPartTools,
+  allPartTools,
   getPreviewUrl,
   imageCallbacks,
   getPartToolImages,
@@ -83,6 +89,7 @@ export function PartToolTable({
             row={row}
             callbacks={callbacks}
             allSubstepPartTools={allSubstepPartTools}
+            allPartTools={allPartTools}
             getPreviewUrl={getPreviewUrl}
             imageCallbacks={imageCallbacks}
             getPartToolImages={getPartToolImages}
@@ -100,6 +107,7 @@ interface RowProps {
   row: PartToolTableItem;
   callbacks: PartToolTableCallbacks;
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
+  allPartTools?: PartToolRow[];
   getPreviewUrl?: (partToolId: string) => string | null;
   imageCallbacks?: PartToolTableImageCallbacks;
   getPartToolImages?: (partToolId: string) => PartToolImageItem[];
@@ -110,6 +118,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
   row,
   callbacks,
   allSubstepPartTools,
+  allPartTools,
   getPreviewUrl,
   imageCallbacks,
   getPartToolImages,
@@ -135,6 +144,22 @@ const PartToolTableRow = memo(function PartToolTableRow({
     onUpdatePartTool: callbacks.onUpdatePartTool,
     onCommitAmount,
   });
+
+  const suggestions: AutocompleteSuggestion[] = useMemo(() => {
+    if (!allPartTools) return [];
+    return allPartTools.map((pt) => ({
+      id: pt.id,
+      label: pt.name,
+      sublabel: [pt.partNumber, pt.material].filter(Boolean).join(' · ') || undefined,
+    }));
+  }, [allPartTools]);
+
+  const handleSelectSuggestion = useCallback(
+    (partToolId: string) => {
+      callbacks.onSelectPartTool?.(row.rowId, partToolId);
+    },
+    [callbacks, row.rowId],
+  );
 
   const handleDelete = useCallback(() => callbacks.onDelete(row.rowId), [callbacks, row.rowId]);
 
@@ -304,26 +329,52 @@ const PartToolTableRow = memo(function PartToolTableRow({
 
       {/* Name */}
       <td className="px-1 py-0.5">
-        <EditInput
-          size="sm"
-          error={!fields.nameValid}
-          data-testid={`${testIdPrefix}-name-${row.rowId}`}
-          value={fields.name}
-          onChange={(e) => fields.setName(e.target.value)}
-          onBlur={fields.commitName}
-          placeholder={t('editorCore.partToolName', 'Name')}
-        />
+        {allPartTools ? (
+          <AutocompleteEditInput
+            size="sm"
+            error={!fields.nameValid}
+            data-testid={`${testIdPrefix}-name-${row.rowId}`}
+            value={fields.name}
+            onChange={(e) => fields.setName(e.target.value)}
+            onBlur={fields.commitName}
+            placeholder={t('editorCore.partToolName', 'Name')}
+            suggestions={suggestions}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+        ) : (
+          <EditInput
+            size="sm"
+            error={!fields.nameValid}
+            data-testid={`${testIdPrefix}-name-${row.rowId}`}
+            value={fields.name}
+            onChange={(e) => fields.setName(e.target.value)}
+            onBlur={fields.commitName}
+            placeholder={t('editorCore.partToolName', 'Name')}
+          />
+        )}
       </td>
 
       {/* Part# */}
       <td className="px-1 py-0.5">
-        <EditInput
-          size="sm"
-          value={fields.partNumber}
-          onChange={(e) => fields.setPartNumber(e.target.value)}
-          onBlur={fields.blurPartNumber}
-          placeholder={t('editorCore.partToolPartNumber', 'Part#')}
-        />
+        {allPartTools ? (
+          <AutocompleteEditInput
+            size="sm"
+            value={fields.partNumber}
+            onChange={(e) => fields.setPartNumber(e.target.value)}
+            onBlur={fields.blurPartNumber}
+            placeholder={t('editorCore.partToolPartNumber', 'Part#')}
+            suggestions={suggestions}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+        ) : (
+          <EditInput
+            size="sm"
+            value={fields.partNumber}
+            onChange={(e) => fields.setPartNumber(e.target.value)}
+            onBlur={fields.blurPartNumber}
+            placeholder={t('editorCore.partToolPartNumber', 'Part#')}
+          />
+        )}
       </td>
 
       {/* Amount */}
@@ -352,46 +403,94 @@ const PartToolTableRow = memo(function PartToolTableRow({
 
       {/* Unit */}
       <td className="px-1 py-0.5">
-        <EditInput
-          size="sm"
-          value={fields.unit}
-          onChange={(e) => fields.setUnit(e.target.value)}
-          onBlur={fields.blurUnit}
-          placeholder={t('editorCore.partToolUnit', 'Unit')}
-        />
+        {allPartTools ? (
+          <AutocompleteEditInput
+            size="sm"
+            value={fields.unit}
+            onChange={(e) => fields.setUnit(e.target.value)}
+            onBlur={fields.blurUnit}
+            placeholder={t('editorCore.partToolUnit', 'Unit')}
+            suggestions={suggestions}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+        ) : (
+          <EditInput
+            size="sm"
+            value={fields.unit}
+            onChange={(e) => fields.setUnit(e.target.value)}
+            onBlur={fields.blurUnit}
+            placeholder={t('editorCore.partToolUnit', 'Unit')}
+          />
+        )}
       </td>
 
       {/* Material */}
       <td className="px-1 py-0.5">
-        <EditInput
-          size="sm"
-          value={fields.material}
-          onChange={(e) => fields.setMaterial(e.target.value)}
-          onBlur={fields.blurMaterial}
-          placeholder={t('editorCore.partToolMaterial', 'Material')}
-        />
+        {allPartTools ? (
+          <AutocompleteEditInput
+            size="sm"
+            value={fields.material}
+            onChange={(e) => fields.setMaterial(e.target.value)}
+            onBlur={fields.blurMaterial}
+            placeholder={t('editorCore.partToolMaterial', 'Material')}
+            suggestions={suggestions}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+        ) : (
+          <EditInput
+            size="sm"
+            value={fields.material}
+            onChange={(e) => fields.setMaterial(e.target.value)}
+            onBlur={fields.blurMaterial}
+            placeholder={t('editorCore.partToolMaterial', 'Material')}
+          />
+        )}
       </td>
 
       {/* Dimension */}
       <td className="px-1 py-0.5">
-        <EditInput
-          size="sm"
-          value={fields.dimension}
-          onChange={(e) => fields.setDimension(e.target.value)}
-          onBlur={fields.blurDimension}
-          placeholder={t('editorCore.partToolDimension', 'Dim.')}
-        />
+        {allPartTools ? (
+          <AutocompleteEditInput
+            size="sm"
+            value={fields.dimension}
+            onChange={(e) => fields.setDimension(e.target.value)}
+            onBlur={fields.blurDimension}
+            placeholder={t('editorCore.partToolDimension', 'Dim.')}
+            suggestions={suggestions}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+        ) : (
+          <EditInput
+            size="sm"
+            value={fields.dimension}
+            onChange={(e) => fields.setDimension(e.target.value)}
+            onBlur={fields.blurDimension}
+            placeholder={t('editorCore.partToolDimension', 'Dim.')}
+          />
+        )}
       </td>
 
       {/* Description */}
       <td className="px-1 py-0.5">
-        <EditInput
-          size="sm"
-          value={fields.description}
-          onChange={(e) => fields.setDescription(e.target.value)}
-          onBlur={fields.blurDescription}
-          placeholder={t('editorCore.partToolDescription', 'Description')}
-        />
+        {allPartTools ? (
+          <AutocompleteEditInput
+            size="sm"
+            value={fields.description}
+            onChange={(e) => fields.setDescription(e.target.value)}
+            onBlur={fields.blurDescription}
+            placeholder={t('editorCore.partToolDescription', 'Description')}
+            suggestions={suggestions}
+            onSelectSuggestion={handleSelectSuggestion}
+          />
+        ) : (
+          <EditInput
+            size="sm"
+            value={fields.description}
+            onChange={(e) => fields.setDescription(e.target.value)}
+            onBlur={fields.blurDescription}
+            placeholder={t('editorCore.partToolDescription', 'Description')}
+          />
+        )}
       </td>
 
       {/* Delete */}

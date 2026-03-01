@@ -70,6 +70,12 @@ export function PartToolListPanel({
     }));
   }, [partTools]);
 
+  // All partTools as array for autocomplete suggestions
+  const allPartToolsArray = useMemo(
+    () => Object.values(partTools),
+    [partTools],
+  );
+
   // Adapt PartToolListPanelCallbacks → PartToolTableCallbacks
   const tableCallbacks: PartToolTableCallbacks = useMemo(() => ({
     onUpdatePartTool: callbacks.onUpdatePartTool,
@@ -77,7 +83,24 @@ export function PartToolListPanel({
       callbacks.onUpdatePartTool(rowId, { amount });
     },
     onDelete: callbacks.onDeletePartTool,
-  }), [callbacks]);
+    onSelectPartTool: (rowId: string, partToolId: string) => {
+      const source = partTools[partToolId];
+      if (!source) return;
+      // Copy all fields except amount from the selected partTool
+      callbacks.onUpdatePartTool(rowId, {
+        name: source.name,
+        label: source.label,
+        type: source.type,
+        partNumber: source.partNumber,
+        unit: source.unit,
+        material: source.material,
+        dimension: source.dimension,
+        description: source.description,
+        previewImageId: source.previewImageId,
+        iconId: source.iconId,
+      });
+    },
+  }), [callbacks, partTools]);
 
   // Convert substepPartTools for "Used" column (narrow to the fields PartToolTable needs)
   const allSubstepPartTools = useMemo(
@@ -162,6 +185,7 @@ export function PartToolListPanel({
             rows={tableRows}
             callbacks={tableCallbacks}
             allSubstepPartTools={allSubstepPartTools}
+            allPartTools={allPartToolsArray}
             getPreviewUrl={getPreviewUrl}
             imageCallbacks={imageCallbacks}
             getPartToolImages={getPartToolImages}

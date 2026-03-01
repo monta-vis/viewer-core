@@ -18,7 +18,7 @@ describe('AutocompleteEditInput', () => {
     render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value="zzz"
         onChange={vi.fn()}
       />,
@@ -34,7 +34,7 @@ describe('AutocompleteEditInput', () => {
     const { rerender } = render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value=""
         onChange={onChange}
       />,
@@ -47,7 +47,7 @@ describe('AutocompleteEditInput', () => {
     rerender(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value="wre"
         onChange={onChange}
       />,
@@ -62,7 +62,7 @@ describe('AutocompleteEditInput', () => {
     const { rerender } = render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value=""
         onChange={vi.fn()}
       />,
@@ -73,7 +73,7 @@ describe('AutocompleteEditInput', () => {
     rerender(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value="PN-01"
         onChange={vi.fn()}
       />,
@@ -87,20 +87,29 @@ describe('AutocompleteEditInput', () => {
   it('hides dropdown on blur', async () => {
     const user = userEvent.setup();
     render(
-      <AutocompleteEditInput
-        suggestions={suggestions}
-        onSelect={vi.fn()}
-        value="Bolt"
-        onChange={vi.fn()}
-      />,
+      <>
+        <AutocompleteEditInput
+          suggestions={suggestions}
+          onSelectSuggestion={vi.fn()}
+          value="Bolt"
+          onChange={vi.fn()}
+        />
+        <input data-testid="other" />
+      </>,
     );
 
-    const input = screen.getByRole('textbox');
+    const input = screen.getAllByRole('textbox')[0];
     await user.click(input);
     expect(screen.getByRole('listbox')).toBeInTheDocument();
 
-    // Blur by tabbing away
-    await user.tab();
+    // Click another element to blur
+    await user.click(screen.getByTestId('other'));
+
+    // Wait for blur timeout
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 200));
+    });
+
     expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
   });
 
@@ -110,7 +119,7 @@ describe('AutocompleteEditInput', () => {
     render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={onSelect}
+        onSelectSuggestion={onSelect}
         value="Bolt"
         onChange={vi.fn()}
       />,
@@ -129,7 +138,7 @@ describe('AutocompleteEditInput', () => {
     render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={onSelect}
+        onSelectSuggestion={onSelect}
         value="b"
         onChange={vi.fn()}
       />,
@@ -151,7 +160,7 @@ describe('AutocompleteEditInput', () => {
     render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={onSelect}
+        onSelectSuggestion={onSelect}
         value="Bolt"
         onChange={vi.fn()}
       />,
@@ -171,7 +180,7 @@ describe('AutocompleteEditInput', () => {
     const { rerender } = render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value=""
         onChange={vi.fn()}
         minChars={3}
@@ -184,7 +193,7 @@ describe('AutocompleteEditInput', () => {
     rerender(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value="Bo"
         onChange={vi.fn()}
         minChars={3}
@@ -196,7 +205,7 @@ describe('AutocompleteEditInput', () => {
     rerender(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value="Bol"
         onChange={vi.fn()}
         minChars={3}
@@ -212,7 +221,7 @@ describe('AutocompleteEditInput', () => {
     render(
       <AutocompleteEditInput
         suggestions={[]}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value=""
         onChange={onChange}
         onBlur={onBlur}
@@ -232,7 +241,7 @@ describe('AutocompleteEditInput', () => {
     render(
       <AutocompleteEditInput
         suggestions={[]}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value=""
         onChange={vi.fn()}
         size="sm"
@@ -248,7 +257,7 @@ describe('AutocompleteEditInput', () => {
     render(
       <AutocompleteEditInput
         suggestions={suggestions}
-        onSelect={vi.fn()}
+        onSelectSuggestion={vi.fn()}
         value="Wrench"
         onChange={vi.fn()}
       />,

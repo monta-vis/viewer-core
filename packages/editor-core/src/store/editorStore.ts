@@ -119,6 +119,7 @@ interface StoreState {
     assemblies: ChangeTracking;
     steps: ChangeTracking;
     substeps: ChangeTracking;
+    videos: ChangeTracking;
     videoSections: ChangeTracking;
     videoFrameAreas: ChangeTracking;
     viewportKeyframes: ChangeTracking;
@@ -175,6 +176,7 @@ interface StoreActions {
   deleteSubstep(id: string): void;
 
   // Videos
+  addVideo(video: Video): void;
   updateVideo(id: string, updates: Partial<Video>): void;
 
   // VideoFrameAreas
@@ -281,6 +283,7 @@ const initialChanges = () => ({
   assemblies: createEmptyTracking(),
   steps: createEmptyTracking(),
   substeps: createEmptyTracking(),
+  videos: createEmptyTracking(),
   videoSections: createEmptyTracking(),
   videoFrameAreas: createEmptyTracking(),
   viewportKeyframes: createEmptyTracking(),
@@ -727,9 +730,15 @@ export const useEditorStore = create<StoreState & StoreActions>()(
     },
 
     // Videos
+    addVideo: (video) => set((s) => {
+      if (!s.data) return;
+      s.data.videos[video.id] = video;
+      s.changes.videos.changed.add(video.id);
+    }),
     updateVideo: (id, updates) => set((s) => {
       if (!s.data?.videos[id]) return;
       Object.assign(s.data.videos[id], updates);
+      s.changes.videos.changed.add(id);
     }),
 
     // VideoFrameAreas
@@ -1159,6 +1168,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           videoId: section.videoId,
           startFrame: splitFrame + 1,
           endFrame: originalEndFrame,
+          contentAspectRatio: section.contentAspectRatio,
           localPath: section.localPath,
         };
         s.data.videoSections[newSectionId] = newSection;
@@ -1496,6 +1506,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       collect('assemblies', 'assemblies', data.assemblies, changes.assemblies);
       collect('steps', 'steps', data.steps, changes.steps);
       collect('substeps', 'substeps', data.substeps, changes.substeps);
+      collect('videos', 'videos', data.videos, changes.videos);
       collect('videoSections', 'video_sections', data.videoSections, changes.videoSections);
       collect('videoFrameAreas', 'video_frame_areas', data.videoFrameAreas, changes.videoFrameAreas);
       collect('viewportKeyframes', 'viewport_keyframes', data.viewportKeyframes, changes.viewportKeyframes);

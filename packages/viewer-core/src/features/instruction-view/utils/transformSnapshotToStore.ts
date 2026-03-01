@@ -113,6 +113,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         videoId: vs.video_id,
         startFrame: vs.start_frame,
         endFrame: vs.end_frame,
+        contentAspectRatio: vs.content_aspect_ratio ?? null,
         localPath: vs.url_720p || null,
       }])
     ),

@@ -77,6 +77,7 @@ export interface SnapshotVideoSection {
   video_id: string;
   start_frame: number;
   end_frame: number;
+  content_aspect_ratio?: number | null;
   url_1080p: string;
   url_720p: string;
   url_480p: string;
