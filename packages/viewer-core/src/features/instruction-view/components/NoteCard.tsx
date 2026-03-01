@@ -38,8 +38,10 @@ export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, o
       type="button"
       onClick={onToggle}
       className={clsx(
-        'flex items-center cursor-pointer focus:outline-none rounded-lg w-full',
-        hasText && isExpanded && ['border-2', styles.bg, styles.border, 'backdrop-blur-md'],
+        'flex items-center cursor-pointer focus:outline-none rounded-lg w-full border-2 min-h-14',
+        hasText && isExpanded
+          ? [styles.bg, styles.border, 'backdrop-blur-md']
+          : 'border-transparent bg-transparent',
       )}
       aria-label={hasText ? `${categoryLabel}: ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}` : categoryLabel}
       aria-expanded={isExpanded}

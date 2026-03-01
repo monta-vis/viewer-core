@@ -17,6 +17,48 @@ vi.mock('@/lib/media', () => ({
   publicAsset: (path: string) => `/${path}`,
 }));
 
+describe('NoteCard border stability', () => {
+  const borderProps = {
+    safetyIconCategory: 'Warnzeichen' as const,
+    safetyIconId: 'W001-Allgemeines-Warnzeichen.png',
+    text: 'Caution',
+    onToggle: vi.fn(),
+  };
+
+  it('always renders with border-2 regardless of expanded state', () => {
+    const { rerender } = render(<NoteCard {...borderProps} isExpanded={true} />);
+    const btn = screen.getByRole('button');
+    expect(btn.className).toContain('border-2');
+
+    rerender(<NoteCard {...borderProps} isExpanded={false} />);
+    expect(btn.className).toContain('border-2');
+  });
+
+  it('applies category border color and backdrop-blur when expanded with text', () => {
+    render(<NoteCard {...borderProps} isExpanded={true} />);
+    const btn = screen.getByRole('button');
+    expect(btn.className).toContain('backdrop-blur-md');
+    expect(btn.className).not.toContain('border-transparent');
+  });
+
+  it('always has min-h-14 to lock height during collapse', () => {
+    const { rerender } = render(<NoteCard {...borderProps} isExpanded={true} />);
+    const btn = screen.getByRole('button');
+    expect(btn.className).toContain('min-h-14');
+
+    rerender(<NoteCard {...borderProps} isExpanded={false} />);
+    expect(btn.className).toContain('min-h-14');
+  });
+
+  it('applies border-transparent and bg-transparent when collapsed with text', () => {
+    render(<NoteCard {...borderProps} isExpanded={false} />);
+    const btn = screen.getByRole('button');
+    expect(btn.className).toContain('border-transparent');
+    expect(btn.className).toContain('bg-transparent');
+    expect(btn.className).not.toContain('backdrop-blur-md');
+  });
+});
+
 describe('NoteCard safety icon resolution', () => {
   const baseProps = {
     safetyIconCategory: 'Warnzeichen' as const,
