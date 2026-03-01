@@ -1140,7 +1140,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
           </div>
 
         {/* Scroll-down hint: fade gradient + chevron when substeps overflow */}
-        {showScrollHint && isSingleColumn && (
+        {showScrollHint && (
           <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" aria-hidden="true">
             <div className="h-16 bg-gradient-to-t from-[var(--color-bg-base)] to-transparent" />
             <div className="absolute bottom-2 left-1/2 -translate-x-1/2 animate-bounce-subtle">
