@@ -45,7 +45,7 @@ export interface CoverImageUploadResult extends PersistenceResult {
   vfaId?: string;
 }
 
-export interface SafetyIconCopyResult extends PersistenceResult {
+export interface CatalogIconCopyResult extends PersistenceResult {
   vfaId?: string;
 }
 
@@ -69,7 +69,7 @@ export interface PersistenceAdapter {
   uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource, crop?: NormalizedCrop): Promise<ImageUploadResult>;
   uploadCoverImage?(projectId: string, image: ImageSource, crop?: NormalizedCrop): Promise<CoverImageUploadResult>;
   uploadSubstepVideo?(projectId: string, substepId: string, args: VideoUploadArgs): Promise<VideoUploadResult>;
-  /** Copy a safety icon from a catalog into the project's media folder and create a VFA row. */
-  copySafetyIcon?(projectId: string, iconId: string): Promise<SafetyIconCopyResult>;
+  /** Copy a catalog icon into the project's media folder and create a VFA row. */
+  copyCatalogIcon?(projectId: string, catalogType: 'SafetyIcons' | 'PartToolIcons', iconId: string, entryId: string): Promise<CatalogIconCopyResult>;
   resolveMediaUrl(projectId: string, relativePath: string): string;
 }

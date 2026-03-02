@@ -56,6 +56,7 @@ export interface StepChunkData {
 
 /** A single safety icon entry from a catalog.json file. */
 export interface CatalogEntry {
+  id: string;
   filename: string;
   category: string;
   label: Record<string, string>;

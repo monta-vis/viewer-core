@@ -90,6 +90,8 @@ interface NoteEditState {
   selectedCategory: string | null;
   /** Set when user picks a new icon from catalog; null when keeping existing VFA icon. */
   selectedCatalogDirName: string | null;
+  /** Original filename of the selected catalog icon (for sourceIconId path resolution). */
+  selectedFilename: string | null;
 }
 
 interface NoteAddState {
@@ -99,6 +101,8 @@ interface NoteAddState {
   selectedCategory: string | null;
   /** Set when user picks an icon from catalog. */
   selectedCatalogDirName: string | null;
+  /** Original filename of the selected catalog icon (for sourceIconId path resolution). */
+  selectedFilename: string | null;
 }
 
 type InlineEditState = DescriptionEditState | DescriptionAddState | NoteEditState | NoteAddState | null;
@@ -318,11 +322,11 @@ export function SubstepEditPopover({
   // ── Inline note editing ──
 
   const startEditNote = useCallback((noteRowId: string, currentText: string, iconId: string | null, iconCategory: string | null) => {
-    setEditState({ kind: 'edit-note', noteRowId, text: currentText, selectedIconId: iconId, selectedCategory: iconCategory, selectedCatalogDirName: null });
+    setEditState({ kind: 'edit-note', noteRowId, text: currentText, selectedIconId: iconId, selectedCategory: iconCategory, selectedCatalogDirName: null, selectedFilename: null });
   }, []);
 
   const startAddNote = useCallback(() => {
-    setEditState({ kind: 'add-note', text: '', selectedIconId: null, selectedCategory: null, selectedCatalogDirName: null });
+    setEditState({ kind: 'add-note', text: '', selectedIconId: null, selectedCategory: null, selectedCatalogDirName: null, selectedFilename: null });
   }, []);
 
   const saveNoteEdit = useCallback(() => {
@@ -331,8 +335,8 @@ export function SubstepEditPopover({
       const trimmed = editState.text.trim();
       if (editState.selectedIconId && editState.selectedCategory) {
         // Build sourceIconId only when a new icon was picked from catalog
-        const sourceIconId = editState.selectedCatalogDirName
-          ? `${editState.selectedCatalogDirName}/${editState.selectedIconId}`
+        const sourceIconId = editState.selectedCatalogDirName && editState.selectedFilename
+          ? `${editState.selectedCatalogDirName}/${editState.selectedFilename}`
           : undefined;
         callbacks.onSaveNote?.(editState.noteRowId, trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory, sourceIconId);
         captureSnapshot();
@@ -346,8 +350,8 @@ export function SubstepEditPopover({
         return;
       }
       const trimmed = editState.text.trim();
-      const sourceIconId = editState.selectedCatalogDirName
-        ? `${editState.selectedCatalogDirName}/${editState.selectedIconId}`
+      const sourceIconId = editState.selectedCatalogDirName && editState.selectedFilename
+        ? `${editState.selectedCatalogDirName}/${editState.selectedFilename}`
         : undefined;
       callbacks.onAddNote?.(trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory, sourceIconId);
       captureSnapshot();
@@ -643,7 +647,7 @@ export function SubstepEditPopover({
                                 icons={icons}
                                 getIconUrl={getIconUrl}
                                 selectedIconId={editState.selectedIconId}
-                                onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null })}
+                                onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
                               />
                             </div>
                           </div>
@@ -709,7 +713,7 @@ export function SubstepEditPopover({
                               icons={icons}
                               getIconUrl={getIconUrl}
                               selectedIconId={editState.selectedIconId}
-                              onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null })}
+                              onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
                             />
                           </div>
                         </div>

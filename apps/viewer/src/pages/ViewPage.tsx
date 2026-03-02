@@ -194,18 +194,22 @@ export function ViewPage() {
   }, []);
 
   // --- Note operations (inline save) ---
-  const onSaveNote = useCallback(async (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, _substepId: string, sourceIconId?: string) => {
-    let finalIconId = safetyIconId;
 
-    // Copy catalog icon to project folder when a new icon was picked
-    if (sourceIconId && decodedFolderName && adapter.copySafetyIcon) {
-      const result = await adapter.copySafetyIcon(decodedFolderName, sourceIconId);
-      if (result.success && result.vfaId) {
-        finalIconId = result.vfaId;
-      } else {
-        console.error('[copySafetyIcon] Failed to copy icon:', result.error ?? 'unknown error');
-      }
-    }
+  /** Copy a catalog icon into the project folder, returning the resolved VFA ID or null on failure. */
+  const tryCopyCatalogIcon = useCallback(async (
+    sourceIconId: string | undefined,
+    safetyIconId: string,
+  ): Promise<string | null> => {
+    if (!sourceIconId || !decodedFolderName || !adapter.copyCatalogIcon) return safetyIconId;
+    const result = await adapter.copyCatalogIcon(decodedFolderName, 'SafetyIcons', sourceIconId, safetyIconId);
+    if (result.success && result.vfaId) return result.vfaId;
+    console.error('[copyCatalogIcon] Failed:', result.error ?? 'unknown');
+    return null;
+  }, [decodedFolderName, adapter]);
+
+  const onSaveNote = useCallback(async (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, _substepId: string, sourceIconId?: string) => {
+    const finalIconId = await tryCopyCatalogIcon(sourceIconId, safetyIconId);
+    if (!finalIconId) return;
 
     const store = useEditorStore.getState();
     const substepNote = store.data?.substepNotes[noteRowId];
@@ -216,20 +220,11 @@ export function ViewPage() {
       safetyIconId: finalIconId,
       safetyIconCategory,
     });
-  }, [decodedFolderName, adapter]);
+  }, [tryCopyCatalogIcon]);
 
   const onAddNote = useCallback(async (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string, sourceIconId?: string) => {
-    let finalIconId = safetyIconId;
-
-    // Copy catalog icon to project folder when a new icon was picked
-    if (sourceIconId && decodedFolderName && adapter.copySafetyIcon) {
-      const result = await adapter.copySafetyIcon(decodedFolderName, sourceIconId);
-      if (result.success && result.vfaId) {
-        finalIconId = result.vfaId;
-      } else {
-        console.error('[copySafetyIcon] Failed to copy icon:', result.error ?? 'unknown error');
-      }
-    }
+    const finalIconId = await tryCopyCatalogIcon(sourceIconId, safetyIconId);
+    if (!finalIconId) return;
 
     const noteId = generateId();
     const substepNoteId = generateId();
@@ -259,7 +254,7 @@ export function ViewPage() {
       noteId,
       order: maxOrder + 1,
     });
-  }, [getVersionId, getInstructionId, decodedFolderName, adapter]);
+  }, [getVersionId, getInstructionId, tryCopyCatalogIcon]);
 
   const onDeleteNote = useCallback((noteRowId: string) => {
     const store = useEditorStore.getState();

@@ -43,14 +43,6 @@ export function buildMediaUrl(folderName: string, filePath: string): string {
     : `mvis-media://${encodedFolder}/${encodedPath}`;
 }
 
-/**
- * Build an mvis-catalog:// URL for a catalog asset (icon SVG, etc.).
- * Format: mvis-catalog://PartToolIcons/{catalogName}/{filename}
- */
-export function catalogAssetUrl(type: 'PartToolIcons' | 'Tutorials', catalogName: string, filename: string): string {
-  return `mvis-catalog://${encodeURIComponent(type)}/${encodeURIComponent(catalogName)}/${encodeURIComponent(filename)}`;
-}
-
 /** Result of checking what media files exist on disk for a video */
 export interface MediaAvailability {
   sourceExists: boolean;

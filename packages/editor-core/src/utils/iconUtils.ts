@@ -16,10 +16,10 @@ export function resolveLabel(label: Record<string, string> | string | undefined,
  * Priority: external catalogs (from disk) → built-in manifest (from public/SafetyIcons/).
  */
 export function buildIconList(catalogs: SafetyIconCatalog[], lang: string): SafetyIconItem[] {
-  // External catalog icons (use filename as id since entries don't have a dedicated id)
+  // External catalog icons (use config-assigned UUID as id)
   const catalogIcons: SafetyIconItem[] = catalogs.flatMap((cat) =>
     (cat.entries ?? []).map((entry) => ({
-      id: entry.filename,
+      id: entry.id,
       filename: entry.filename,
       category: entry.category,
       label: resolveLabel(entry.label, lang, entry.filename),

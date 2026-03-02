@@ -10,11 +10,6 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-// Mock media utils
-vi.mock('@/lib/media', () => ({
-  catalogAssetUrl: () => '',
-}));
-
 // Mock resolvePartToolImageUrl
 vi.mock('../utils/resolvePartToolImageUrl', () => ({
   resolvePartToolImageUrl: () => null,

@@ -89,7 +89,7 @@ function getStep(id: string) {
 ## Media URL Protocols
 
 - `mvis-media://` — local project media (Electron)
-- `mvis-catalog://` — part tool catalog icons (Electron)
+- Catalog icons (safety + part tool) are copied to `media/frames/` via `copyCatalogIcon` with deterministic UUID v5
 - Standard HTTPS URLs (web context)
 
 ## Clean Code

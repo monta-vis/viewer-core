@@ -32,12 +32,21 @@ export function getSafetyIconCatalogs(): SafetyIconCatalog[] {
       const raw = fs.readFileSync(catalogJsonPath, "utf-8");
       const parsed = JSON.parse(raw) as CatalogJson;
 
+      // Filter out entries missing a valid `id` field
+      const validEntries = (parsed.entries ?? []).filter((e) => {
+        if (!e.id || typeof e.id !== "string") {
+          console.warn(`[catalogs] Skipping entry without id in ${entry.name}: ${e.filename ?? "unknown"}`);
+          return false;
+        }
+        return true;
+      });
+
       catalogs.push({
         name: parsed.name ?? entry.name,
         dirName: entry.name,
         assetsDir: path.join(catalogsDir, entry.name, "assets"),
         categories: parsed.categories ?? [],
-        entries: parsed.entries ?? [],
+        entries: validEntries,
       });
     } catch {
       // Skip malformed catalog files
@@ -47,16 +56,20 @@ export function getSafetyIconCatalogs(): SafetyIconCatalog[] {
   return catalogs;
 }
 
+/** Supported catalog types for icon resolution. */
+export type CatalogType = 'SafetyIcons' | 'PartToolIcons';
+
 /**
- * Resolve a safety icon source path from a catalog.
+ * Resolve a catalog icon source path.
+ * Works for both SafetyIcons and PartToolIcons catalogs.
  * Returns the absolute path to the icon file, or null if not found / outside catalogs dir.
  */
-export function resolveSafetyIconPath(catalogName: string, filename: string): string | null {
+export function resolveCatalogIconPath(catalogType: CatalogType, catalogName: string, filename: string): string | null {
   const catalogsDir = path.join(
     app.getPath("documents"),
     "Montavis",
     "Catalogs",
-    "SafetyIcons",
+    catalogType,
   );
 
   const iconPath = path.join(catalogsDir, catalogName, "assets", filename);
@@ -67,6 +80,8 @@ export function resolveSafetyIconPath(catalogName: string, filename: string): st
   }
 
   if (!fs.existsSync(iconPath)) return null;
+  const stat = fs.lstatSync(iconPath);
+  if (!stat.isFile()) return null;
 
   return iconPath;
 }

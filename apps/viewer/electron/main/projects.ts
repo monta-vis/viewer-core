@@ -9,8 +9,9 @@ import {
   PARTTOOL_EXPORT_SIZE,
   EXPORT_SIZE,
 } from "@monta-vis/media-utils";
-import { resolveSafetyIconPath } from "./catalogs.js";
+import { resolveCatalogIconPath, type CatalogType } from "./catalogs.js";
 import { isInsidePath } from "./pathUtils.js";
+import { parseIconId } from "./catalogIconUtils.js";
 import {
   saveProjectData as dbSaveProjectData,
   type ProjectChanges as DbProjectChanges,
@@ -21,7 +22,7 @@ import {
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'];
 
 /** Find an image file in a directory by base name, regardless of extension. */
-function findImageInDir(dir: string, baseName: string): string | null {
+export function findImageInDir(dir: string, baseName: string): string | null {
   for (const ext of IMAGE_EXTENSIONS) {
     const candidate = path.join(dir, baseName + ext);
     if (fs.existsSync(candidate)) return candidate;
@@ -622,44 +623,40 @@ export async function uploadCoverImage(
 }
 
 // ---------------------------------------------------------------------------
-// Copy safety icon from catalog to project
+// Copy catalog icon to project (safety icons + part tool icons)
 // ---------------------------------------------------------------------------
 
-/**
- * Parse a composite icon ID ("catalogName/filename") into its parts.
- */
-function parseIconId(iconId: string): { catalogName: string; filename: string } | null {
-  const slashIdx = iconId.indexOf("/");
-  if (slashIdx <= 0 || slashIdx >= iconId.length - 1) return null;
-  const catalogName = iconId.slice(0, slashIdx);
-  const filename = iconId.slice(slashIdx + 1);
-  // Reject path traversal: no extra slashes, backslashes, or ".."
-  if (filename.includes("/") || filename.includes("\\") || filename.includes("..")) return null;
-  if (catalogName.includes("\\") || catalogName.includes("..")) return null;
-  return { catalogName, filename };
-}
+// parseIconId is in catalogIconUtils.ts
 
 /**
- * Copy a safety icon from a catalog into the project's media/frames folder
- * and create a video_frame_areas DB row (type='SafetyIcon').
+ * Copy a catalog icon into the project's media/frames folder and create a
+ * video_frame_areas DB row. Uses the catalog entry's fixed UUID as the VFA ID,
+ * so the same icon selected by multiple notes/part tools shares one VFA row.
  *
  * @param folderName - Project folder name
+ * @param catalogType - 'SafetyIcons' | 'PartToolIcons'
  * @param iconId - Composite ID: "catalogName/filename"
- * @returns Object with success status and the new VFA UUID
+ * @param entryId - Fixed UUID from catalog.json entry
+ * @returns Object with success status and the VFA UUID
  */
-export function copySafetyIcon(
+export function copyCatalogIcon(
   folderName: string,
+  catalogType: CatalogType,
   iconId: string,
+  entryId: string,
 ): { success: boolean; vfaId?: string; error?: string } {
   const parsed = parseIconId(iconId);
   if (!parsed) {
     return { success: false, error: "Invalid icon ID format (expected catalogName/filename)" };
   }
 
-  const sourcePath = resolveSafetyIconPath(parsed.catalogName, parsed.filename);
+  const sourcePath = resolveCatalogIconPath(catalogType, parsed.catalogName, parsed.filename);
   if (!sourcePath) {
-    return { success: false, error: `Safety icon not found: ${iconId}` };
+    return { success: false, error: `Catalog icon not found: ${catalogType}/${iconId}` };
   }
+
+  // Use the catalog entry's fixed UUID directly as the VFA ID
+  const vfaId = entryId;
 
   const basePath = getProjectsBasePath();
   const dbPath = path.join(basePath, folderName, "montavis.db");
@@ -668,28 +665,26 @@ export function copySafetyIcon(
     return { success: false, error: "Project not found" };
   }
 
-  const vfaId = crypto.randomUUID();
-  const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
-  const ext = path.extname(parsed.filename).toLowerCase() || ".png";
-  const destFile = path.join(destDir, `image${ext}`);
-
+  const db = new Database(dbPath);
+  db.pragma("foreign_keys = ON");
   try {
+    const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
+    const ext = path.extname(parsed.filename).toLowerCase() || ".png";
+    const destFile = path.join(destDir, `image${ext}`);
+
+    // Copy file to media folder (idempotent — mkdirSync + copyFileSync are safe to repeat)
     fs.mkdirSync(destDir, { recursive: true });
     fs.copyFileSync(sourcePath, destFile);
 
-    const db = new Database(dbPath);
-    db.pragma("foreign_keys = ON");
-
     try {
+      // INSERT OR IGNORE: dedup without TOCTOU race
       db.prepare(
-        `INSERT INTO video_frame_areas (id, x, y, width, height)
+        `INSERT OR IGNORE INTO video_frame_areas (id, x, y, width, height)
          VALUES (?, 0, 0, 1, 1)`,
       ).run(vfaId);
 
-      db.close();
       return { success: true, vfaId };
     } catch (dbErr) {
-      db.close();
       // Clean up copied file on DB failure
       try {
         fs.rmSync(destDir, { recursive: true });
@@ -701,5 +696,7 @@ export function copySafetyIcon(
       success: false,
       error: err instanceof Error ? err.message : String(err),
     };
+  } finally {
+    db.close();
   }
 }

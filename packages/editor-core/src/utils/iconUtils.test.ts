@@ -14,8 +14,8 @@ const makeCatalog = (name: string, entries: SafetyIconCatalog['entries'], dirNam
 describe('buildIconList', () => {
   it('includes catalogName and catalogDirName from the catalog', () => {
     const catalog = makeCatalog('ISO 7010 Safety Signs', [
-      { filename: 'W001.png', category: 'Warnzeichen', label: { en: 'General warning' } },
-      { filename: 'P001.png', category: 'Verbotszeichen', label: { en: 'No entry' } },
+      { id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', filename: 'W001.png', category: 'Warnzeichen', label: { en: 'General warning' } },
+      { id: 'b2c3d4e5-f6a7-8901-bcde-f12345678901', filename: 'P001.png', category: 'Verbotszeichen', label: { en: 'No entry' } },
     ], 'ISO-7010-Safety-Signs');
 
     const icons = buildIconList([catalog], 'en');
@@ -25,6 +25,18 @@ describe('buildIconList', () => {
     expect(icons[0].catalogDirName).toBe('ISO-7010-Safety-Signs');
     expect(icons[1].catalogName).toBe('ISO 7010 Safety Signs');
     expect(icons[1].catalogDirName).toBe('ISO-7010-Safety-Signs');
+  });
+
+  it('uses entry.id (UUID) as SafetyIconItem.id, not filename', () => {
+    const entryId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const catalog = makeCatalog('Test', [
+      { id: entryId, filename: 'W001.png', category: 'Warn', label: { en: 'Warning' } },
+    ]);
+
+    const icons = buildIconList([catalog], 'en');
+
+    expect(icons[0].id).toBe(entryId);
+    expect(icons[0].filename).toBe('W001.png');
   });
 
   it('sets catalogName and catalogDirName to undefined for built-in icons', () => {

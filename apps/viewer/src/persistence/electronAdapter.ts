@@ -13,7 +13,7 @@ import type {
   PersistenceResult,
   ImageUploadResult,
   CoverImageUploadResult,
-  SafetyIconCopyResult,
+  CatalogIconCopyResult,
   VideoUploadResult,
   VideoUploadArgs,
   ImageSource,
@@ -75,12 +75,14 @@ export function createElectronAdapter(): PersistenceAdapter {
       return api.projects.uploadCoverImage(projectId, image.path, crop);
     },
 
-    async copySafetyIcon(
+    async copyCatalogIcon(
       projectId: string,
+      catalogType: 'SafetyIcons' | 'PartToolIcons',
       iconId: string,
-    ): Promise<SafetyIconCopyResult> {
+      entryId: string,
+    ): Promise<CatalogIconCopyResult> {
       const api = getAPI();
-      return api.projects.copySafetyIcon(projectId, iconId);
+      return api.projects.copyCatalogIcon(projectId, catalogType, iconId, entryId);
     },
 
     async uploadSubstepVideo(

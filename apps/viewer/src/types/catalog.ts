@@ -6,5 +6,5 @@ export interface CatalogJson {
   version: number;
   description: string;
   categories: { id: string; label: Record<string, string> }[];
-  entries: { filename: string; category: string; label: Record<string, string> }[];
+  entries: { id: string; filename: string; category: string; label: Record<string, string> }[];
 }

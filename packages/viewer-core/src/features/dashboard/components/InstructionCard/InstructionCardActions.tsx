@@ -212,7 +212,7 @@ export function InstructionCardActions({
 
       {openDropdown === 'export' && (
         <div className={clsx(
-          'absolute top-full right-0 mt-1 z-50',
+          'absolute top-full left-0 mt-1 z-50',
           'py-1',
           'bg-[var(--color-bg-elevated)] rounded-lg shadow-xl shadow-black/30 ring-1 ring-black/10 dark:ring-white/10',
           'animate-in fade-in-0 slide-in-from-top-1 duration-150',

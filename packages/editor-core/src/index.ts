@@ -18,7 +18,7 @@ export {
   type PersistenceResult,
   type ImageUploadResult,
   type CoverImageUploadResult,
-  type SafetyIconCopyResult,
+  type CatalogIconCopyResult,
   type VideoUploadResult,
   type VideoUploadArgs,
   type ImageSource,
