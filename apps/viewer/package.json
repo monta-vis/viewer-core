@@ -16,8 +16,10 @@
   "dependencies": {
     "@monta-vis/db-utils": "*",
     "@monta-vis/editor-core": "*",
+    "@monta-vis/export-utils": "*",
     "@monta-vis/media-utils": "*",
     "@monta-vis/viewer-core": "*",
+    "archiver": "^7.0.1",
     "better-sqlite3": "^11.0.0",
     "extract-zip": "^2.0.1",
     "i18next": "^25.0.0",
@@ -31,6 +33,7 @@
   "devDependencies": {
     "@electron/rebuild": "^4.0.0",
     "@tailwindcss/vite": "^4.0.0",
+    "@types/archiver": "^6.0.0",
     "@types/better-sqlite3": "^7.6.0",
     "@types/extract-zip": "^2.0.0",
     "@types/react": "^19.0.0",

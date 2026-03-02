@@ -54,8 +54,10 @@ const electronAPI = {
         substepId,
         args,
       ),
-    copySafetyIcon: (folderName: string, iconId: string) =>
-      ipcRenderer.invoke("projects:copy-safety-icon", folderName, iconId),
+    copyCatalogIcon: (folderName: string, catalogType: string, iconId: string, entryId: string) =>
+      ipcRenderer.invoke("projects:copy-catalog-icon", folderName, catalogType, iconId, entryId),
+    exportProject: (folderName: string, type: "mvis" | "mweb" | "pdf") =>
+      ipcRenderer.invoke("projects:export", folderName, type),
   },
 };
 

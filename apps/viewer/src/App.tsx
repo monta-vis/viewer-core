@@ -86,10 +86,16 @@ declare global {
           substepId: string,
           args: { sourceVideoPath: string },
         ) => Promise<{ success: boolean; videoId?: string; sectionId?: string; substepVideoSectionId?: string; frameCount?: number; error?: string }>;
-        copySafetyIcon: (
+        copyCatalogIcon: (
           folderName: string,
+          catalogType: string,
           iconId: string,
+          entryId: string,
         ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
+        exportProject: (
+          folderName: string,
+          type: "mvis" | "mweb" | "pdf",
+        ) => Promise<{ success: boolean; error?: string }>;
       };
     };
   }
@@ -301,6 +307,9 @@ function DashboardPage() {
                           navigate(`/view/${encodeURIComponent(project.folderName)}`, {
                             state: { editMode: true },
                           })
+                        : undefined}
+                        onExport={editEnabled ? (format) =>
+                          window.electronAPI?.projects.exportProject(project.folderName, format)
                         : undefined}
                       />
                     ))}

@@ -9,13 +9,15 @@ import {
   saveProjectData,
   uploadPartToolImage,
   uploadCoverImage,
-  copySafetyIcon,
+  copyCatalogIcon,
   resolveMediaPath,
 } from "./projects.js";
 import type { ProjectChanges } from "./projects.js";
 import { getSafetyIconCatalogs } from "./catalogs.js";
 import { importMvisFromPath } from "./import-mvis.js";
 import { uploadSubstepVideo } from "./video.js";
+import { exportProject } from "./export.js";
+import type { ExportType } from "./export.js";
 import type { VideoUploadArgs } from "./video.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -238,16 +240,38 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
-    "projects:copy-safety-icon",
-    (_event, folderName: unknown, iconId: unknown) => {
-      if (typeof folderName !== "string" || typeof iconId !== "string") {
+    "projects:copy-catalog-icon",
+    (_event, folderName: unknown, catalogType: unknown, iconId: unknown, entryId: unknown) => {
+      if (typeof folderName !== "string" || typeof catalogType !== "string" || typeof iconId !== "string" || typeof entryId !== "string") {
         return { success: false, error: "Invalid arguments" };
       }
-      return copySafetyIcon(folderName, iconId);
+      if (catalogType !== "SafetyIcons" && catalogType !== "PartToolIcons") {
+        return { success: false, error: `Invalid catalog type: ${catalogType}` };
+      }
+      // Validate entryId is a valid UUID format
+      const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!UUID_RE.test(entryId)) {
+        return { success: false, error: "entryId must be a valid UUID" };
+      }
+      return copyCatalogIcon(folderName, catalogType, iconId, entryId);
     },
   );
 
   ipcMain.handle("catalogs:get-safety-icons", () => getSafetyIconCatalogs());
+
+  ipcMain.handle(
+    "projects:export",
+    (_event, folderName: unknown, type: unknown) => {
+      if (typeof folderName !== "string")
+        throw new Error("Invalid folderName");
+      if (
+        typeof type !== "string" ||
+        !["mvis", "mweb", "pdf"].includes(type)
+      )
+        throw new Error("Invalid export type");
+      return exportProject(folderName, type as ExportType);
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
