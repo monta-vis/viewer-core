@@ -5,7 +5,7 @@
  * Media URLs use the mvis-media:// protocol so Electron's custom protocol
  * handler serves files directly from disk.
  */
-import type { InstructionSnapshot, SnapshotTranslations, EntityTranslation } from '@/types/snapshot';
+import type { InstructionSnapshot, SnapshotTranslations, EntityTranslation, SnapshotAssembly } from '@/types/snapshot';
 import { buildMediaUrl } from '@/lib/media';
 
 /** Type for ElectronProjectData from main process - matches electron.d.ts */
@@ -146,13 +146,14 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
   // Build steps with substep_ids
   const steps: InstructionSnapshot['steps'] = {};
   for (const row of data.steps) {
-    const r = row as { id: string; instruction_id: string; step_number: number; title: string | null; repeat_count?: number; repeat_label?: string | null };
+    const r = row as { id: string; instruction_id: string; step_number: number; title: string | null; assembly_id?: string | null; repeat_count?: number; repeat_label?: string | null };
     steps[r.id] = {
       id: r.id,
       instruction_id: r.instruction_id,
       step_number: r.step_number,
       title: r.title,
       substep_ids: substepsByStep[r.id] || [],
+      assembly_id: r.assembly_id ?? null,
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
     };
@@ -309,6 +310,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
     substepNotes: keyById(data.substepNotes),
     substepDescriptions: keyById(data.substepDescriptions),
     partToolVideoFrameAreas: keyById(data.partToolVideoFrameAreas),
+    assemblies: keyById<SnapshotAssembly>(data.assemblies),
     substepTutorials: keyById(data.substepTutorials ?? []),
     safetyIcons: keyById(data.safetyIcons ?? []),
   };

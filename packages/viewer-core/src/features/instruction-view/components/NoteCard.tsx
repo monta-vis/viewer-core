@@ -1,7 +1,7 @@
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { getCategoryPriority, safetyIconUrl, NOTE_CATEGORY_STYLES, type SafetyIconCategory } from '@/features/instruction';
-import { buildMediaUrl } from '@/lib/media';
+import { buildMediaUrl, MediaPaths } from '@/lib/media';
 
 /** Unified note card: fixed icon + sliding text panel. */
 interface NoteCardProps {
@@ -28,7 +28,7 @@ export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, o
   if (isLegacy) {
     iconUrl = safetyIconUrl(safetyIconId);
   } else if (folderName) {
-    iconUrl = buildMediaUrl(folderName, `media/frames/${safetyIconId}/image.png`);
+    iconUrl = buildMediaUrl(folderName, MediaPaths.frame(safetyIconId));
   } else {
     iconUrl = videoFrameAreas?.[safetyIconId]?.localPath ?? null;
   }

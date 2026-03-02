@@ -116,7 +116,7 @@ export function AutocompleteEditInput({
       {showDropdown && (
         <ul
           role="listbox"
-          className="absolute left-0 top-full z-50 mt-0.5 w-max min-w-full max-h-[10rem] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] shadow-lg text-[0.65rem]"
+          className="absolute left-0 bottom-full z-50 mb-0.5 w-max min-w-full max-h-[10rem] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] shadow-lg text-[0.65rem]"
         >
           {filtered.map((s, i) => (
             <li

@@ -179,7 +179,7 @@ export const zh = {
     showOriginal: '显示原始媒体',
     useBlurred: '使用模糊媒体',
     languageNotAvailable: '翻译不可用',
-    estimatedDurationValue: '{{duration}}',
+    estimatedDurationValue: '{{duration}}分钟',
     name: '名称',
     description: '描述',
     dropImageHere: '将图片拖放到此处',

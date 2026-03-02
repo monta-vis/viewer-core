@@ -3,11 +3,30 @@ import {
   getCategoryFromFilename,
   getCategoryColor,
   getCategoryPriority,
+  safetyIconUrl,
   SAFETY_ICON_CATEGORIES,
   NOTE_CATEGORY_STYLES,
   LEGACY_LEVEL_TO_ICON,
   type SafetyIconCategory,
 } from './safetyIcons';
+
+describe('safetyIconUrl', () => {
+  it('resolves a legacy .png filename to SafetyIcons/ path', () => {
+    expect(safetyIconUrl('P001-Allgemeines-Verbotszeichen.png')).toContain('SafetyIcons/P001-Allgemeines-Verbotszeichen.png');
+  });
+
+  it('normalises legacy .jpg to .png', () => {
+    const url = safetyIconUrl('W001-Allgemeines-Warnzeichen.jpg');
+    expect(url).toContain('SafetyIcons/W001-Allgemeines-Warnzeichen.png');
+    expect(url).not.toContain('.jpg');
+  });
+
+  it('normalises legacy .gif to .png', () => {
+    const url = safetyIconUrl('GHS_01_gr.gif');
+    expect(url).toContain('SafetyIcons/GHS_01_gr.png');
+    expect(url).not.toContain('.gif');
+  });
+});
 
 describe('getCategoryFromFilename', () => {
   it('returns Warnzeichen for W-prefixed files', () => {

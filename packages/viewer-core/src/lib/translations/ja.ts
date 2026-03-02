@@ -179,7 +179,7 @@ export const ja = {
     showOriginal: 'オリジナルメディアを表示',
     useBlurred: 'ぼかしメディアを使用',
     languageNotAvailable: '翻訳が利用できません',
-    estimatedDurationValue: '{{duration}}',
+    estimatedDurationValue: '{{duration}}分',
     name: '名前',
     description: '説明',
     dropImageHere: 'ここに画像をドロップ',

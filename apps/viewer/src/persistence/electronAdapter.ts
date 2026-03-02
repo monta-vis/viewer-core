@@ -13,6 +13,9 @@ import type {
   PersistenceResult,
   ImageUploadResult,
   CoverImageUploadResult,
+  SafetyIconCopyResult,
+  VideoUploadResult,
+  VideoUploadArgs,
   ImageSource,
   NormalizedCrop,
 } from '@monta-vis/editor-core';
@@ -70,6 +73,23 @@ export function createElectronAdapter(): PersistenceAdapter {
         return { success: false, error: 'Electron adapter only supports path-based images' };
       }
       return api.projects.uploadCoverImage(projectId, image.path, crop);
+    },
+
+    async copySafetyIcon(
+      projectId: string,
+      iconId: string,
+    ): Promise<SafetyIconCopyResult> {
+      const api = getAPI();
+      return api.projects.copySafetyIcon(projectId, iconId);
+    },
+
+    async uploadSubstepVideo(
+      projectId: string,
+      substepId: string,
+      args: VideoUploadArgs,
+    ): Promise<VideoUploadResult> {
+      const api = getAPI();
+      return api.projects.uploadSubstepVideo(projectId, substepId, args);
     },
 
     resolveMediaUrl(projectId: string, relativePath: string): string {

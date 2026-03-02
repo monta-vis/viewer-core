@@ -11,10 +11,13 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-// Mock buildMediaUrl
+// Mock media utilities
 vi.mock('@/lib/media', () => ({
   buildMediaUrl: (folder: string, path: string) => `mvis-media://${folder}/${path}`,
   publicAsset: (path: string) => `/${path}`,
+  MediaPaths: {
+    frame: (id: string) => `media/frames/${id}/image`,
+  },
 }));
 
 describe('NoteCard border stability', () => {
@@ -92,7 +95,7 @@ describe('NoteCard safety icon resolution', () => {
       />,
     );
     const img = screen.getByRole('img');
-    expect(img.getAttribute('src')).toBe('mvis-media://my-project/media/frames/safety-uuid-1/image.png');
+    expect(img.getAttribute('src')).toBe('mvis-media://my-project/media/frames/safety-uuid-1/image');
   });
 
   it('falls back to safetyIconUrl for legacy filename icons', () => {

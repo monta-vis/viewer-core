@@ -37,8 +37,17 @@ export interface SnapshotStep {
   title: string | null;
   step_number: number;
   substep_ids: string[];
+  assembly_id?: string | null;
   repeat_count?: number;
   repeat_label?: string | null;
+}
+
+export interface SnapshotAssembly {
+  id: string;
+  instruction_id: string;
+  title: string | null;
+  description: string | null;
+  order: number;
 }
 
 export interface SnapshotSubstep {
@@ -284,6 +293,7 @@ export interface InstructionSnapshot {
   substepNotes: Record<string, SnapshotSubstepNote>;
   substepDescriptions: Record<string, SnapshotSubstepDescription>;
   partToolVideoFrameAreas: Record<string, SnapshotPartToolVideoFrameArea>;
+  assemblies?: Record<string, SnapshotAssembly>;
   substepTutorials?: Record<string, SnapshotSubstepTutorial>;
   safetyIcons?: Record<string, SnapshotSafetyIcon>;
   branding?: Array<{ id: string; primary_color?: string; secondary_color?: string; default_theme?: string }>;

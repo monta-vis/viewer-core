@@ -136,3 +136,71 @@ describe('transformSnapshotToStore – partTool previewImageId', () => {
     expect(result.partTools['pt-1'].previewImageId).toBe('vfa-explicit');
   });
 });
+
+describe('transformSnapshotToStore – assemblies', () => {
+  it('builds assemblies dict with stepIds from steps that reference them', () => {
+    const snapshot = makeEmptySnapshot({
+      assemblies: {
+        'asm-1': { id: 'asm-1', instruction_id: 'instr-1', title: 'Assembly A', description: null, order: 0 },
+        'asm-2': { id: 'asm-2', instruction_id: 'instr-1', title: 'Assembly B', description: null, order: 1 },
+      },
+      steps: {
+        'step-1': { id: 'step-1', instruction_id: 'instr-1', step_number: 1, title: 'S1', substep_ids: [], assembly_id: 'asm-1' },
+        'step-2': { id: 'step-2', instruction_id: 'instr-1', step_number: 2, title: 'S2', substep_ids: [], assembly_id: 'asm-1' },
+        'step-3': { id: 'step-3', instruction_id: 'instr-1', step_number: 3, title: 'S3', substep_ids: [], assembly_id: 'asm-2' },
+      },
+    });
+
+    const result = transformSnapshotToStore(snapshot);
+
+    expect(result.assemblies['asm-1'].stepIds).toEqual(expect.arrayContaining(['step-1', 'step-2']));
+    expect(result.assemblies['asm-1'].stepIds).toHaveLength(2);
+    expect(result.assemblies['asm-2'].stepIds).toEqual(['step-3']);
+    expect(result.assemblies['asm-1'].title).toBe('Assembly A');
+    expect(result.assemblies['asm-1'].order).toBe(0);
+  });
+
+  it('sets assemblyId on steps from snapshot assembly_id', () => {
+    const snapshot = makeEmptySnapshot({
+      assemblies: {
+        'asm-1': { id: 'asm-1', instruction_id: 'instr-1', title: 'Asm', description: null, order: 0 },
+      },
+      steps: {
+        'step-1': { id: 'step-1', instruction_id: 'instr-1', step_number: 1, title: 'S1', substep_ids: [], assembly_id: 'asm-1' },
+        'step-2': { id: 'step-2', instruction_id: 'instr-1', step_number: 2, title: 'S2', substep_ids: [], assembly_id: null },
+      },
+    });
+
+    const result = transformSnapshotToStore(snapshot);
+
+    expect(result.steps['step-1'].assemblyId).toBe('asm-1');
+    expect(result.steps['step-2'].assemblyId).toBeNull();
+  });
+
+  it('returns empty assemblies and null assemblyId when no assemblies in snapshot', () => {
+    const snapshot = makeEmptySnapshot({
+      steps: {
+        'step-1': { id: 'step-1', instruction_id: 'instr-1', step_number: 1, title: 'S1', substep_ids: [] },
+      },
+    });
+
+    const result = transformSnapshotToStore(snapshot);
+
+    expect(result.assemblies).toEqual({});
+    expect(result.steps['step-1'].assemblyId).toBeNull();
+  });
+
+  it('includes assemblies with no steps assigned (empty stepIds)', () => {
+    const snapshot = makeEmptySnapshot({
+      assemblies: {
+        'asm-1': { id: 'asm-1', instruction_id: 'instr-1', title: 'Empty Assembly', description: null, order: 0 },
+      },
+    });
+
+    const result = transformSnapshotToStore(snapshot);
+
+    expect(result.assemblies['asm-1']).toBeDefined();
+    expect(result.assemblies['asm-1'].stepIds).toEqual([]);
+    expect(result.assemblies['asm-1'].title).toBe('Empty Assembly');
+  });
+});

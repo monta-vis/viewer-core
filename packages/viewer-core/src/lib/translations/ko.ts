@@ -179,7 +179,7 @@ export const ko = {
     showOriginal: '원본 미디어 표시',
     useBlurred: '흐린 미디어 사용',
     languageNotAvailable: '번역을 사용할 수 없음',
-    estimatedDurationValue: '{{duration}}',
+    estimatedDurationValue: '{{duration}}분',
     name: '이름',
     description: '설명',
     dropImageHere: '여기에 이미지를 놓으세요',

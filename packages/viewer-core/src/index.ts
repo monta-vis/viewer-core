@@ -44,3 +44,6 @@ export { buildMediaUrl, MediaPaths, publicAsset } from './lib/media';
 
 // Default translations for viewer-core components
 export { viewerCoreTranslations } from './lib/translations';
+
+// Language persistence (localStorage helpers for i18n)
+export { getStoredLanguage, saveLanguage, LANGUAGE_STORAGE_KEY } from './lib/languagePersistence';

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import {
   computeProcessingHash,
   isProcessingCurrent,
@@ -19,10 +19,41 @@ import {
 // ---------------------------------------------------------------------------
 
 vi.mock('node:child_process', () => ({
-  execFile: vi.fn(),
+  spawn: vi.fn(),
 }));
 
-const mockedExecFile = vi.mocked(execFile);
+const mockedSpawn = vi.mocked(spawn);
+
+/** Create a fake ChildProcess that emits 'close' with the given code. */
+function fakeProc(exitCode: number) {
+  const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
+  const proc = {
+    on(event: string, cb: (...args: unknown[]) => void) {
+      (listeners[event] ??= []).push(cb);
+      if (event === 'close') {
+        // Emit on next tick so the caller can attach all listeners first
+        queueMicrotask(() => cb(exitCode));
+      }
+      return proc;
+    },
+  };
+  return proc as ReturnType<typeof spawn>;
+}
+
+/** Create a fake ChildProcess that emits 'error'. */
+function fakeErrorProc(error: Error) {
+  const listeners: Record<string, ((...args: unknown[]) => void)[]> = {};
+  const proc = {
+    on(event: string, cb: (...args: unknown[]) => void) {
+      (listeners[event] ??= []).push(cb);
+      if (event === 'error') {
+        queueMicrotask(() => cb(error));
+      }
+      return proc;
+    },
+  };
+  return proc as ReturnType<typeof spawn>;
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -276,6 +307,22 @@ describe('resolveFFmpegBinary', () => {
     // Empty directory — no binary
     expect(() => resolveFFmpegBinary(tmpDir, false)).toThrow();
   });
+
+  it('resolves ffprobe when tool="ffprobe"', () => {
+    const binName = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe';
+    fs.writeFileSync(path.join(tmpDir, 'resources', 'ffmpeg', binName), '');
+
+    const result = resolveFFmpegBinary(tmpDir, false, 'ffprobe');
+    expect(result).toBe(path.join(tmpDir, 'resources', 'ffmpeg', binName));
+  });
+
+  it('defaults to ffmpeg when tool omitted (backwards compat)', () => {
+    const binName = process.platform === 'win32' ? 'ffmpeg.exe' : 'ffmpeg';
+    fs.writeFileSync(path.join(tmpDir, 'resources', 'ffmpeg', binName), '');
+
+    const result = resolveFFmpegBinary(tmpDir, false);
+    expect(result).toBe(path.join(tmpDir, 'resources', 'ffmpeg', binName));
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -287,22 +334,22 @@ describe('spawnFFmpeg', () => {
     vi.resetAllMocks();
   });
 
-  it('resolves on success', async () => {
-    mockedExecFile.mockImplementation((_bin, _args, callback) => {
-      (callback as (err: Error | null, stdout: string, stderr: string) => void)(null, '', '');
-      return undefined as ReturnType<typeof execFile>;
-    });
+  it('resolves on success (exit code 0)', async () => {
+    mockedSpawn.mockReturnValue(fakeProc(0));
 
     await expect(spawnFFmpeg('/bin/ffmpeg', ['-version'])).resolves.toBeUndefined();
   });
 
-  it('rejects on error', async () => {
-    mockedExecFile.mockImplementation((_bin, _args, callback) => {
-      (callback as (err: Error | null) => void)(new Error('ffmpeg failed'));
-      return undefined as ReturnType<typeof execFile>;
-    });
+  it('rejects on non-zero exit code', async () => {
+    mockedSpawn.mockReturnValue(fakeProc(1));
 
-    await expect(spawnFFmpeg('/bin/ffmpeg', ['-version'])).rejects.toThrow('ffmpeg failed');
+    await expect(spawnFFmpeg('/bin/ffmpeg', ['-version'])).rejects.toThrow('FFmpeg exited with code 1');
+  });
+
+  it('rejects on spawn error', async () => {
+    mockedSpawn.mockReturnValue(fakeErrorProc(new Error('spawn ENOENT')));
+
+    await expect(spawnFFmpeg('/bin/ffmpeg', ['-version'])).rejects.toThrow('spawn ENOENT');
   });
 });
 
@@ -323,17 +370,14 @@ describe('processImage', () => {
   });
 
   it('calls FFmpeg with correct args and writes sidecar on success', async () => {
-    mockedExecFile.mockImplementation((_bin, _args, callback) => {
-      (callback as (err: Error | null, stdout: string, stderr: string) => void)(null, '', '');
-      return undefined as ReturnType<typeof execFile>;
-    });
+    mockedSpawn.mockReturnValue(fakeProc(0));
 
     const destFile = path.join(tmpDir, 'output', 'image.jpg');
     await processImage('/bin/ffmpeg', '/tmp/input.png', destFile, undefined, 720);
 
-    // Verify execFile was called
-    expect(mockedExecFile).toHaveBeenCalledOnce();
-    const callArgs = mockedExecFile.mock.calls[0];
+    // Verify spawn was called
+    expect(mockedSpawn).toHaveBeenCalledOnce();
+    const callArgs = mockedSpawn.mock.calls[0];
     expect(callArgs[0]).toBe('/bin/ffmpeg');
 
     // Verify sidecar was written
@@ -342,31 +386,25 @@ describe('processImage', () => {
   });
 
   it('calls FFmpeg with crop args when crop provided', async () => {
-    mockedExecFile.mockImplementation((_bin, _args, callback) => {
-      (callback as (err: Error | null, stdout: string, stderr: string) => void)(null, '', '');
-      return undefined as ReturnType<typeof execFile>;
-    });
+    mockedSpawn.mockReturnValue(fakeProc(0));
 
     const destFile = path.join(tmpDir, 'output', 'image.jpg');
     const crop = { x: 0.1, y: 0.2, width: 0.5, height: 0.6 };
     await processImage('/bin/ffmpeg', '/tmp/input.png', destFile, crop, 720);
 
-    const callArgs = mockedExecFile.mock.calls[0];
+    const callArgs = mockedSpawn.mock.calls[0];
     const ffmpegArgs = callArgs[1] as string[];
     const vfIndex = ffmpegArgs.indexOf('-vf');
     expect(ffmpegArgs[vfIndex + 1]).toContain('crop=');
   });
 
-  it('throws on FFmpeg failure', async () => {
-    mockedExecFile.mockImplementation((_bin, _args, callback) => {
-      (callback as (err: Error | null) => void)(new Error('ffmpeg crashed'));
-      return undefined as ReturnType<typeof execFile>;
-    });
+  it('throws on non-zero FFmpeg exit code', async () => {
+    mockedSpawn.mockReturnValue(fakeProc(1));
 
     const destFile = path.join(tmpDir, 'output', 'image.jpg');
     await expect(
       processImage('/bin/ffmpeg', '/tmp/input.png', destFile, undefined, 720),
-    ).rejects.toThrow('ffmpeg crashed');
+    ).rejects.toThrow('FFmpeg exited with code 1');
   });
 
   it('skips processing when sidecar hash matches', async () => {
@@ -385,6 +423,6 @@ describe('processImage', () => {
     await processImage('/bin/ffmpeg', '/tmp/input.png', destFile, undefined, 720);
 
     // FFmpeg should NOT have been called
-    expect(mockedExecFile).not.toHaveBeenCalled();
+    expect(mockedSpawn).not.toHaveBeenCalled();
   });
 });

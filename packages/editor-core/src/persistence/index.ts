@@ -5,6 +5,9 @@ export type {
   PersistenceResult,
   ImageUploadResult,
   CoverImageUploadResult,
+  SafetyIconCopyResult,
+  VideoUploadResult,
+  VideoUploadArgs,
   ImageSource,
   NormalizedCrop,
 } from './types';

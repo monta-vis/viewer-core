@@ -1,4 +1,4 @@
-import { SAFETY_ICON_MANIFEST, buildMediaUrl } from '@monta-vis/viewer-core';
+import { SAFETY_ICON_MANIFEST, buildMediaUrl, MediaPaths } from '@monta-vis/viewer-core';
 import type { SafetyIconItem } from '../components/SafetyIconPicker';
 import type { SafetyIconCatalog } from '../types';
 
@@ -23,6 +23,8 @@ export function buildIconList(catalogs: SafetyIconCatalog[], lang: string): Safe
       filename: entry.filename,
       category: entry.category,
       label: resolveLabel(entry.label, lang, entry.filename),
+      catalogName: cat.name,
+      catalogDirName: cat.dirName,
     })),
   );
 
@@ -62,4 +64,37 @@ export function getIconUrl(icon: SafetyIconItem, assetsDirMap: Map<string, strin
   }
   // Built-in icon: served from public/SafetyIcons/
   return `./SafetyIcons/${encodeURIComponent(icon.filename)}`;
+}
+
+/** Pattern matching legacy filenames (e.g. "W001.png"). */
+const LEGACY_FILENAME_RE = /\.\w+$/;
+
+/**
+ * Resolve a note's safetyIconId to a displayable URL.
+ *
+ * Resolution order:
+ * 1. Catalog match — safetyIconId matches a known icon filename → catalog/built-in URL
+ * 2. VFA UUID — safetyIconId is a UUID (not a filename) + folderName provided → mvis-media URL
+ * 3. null — cannot resolve
+ *
+ * Reusable across apps (viewer + creator) — no app-specific logic.
+ */
+export function resolveNoteIconUrl(
+  safetyIconId: string,
+  icons: SafetyIconItem[],
+  getIconUrlFn: (icon: SafetyIconItem) => string,
+  folderName?: string,
+): string | null {
+  if (!safetyIconId) return null;
+
+  // 1. Try built-in icon match only (skip catalog icons to prevent catalog path leakage)
+  const builtinMatch = icons.find((ic) => ic.id === safetyIconId && !ic.catalogDirName);
+  if (builtinMatch) return getIconUrlFn(builtinMatch);
+
+  // 2. Not a legacy filename → treat as VFA UUID
+  if (!LEGACY_FILENAME_RE.test(safetyIconId) && folderName) {
+    return buildMediaUrl(folderName, MediaPaths.frame(safetyIconId));
+  }
+
+  return null;
 }

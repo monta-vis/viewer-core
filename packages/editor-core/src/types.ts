@@ -70,6 +70,8 @@ export interface CatalogCategory {
 /** A catalog loaded from disk with its asset directory path. */
 export interface SafetyIconCatalog {
   name: string;
+  /** Actual directory name on disk (may differ from display `name`). */
+  dirName: string;
   assetsDir: string;
   categories: CatalogCategory[];
   entries: CatalogEntry[];

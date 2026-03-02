@@ -177,7 +177,7 @@ export const en = {
     showOriginal: 'Show original media',
     useBlurred: 'Use blurred media',
     languageNotAvailable: 'Translation not available',
-    estimatedDurationValue: '{{duration}}',
+    estimatedDurationValue: '{{duration}} min',
     name: 'Name',
     description: 'Description',
     dropImageHere: 'Drop image here',

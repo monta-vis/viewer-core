@@ -9,11 +9,14 @@ import {
   saveProjectData,
   uploadPartToolImage,
   uploadCoverImage,
+  copySafetyIcon,
   resolveMediaPath,
 } from "./projects.js";
 import type { ProjectChanges } from "./projects.js";
 import { getSafetyIconCatalogs } from "./catalogs.js";
 import { importMvisFromPath } from "./import-mvis.js";
+import { uploadSubstepVideo } from "./video.js";
+import type { VideoUploadArgs } from "./video.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -215,6 +218,33 @@ function registerIpcHandlers(): void {
     "projects:upload-cover-image",
     async (_event, folderName: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
       await uploadCoverImage(folderName, imagePath, crop),
+  );
+
+  ipcMain.handle(
+    "projects:upload-substep-video",
+    async (_event, folderName: unknown, substepId: unknown, args: unknown) => {
+      if (typeof folderName !== "string" || typeof substepId !== "string") {
+        return { success: false, error: "Invalid arguments" };
+      }
+      if (
+        !args ||
+        typeof args !== "object" ||
+        typeof (args as Record<string, unknown>).sourceVideoPath !== "string"
+      ) {
+        return { success: false, error: "Invalid video upload arguments" };
+      }
+      return uploadSubstepVideo(folderName, substepId, args as VideoUploadArgs);
+    },
+  );
+
+  ipcMain.handle(
+    "projects:copy-safety-icon",
+    (_event, folderName: unknown, iconId: unknown) => {
+      if (typeof folderName !== "string" || typeof iconId !== "string") {
+        return { success: false, error: "Invalid arguments" };
+      }
+      return copySafetyIcon(folderName, iconId);
+    },
   );
 
   ipcMain.handle("catalogs:get-safety-icons", () => getSafetyIconCatalogs());

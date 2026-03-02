@@ -37,9 +37,9 @@ export interface SubstepEditCallbacks {
   onSaveDescription?: (descriptionId: string, text: string) => void;
   onDeleteDescription?: (descriptionId: string) => void;
   onAddDescription?: (text: string) => void;
-  onSaveNote?: (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => void;
+  onSaveNote?: (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, sourceIconId?: string) => void;
   onDeleteNote?: (noteRowId: string) => void;
-  onAddNote?: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => void;
+  onAddNote?: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, sourceIconId?: string) => void;
   onSaveRepeat?: (count: number, label: string | null) => void;
   onDeleteRepeat?: () => void;
   onEditRepeat?: () => void;
@@ -59,6 +59,7 @@ export interface SubstepEditCallbacks {
 interface SubstepCardProps {
   title: string | null;
   stepOrder: number;
+  totalSubsteps?: number;
   imageUrl?: string | null;
   frameCaptureData?: FrameCaptureData | null;
   descriptions: SubstepDescriptionRow[];
@@ -123,6 +124,7 @@ interface SubstepCardProps {
 export const SubstepCard = memo(function SubstepCard({
   title,
   stepOrder,
+  totalSubsteps,
   imageUrl,
   frameCaptureData,
   descriptions,
@@ -614,51 +616,6 @@ export const SubstepCard = memo(function SubstepCard({
           );
         })()}
 
-        {/* Edit mode: pencil button + popover */}
-        {editMode && !isPlayingInline && editCallbacks && (
-          <div className="absolute top-2 right-12 z-30" onClick={(e) => e.stopPropagation()}>
-            <IconButton
-              variant="overlay"
-              size="md"
-              icon={<Pencil />}
-              aria-label={t('editorCore.editSubstep', 'Edit substep')}
-              onClick={() => setEditPopoverOpen((o) => !o)}
-            />
-            {editPopoverOpen && renderEditPopover?.({
-              open: editPopoverOpen,
-              onClose: () => setEditPopoverOpen(false),
-              callbacks: editCallbacks,
-              descriptions,
-              notes,
-              partTools,
-              repeatCount,
-              repeatLabel,
-              tutorials: tutorials.map((r) => ({ kind: r.kind, label: r.label })),
-              hasImage: !!(imageUrl || frameCaptureData),
-              hasVideo: !!videoData,
-              substepId,
-              mediaPreview: frameCaptureData ? (
-                <VideoFrameCapture
-                  videoId={frameCaptureData.videoId}
-                  fps={frameCaptureData.fps}
-                  frameNumber={frameCaptureData.frameNumber}
-                  cropArea={frameCaptureData.cropArea}
-                  videoSrc={frameCaptureData.videoSrc}
-                  alt={altText}
-                  className="w-full h-full object-contain"
-                />
-              ) : imageUrl ? (
-                <img
-                  src={imageUrl}
-                  alt={altText}
-                  draggable={false}
-                  className="w-full h-full object-contain select-none"
-                />
-              ) : undefined,
-            })}
-          </div>
-        )}
-
         {/* Progress bar at top during inline playback — tall tap target, slim visual bar */}
         {isPlayingInline && (
           <div
@@ -755,7 +712,7 @@ export const SubstepCard = memo(function SubstepCard({
                 'text-base font-semibold text-white px-3 py-1 rounded-full',
                 tutorialDisplay ? 'bg-[var(--color-element-tutorial)]/80' : 'bg-black/50',
               )}>
-                {stepOrder}
+                {totalSubsteps != null ? `${stepOrder}/${totalSubsteps}` : stepOrder}
               </span>
               {tutorialDisplay && (
                 <div
@@ -772,6 +729,49 @@ export const SubstepCard = memo(function SubstepCard({
                   role="img"
                 >
                   <Play className="h-4 w-4 text-white ml-0.5" />
+                </div>
+              )}
+              {editMode && editCallbacks && (
+                <div onClick={(e) => e.stopPropagation()}>
+                  <IconButton
+                    variant="overlay"
+                    size="md"
+                    icon={<Pencil />}
+                    aria-label={t('editorCore.editSubstep', 'Edit substep')}
+                    onClick={() => setEditPopoverOpen((o) => !o)}
+                  />
+                  {editPopoverOpen && renderEditPopover?.({
+                    open: editPopoverOpen,
+                    onClose: () => setEditPopoverOpen(false),
+                    callbacks: editCallbacks,
+                    descriptions,
+                    notes,
+                    partTools,
+                    repeatCount,
+                    repeatLabel,
+                    tutorials: tutorials.map((r) => ({ kind: r.kind, label: r.label })),
+                    hasImage: !!(imageUrl || frameCaptureData),
+                    hasVideo: !!videoData,
+                    substepId,
+                    mediaPreview: frameCaptureData ? (
+                      <VideoFrameCapture
+                        videoId={frameCaptureData.videoId}
+                        fps={frameCaptureData.fps}
+                        frameNumber={frameCaptureData.frameNumber}
+                        cropArea={frameCaptureData.cropArea}
+                        videoSrc={frameCaptureData.videoSrc}
+                        alt={altText}
+                        className="w-full h-full object-contain"
+                      />
+                    ) : imageUrl ? (
+                      <img
+                        src={imageUrl}
+                        alt={altText}
+                        draggable={false}
+                        className="w-full h-full object-contain select-none"
+                      />
+                    ) : undefined,
+                  })}
                 </div>
               )}
               {isViewed && (

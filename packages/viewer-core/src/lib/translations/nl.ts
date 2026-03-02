@@ -179,7 +179,7 @@ export const nl = {
     showOriginal: 'Originele media tonen',
     useBlurred: 'Vervaagde media gebruiken',
     languageNotAvailable: 'Vertaling niet beschikbaar',
-    estimatedDurationValue: '{{duration}}',
+    estimatedDurationValue: '{{duration}} min',
     name: 'Naam',
     description: 'Beschrijving',
     dropImageHere: 'Afbeelding hier neerzetten',

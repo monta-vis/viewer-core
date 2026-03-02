@@ -14,27 +14,26 @@ import type {
   PartToolRow,
 } from '@monta-vis/viewer-core';
 import {
-  NOTE_CATEGORY_STYLES,
   type SafetyIconCategory,
 } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
 import { ImageCropDialog } from './ImageCropDialog';
 import type { NormalizedCrop } from '../persistence/types';
-import { SafetyIconPicker } from './SafetyIconPicker';
 import { PartToolTable, type PartToolTableItem, type PartToolTableImageCallbacks } from './PartToolTable';
 import type { PartToolImageItem } from './PartToolImagePicker';
 import { SectionCard } from './SectionCard';
+import { SafetyIconPicker } from './SafetyIconPicker';
 import { EditInput, EditTextarea } from './EditInput';
 import {
   ICON_BTN_CLASS,
   EDIT_BTN_CLASS,
   DELETE_BTN_CLASS,
   ADD_BTN_CLASS,
-  SAVE_BTN_CLASS,
   CANCEL_BTN_CLASS,
+  SAVE_BTN_CLASS,
 } from './editButtonStyles';
 import type { SafetyIconCatalog } from '../types';
-import { buildIconList, buildAssetsDirMap, getIconUrl as getIconUrlUtil } from '../utils/iconUtils';
+import { buildIconList, buildAssetsDirMap, getIconUrl as getIconUrlUtil, resolveNoteIconUrl } from '../utils/iconUtils';
 
 export interface SubstepEditPopoverProps {
   open: boolean;
@@ -66,6 +65,8 @@ export interface SubstepEditPopoverProps {
   onUploadSubstepImage?: (file: File, crop: NormalizedCrop) => void;
   /** Instruction-level partTool catalog for autocomplete suggestions. */
   allPartTools?: PartToolRow[];
+  /** Opens the instruction-wide PartTool list editor (PartToolListPanel). */
+  onOpenPartToolList?: () => void;
 }
 
 /* ── Inline edit state types ── */
@@ -87,6 +88,8 @@ interface NoteEditState {
   text: string;
   selectedIconId: string | null;
   selectedCategory: string | null;
+  /** Set when user picks a new icon from catalog; null when keeping existing VFA icon. */
+  selectedCatalogDirName: string | null;
 }
 
 interface NoteAddState {
@@ -94,15 +97,11 @@ interface NoteAddState {
   text: string;
   selectedIconId: string | null;
   selectedCategory: string | null;
+  /** Set when user picks an icon from catalog. */
+  selectedCatalogDirName: string | null;
 }
 
-interface RepeatEditState {
-  kind: 'edit-repeat';
-  count: number;
-  label: string;
-}
-
-type InlineEditState = DescriptionEditState | DescriptionAddState | NoteEditState | NoteAddState | RepeatEditState | null;
+type InlineEditState = DescriptionEditState | DescriptionAddState | NoteEditState | NoteAddState | null;
 
 /* ── Class constants ── */
 const ROW_CLASS = 'flex items-center gap-2 px-2 py-1.5 text-sm text-[var(--color-text-base)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors';
@@ -128,6 +127,7 @@ export function SubstepEditPopover({
   imageCallbacks,
   onUploadSubstepImage,
   allPartTools,
+  onOpenPartToolList,
 }: SubstepEditPopoverProps) {
   const { t, i18n } = useTranslation();
   const { canUndo, canRedo, captureSnapshot, undo, redo, reset } = useSessionHistory();
@@ -136,6 +136,22 @@ export function SubstepEditPopover({
   const [editState, setEditState] = useState<InlineEditState>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // Ref to prevent blur-save when Cancel or Confirm is clicked
+  const cancellingRef = useRef(false);
+
+  const handleBlurSave = useCallback((saveFn: () => void) => {
+    setTimeout(() => {
+      if (!cancellingRef.current) saveFn();
+      cancellingRef.current = false;
+    }, 0);
+  }, []);
+
+  const handleCancel = useCallback(() => {
+    cancellingRef.current = true;
+    setEditState(null);
+  }, []);
+
 
   // ── File-upload + crop state for substep image replacement ──
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -187,7 +203,7 @@ export function SubstepEditPopover({
     const timer = setTimeout(() => {
       if (editState.kind === 'edit-desc' || editState.kind === 'add-desc') {
         textareaRef.current?.focus();
-      } else {
+      } else if (editState.kind === 'add-note' || editState.kind === 'edit-note') {
         inputRef.current?.focus();
       }
     }, 50);
@@ -302,62 +318,71 @@ export function SubstepEditPopover({
   // ── Inline note editing ──
 
   const startEditNote = useCallback((noteRowId: string, currentText: string, iconId: string | null, iconCategory: string | null) => {
-    setEditState({ kind: 'edit-note', noteRowId, text: currentText, selectedIconId: iconId, selectedCategory: iconCategory });
+    setEditState({ kind: 'edit-note', noteRowId, text: currentText, selectedIconId: iconId, selectedCategory: iconCategory, selectedCatalogDirName: null });
   }, []);
 
   const startAddNote = useCallback(() => {
-    setEditState({ kind: 'add-note', text: '', selectedIconId: null, selectedCategory: null });
+    setEditState({ kind: 'add-note', text: '', selectedIconId: null, selectedCategory: null, selectedCatalogDirName: null });
   }, []);
 
   const saveNoteEdit = useCallback(() => {
     if (!editState) return;
-    if (editState.kind === 'edit-note' || editState.kind === 'add-note') {
+    if (editState.kind === 'edit-note') {
       const trimmed = editState.text.trim();
+      if (editState.selectedIconId && editState.selectedCategory) {
+        // Build sourceIconId only when a new icon was picked from catalog
+        const sourceIconId = editState.selectedCatalogDirName
+          ? `${editState.selectedCatalogDirName}/${editState.selectedIconId}`
+          : undefined;
+        callbacks.onSaveNote?.(editState.noteRowId, trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory, sourceIconId);
+        captureSnapshot();
+      }
+      setEditState(null);
+      return;
+    }
+    if (editState.kind === 'add-note') {
       if (!editState.selectedIconId || !editState.selectedCategory) {
         setEditState(null);
         return;
       }
-      if (editState.kind === 'edit-note') {
-        callbacks.onSaveNote?.(editState.noteRowId, trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory);
-      } else {
-        callbacks.onAddNote?.(trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory);
-      }
+      const trimmed = editState.text.trim();
+      const sourceIconId = editState.selectedCatalogDirName
+        ? `${editState.selectedCatalogDirName}/${editState.selectedIconId}`
+        : undefined;
+      callbacks.onAddNote?.(trimmed, editState.selectedIconId, editState.selectedCategory as SafetyIconCategory, sourceIconId);
       captureSnapshot();
+      setEditState(null);
     }
-    setEditState(null);
   }, [editState, callbacks, captureSnapshot]);
 
   // ── Inline repeat editing ──
 
-  const startEditRepeat = useCallback((count: number, label: string) => {
-    setEditState({ kind: 'edit-repeat', count, label });
-  }, []);
+  /** Confirm save — suppress blur-save then call save directly */
+  const handleConfirmDesc = useCallback(() => {
+    cancellingRef.current = true;
+    saveDescEdit();
+  }, [saveDescEdit]);
 
-  const saveRepeatEdit = useCallback(() => {
-    if (!editState || editState.kind !== 'edit-repeat') return;
-    const count = Math.max(2, editState.count);
-    const label = editState.label.trim() || null;
-    callbacks.onSaveRepeat?.(count, label);
-    captureSnapshot();
-    setEditState(null);
-  }, [editState, callbacks, captureSnapshot]);
+  const handleConfirmNote = useCallback(() => {
+    cancellingRef.current = true;
+    saveNoteEdit();
+  }, [saveNoteEdit]);
 
   // Keyboard handler for inline editors
   const handleInlineKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.stopPropagation();
       setEditState(null);
-    } else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+    } else if (e.key === 'Enter') {
       e.preventDefault();
+      e.stopPropagation();
       if (editState?.kind === 'edit-desc' || editState?.kind === 'add-desc') {
         saveDescEdit();
-      } else if (editState?.kind === 'edit-repeat') {
-        saveRepeatEdit();
-      } else {
+      } else if (editState?.kind === 'add-note' || editState?.kind === 'edit-note') {
         saveNoteEdit();
       }
     }
-  }, [editState, saveDescEdit, saveNoteEdit, saveRepeatEdit]);
+  }, [editState, saveDescEdit, saveNoteEdit]);
 
   if (!open) return null;
 
@@ -510,15 +535,16 @@ export function SubstepEditPopover({
                               value={editState.text}
                               onChange={(e) => setEditState({ ...editState, text: e.target.value })}
                               onKeyDown={handleInlineKeyDown}
+                              onBlur={() => handleBlurSave(saveDescEdit)}
                               className="resize-none"
                               rows={2}
                             />
                             <div className="flex justify-end gap-1">
-                              <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={() => setEditState(null)}>
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                              <button type="button" aria-label={t('common.save', 'Save')} data-testid={`save-desc-${desc.id}`} className={SAVE_BTN_CLASS} onClick={saveDescEdit}>
+                              <button type="button" aria-label={t('common.confirm', 'Confirm')} className={SAVE_BTN_CLASS} onClick={handleConfirmDesc}>
                                 <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={handleCancel}>
+                                <X className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           </div>
@@ -545,16 +571,17 @@ export function SubstepEditPopover({
                           value={editState.text}
                           onChange={(e) => setEditState({ ...editState, text: e.target.value })}
                           onKeyDown={handleInlineKeyDown}
+                          onBlur={() => handleBlurSave(saveDescEdit)}
                           placeholder={t('editorCore.enterDescription', 'Enter description...')}
                           className="resize-none"
                           rows={2}
                         />
                         <div className="flex justify-end gap-1">
-                          <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={() => setEditState(null)}>
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" aria-label={t('common.save', 'Save')} data-testid="save-add-desc" className={SAVE_BTN_CLASS} onClick={saveDescEdit}>
+                          <button type="button" aria-label={t('common.confirm', 'Confirm')} className={SAVE_BTN_CLASS} onClick={handleConfirmDesc}>
                             <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={handleCancel}>
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         </div>
                       </div>
@@ -575,41 +602,49 @@ export function SubstepEditPopover({
                 }
                 emptyText={undefined}
               >
-                {notes.length > 0 || editState?.kind === 'add-note' ? (
+                {notes.length > 0 || editState?.kind === 'add-note' || editState?.kind === 'edit-note' ? (
                   <>
                     {notes.map((noteRow) => {
-                      const category = (noteRow.note.safetyIconCategory ?? 'Warnzeichen') as SafetyIconCategory;
-                      const catStyles = NOTE_CATEGORY_STYLES[category] ?? NOTE_CATEGORY_STYLES.Warnzeichen;
-                      const badgeColors = `${catStyles.bg} ${catStyles.text} ${catStyles.border}`;
+                      const noteIconUrl = resolveNoteIconUrl(noteRow.note.safetyIconId, icons, getIconUrl, folderName);
                       const isEditing = editState?.kind === 'edit-note' && editState.noteRowId === noteRow.id;
 
                       if (isEditing) {
+                        const editIconUrl = editState.selectedIconId
+                          ? resolveNoteIconUrl(editState.selectedIconId, icons, getIconUrl, folderName)
+                          : null;
                         return (
-                          <div key={noteRow.id} className="flex flex-col gap-2 px-2 py-1.5 rounded-lg bg-[var(--color-bg-hover)]" data-testid={`popover-note-${noteRow.id}`}>
-                            <EditInput
-                              ref={inputRef}
-                              type="text"
-                              data-testid={`inline-edit-note-${noteRow.id}`}
-                              value={editState.text}
-                              onChange={(e) => setEditState({ ...editState, text: e.target.value })}
-                              onKeyDown={handleInlineKeyDown}
-                              placeholder={t('editorCore.enterNote', 'Enter note...')}
-                            />
-                            <div className="max-h-40 overflow-y-auto" data-testid="inline-icon-picker">
+                          <div key={noteRow.id} className="flex flex-col gap-2 px-2 py-1.5" data-testid={`popover-note-${noteRow.id}`}>
+                            <div className="flex items-center gap-2">
+                              {editIconUrl ? (
+                                <img src={editIconUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                              ) : (
+                                <StickyNote className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+                              )}
+                              <EditInput
+                                ref={inputRef}
+                                type="text"
+                                data-testid={`inline-edit-note-${noteRow.id}`}
+                                value={editState.text}
+                                onChange={(e) => setEditState({ ...editState, text: e.target.value })}
+                                onKeyDown={handleInlineKeyDown}
+                                onBlur={() => handleBlurSave(saveNoteEdit)}
+                                className="flex-1"
+                              />
+                              <button type="button" aria-label={t('common.confirm', 'Confirm')} className={SAVE_BTN_CLASS} onClick={handleConfirmNote}>
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={handleCancel}>
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                            {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+                            <div data-testid="inline-icon-picker" onMouseDown={() => { cancellingRef.current = true; }}>
                               <SafetyIconPicker
                                 icons={icons}
                                 getIconUrl={getIconUrl}
                                 selectedIconId={editState.selectedIconId}
-                                onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category })}
+                                onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null })}
                               />
-                            </div>
-                            <div className="flex justify-end gap-1">
-                              <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={() => setEditState(null)}>
-                                <X className="h-3.5 w-3.5" />
-                              </button>
-                              <button type="button" aria-label={t('common.save', 'Save')} data-testid={`save-note-${noteRow.id}`} className={SAVE_BTN_CLASS} onClick={saveNoteEdit}>
-                                <Check className="h-3.5 w-3.5" />
-                              </button>
                             </div>
                           </div>
                         );
@@ -617,10 +652,19 @@ export function SubstepEditPopover({
 
                       return (
                         <div key={noteRow.id} className={ROW_CLASS} data-testid={`popover-note-${noteRow.id}`}>
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${badgeColors}`}>
-                            {category}
-                          </span>
-                          <button type="button" className="flex-1 truncate cursor-pointer text-left" onClick={() => startEditNote(noteRow.id, noteRow.note.text, noteRow.note.safetyIconId, noteRow.note.safetyIconCategory ?? null)}>{noteRow.note.text}</button>
+                          <button
+                            type="button"
+                            className="flex flex-1 items-center gap-2 min-w-0 cursor-pointer text-left"
+                            onClick={() => startEditNote(noteRow.id, noteRow.note.text, noteRow.note.safetyIconId, noteRow.note.safetyIconCategory)}
+                          >
+                            {noteIconUrl ? (
+                              <img src={noteIconUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                            ) : (
+                              <StickyNote className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+                            )}
+                            <span className="flex-1 truncate">{noteRow.note.text}</span>
+                          </button>
+                          <span className="shrink-0 text-xs text-[var(--color-text-muted)]">{noteRow.note.safetyIconCategory}</span>
                           <button type="button" aria-label={t('editorCore.deleteNote', 'Delete note')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteNote, noteRow.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
@@ -629,35 +673,48 @@ export function SubstepEditPopover({
                     })}
 
                     {/* Inline add note */}
-                    {editState?.kind === 'add-note' && (
-                      <div className="flex flex-col gap-2 px-2 py-1.5 rounded-lg bg-[var(--color-bg-hover)]" data-testid="inline-add-note">
-                        <EditInput
-                          ref={inputRef}
-                          type="text"
-                          data-testid="inline-add-note-input"
-                          value={editState.text}
-                          onChange={(e) => setEditState({ ...editState, text: e.target.value })}
-                          onKeyDown={handleInlineKeyDown}
-                          placeholder={t('editorCore.enterNote', 'Enter note...')}
-                        />
-                        <div className="max-h-40 overflow-y-auto" data-testid="inline-icon-picker-add">
-                          <SafetyIconPicker
-                            icons={icons}
-                            getIconUrl={getIconUrl}
-                            selectedIconId={editState.selectedIconId}
-                            onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category })}
-                          />
+                    {editState?.kind === 'add-note' && (() => {
+                      const addIconUrl = editState.selectedIconId
+                        ? resolveNoteIconUrl(editState.selectedIconId, icons, getIconUrl, folderName)
+                        : null;
+                      return (
+                        <div className="flex flex-col gap-2 px-2 py-1.5" data-testid="inline-add-note">
+                          <div className="flex items-center gap-2">
+                            {addIconUrl ? (
+                              <img src={addIconUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
+                            ) : (
+                              <StickyNote className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+                            )}
+                            <EditInput
+                              ref={inputRef}
+                              type="text"
+                              data-testid="inline-add-note-input"
+                              value={editState.text}
+                              onChange={(e) => setEditState({ ...editState, text: e.target.value })}
+                              onKeyDown={handleInlineKeyDown}
+                              onBlur={() => handleBlurSave(saveNoteEdit)}
+                              placeholder={t('editorCore.enterNote', 'Enter note...')}
+                              className="flex-1"
+                            />
+                            <button type="button" aria-label={t('common.confirm', 'Confirm')} className={SAVE_BTN_CLASS} onClick={handleConfirmNote}>
+                              <Check className="h-3.5 w-3.5" />
+                            </button>
+                            <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={handleCancel}>
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                          {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+                          <div data-testid="inline-icon-picker-add" onMouseDown={() => { cancellingRef.current = true; }}>
+                            <SafetyIconPicker
+                              icons={icons}
+                              getIconUrl={getIconUrl}
+                              selectedIconId={editState.selectedIconId}
+                              onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null })}
+                            />
+                          </div>
                         </div>
-                        <div className="flex justify-end gap-1">
-                          <button type="button" aria-label={t('common.cancel', 'Cancel')} className={CANCEL_BTN_CLASS} onClick={() => setEditState(null)}>
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                          <button type="button" aria-label={t('common.save', 'Save')} data-testid="save-add-note" className={SAVE_BTN_CLASS} onClick={saveNoteEdit}>
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                      );
+                    })()}
                   </>
                 ) : undefined}
               </SectionCard>
@@ -668,56 +725,48 @@ export function SubstepEditPopover({
                 icon={<Repeat className="h-4 w-4" />}
                 title={t('editorCore.repeat', 'Repeat')}
                 addButton={
-                  <button type="button" data-testid="popover-add-repeat" aria-label={t('editorCore.addRepeat', 'Add repeat')} className={ADD_BTN_CLASS} onClick={() => startEditRepeat(repeatCount > 1 ? repeatCount : 2, repeatLabel ?? '')}>
+                  <button type="button" data-testid="popover-add-repeat" aria-label={t('editorCore.addRepeat', 'Add repeat')} className={ADD_BTN_CLASS} onClick={() => { callbacks.onSaveRepeat?.(2, null); captureSnapshot(); }}>
                     <Plus className="h-4 w-4" />
                   </button>
                 }
                 emptyText={undefined}
               >
-                {repeatCount > 1 && editState?.kind !== 'edit-repeat' ? (
-                  <div className={ROW_CLASS} data-testid="popover-repeat-row">
+                {repeatCount > 1 ? (
+                  <div
+                    className="flex items-center gap-2 px-2 py-1.5"
+                    data-testid="popover-repeat-row"
+                    onBlur={(e) => {
+                      if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                        const count = Math.max(2, repeatCount);
+                        const label = repeatLabel?.trim() || null;
+                        callbacks.onSaveRepeat?.(count, label);
+                        captureSnapshot();
+                      }
+                    }}
+                  >
                     <Repeat className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-                    <button type="button" className="flex-1 truncate cursor-pointer text-left" onClick={() => startEditRepeat(repeatCount, repeatLabel ?? '')}>
-                      ×{repeatCount}
-                      {repeatLabel && <span className="ml-1 text-[var(--color-text-muted)]">({repeatLabel})</span>}
-                    </button>
+                    <EditInput
+                      type="number"
+                      min={2}
+                      max={99}
+                      data-testid="inline-edit-repeat-count"
+                      value={repeatCount}
+                      onChange={(e) => callbacks.onSaveRepeat?.(Math.max(2, parseInt(e.target.value, 10) || 2), repeatLabel ?? null)}
+                      className="!w-12 shrink-0"
+                    />
+                    <EditInput
+                      type="text"
+                      data-testid="inline-edit-repeat-label"
+                      value={repeatLabel ?? ''}
+                      onChange={(e) => callbacks.onSaveRepeat?.(repeatCount, e.target.value || null)}
+                      placeholder={t('editorCore.repeatLabel', 'Label (optional)')}
+                      className="!w-auto flex-1 min-w-0"
+                    />
                     <button type="button" aria-label={t('editorCore.deleteRepeat', 'Delete repeat')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteRepeat)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ) : undefined}
-                {editState?.kind === 'edit-repeat' && (
-                  <div className="flex flex-col gap-1 px-2 py-1.5" data-testid="inline-edit-repeat">
-                    <div className="flex items-center gap-2">
-                      <EditInput
-                        type="number"
-                        min={2}
-                        data-testid="inline-edit-repeat-count"
-                        value={editState.count}
-                        onChange={(e) => setEditState({ ...editState, count: Math.max(2, parseInt(e.target.value, 10) || 2) })}
-                        onKeyDown={handleInlineKeyDown}
-                        className="w-16"
-                      />
-                      <EditInput
-                        type="text"
-                        data-testid="inline-edit-repeat-label"
-                        value={editState.label}
-                        onChange={(e) => setEditState({ ...editState, label: e.target.value })}
-                        onKeyDown={handleInlineKeyDown}
-                        placeholder={t('editorCore.repeatLabel', 'Label (optional)')}
-                        className="flex-1"
-                      />
-                    </div>
-                    <div className="flex justify-end gap-1">
-                      <button type="button" aria-label={t('common.cancel', 'Cancel')} data-testid="cancel-repeat" className={CANCEL_BTN_CLASS} onClick={() => setEditState(null)}>
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                      <button type="button" aria-label={t('common.save', 'Save')} data-testid="save-repeat" className={SAVE_BTN_CLASS} onClick={saveRepeatEdit}>
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )}
               </SectionCard>
 
               {/* Tutorials */}
@@ -753,9 +802,16 @@ export function SubstepEditPopover({
             icon={<Package className="h-4 w-4" />}
             title={t('editorCore.partsTools', 'Parts/Tools')}
             addButton={
-              <button type="button" data-testid="parttool-add" aria-label={t('editorCore.addPartTool', 'Add part/tool')} className={ADD_BTN_CLASS} onClick={handleAddPartTool}>
-                <Plus className="h-4 w-4" />
-              </button>
+              <>
+                {onOpenPartToolList && (
+                  <button type="button" data-testid="parttool-list-open" aria-label={t('editorCore.editPartToolList', 'Edit part/tool list')} className={EDIT_BTN_CLASS} onClick={onOpenPartToolList}>
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                <button type="button" data-testid="parttool-add" aria-label={t('editorCore.addPartTool', 'Add part/tool')} className={ADD_BTN_CLASS} onClick={handleAddPartTool}>
+                  <Plus className="h-4 w-4" />
+                </button>
+              </>
             }
             emptyText={t('editorCore.noPartsTools', 'No parts/tools')}
           >

@@ -179,7 +179,7 @@ export const fr = {
     showOriginal: 'Afficher le média original',
     useBlurred: 'Utiliser le média flouté',
     languageNotAvailable: 'Traduction non disponible',
-    estimatedDurationValue: '{{duration}}',
+    estimatedDurationValue: '{{duration}} min',
     name: 'Nom',
     description: 'Description',
     dropImageHere: 'Déposez l\'image ici',

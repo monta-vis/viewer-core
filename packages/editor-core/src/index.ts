@@ -18,6 +18,9 @@ export {
   type PersistenceResult,
   type ImageUploadResult,
   type CoverImageUploadResult,
+  type SafetyIconCopyResult,
+  type VideoUploadResult,
+  type VideoUploadArgs,
   type ImageSource,
   type NormalizedCrop,
 } from './persistence';
@@ -91,12 +94,41 @@ export {
 // ImageCropDialog (image crop dialog for part/tool images)
 export { ImageCropDialog, type ImageCropDialogProps } from './components/ImageCropDialog';
 
+// VideoTrimDialog (video trimming dialog with timeline)
+export {
+  VideoTrimDialog,
+  type VideoTrimDialogProps,
+} from './components/VideoTrimDialog';
+
+// Video trim types
+export type { CutRegion, TrimData, TrimmedFile } from './types/trim.types';
+
+// Video trim utilities
+export {
+  generateCutId,
+  getKeptSegments,
+  mergeOverlappingRegions,
+  formatTimecode,
+  parseTimecode,
+  isVideoFile,
+  type KeptSegment,
+} from './utils/trimUtils';
+
+// useVideoPlayback (video element playback state management)
+export { useVideoPlayback, type UseVideoPlaybackReturn } from './hooks/useVideoPlayback';
+
 // EditInput / EditTextarea (styled input wrappers for editor forms)
 export { EditInput, EditTextarea } from './components/EditInput';
 export type { EditInputProps, EditTextareaProps } from './components/EditInput';
 
+// AutocompleteEditInput (EditInput wrapper with suggestion dropdown)
+export { AutocompleteEditInput, type AutocompleteSuggestion, type AutocompleteEditInputProps } from './components/AutocompleteEditInput';
+
 // SectionCard (reusable panel card for editor sections)
 export { SectionCard, type SectionCardProps } from './components/SectionCard';
+
+// Icon utilities (shared between viewer + creator)
+export { resolveNoteIconUrl } from './utils/iconUtils';
 
 // PartTool helpers
 export {

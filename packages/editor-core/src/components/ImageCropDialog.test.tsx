@@ -70,10 +70,10 @@ describe('ImageCropDialog', () => {
 
   it('calls onCancel when backdrop is clicked', () => {
     const onCancel = vi.fn();
-    const { container } = render(<ImageCropDialog {...defaultProps} onCancel={onCancel} />);
+    render(<ImageCropDialog {...defaultProps} onCancel={onCancel} />);
 
-    const backdrop = container.querySelector('.bg-black\\/60');
-    if (backdrop) fireEvent.click(backdrop);
+    const backdrop = screen.getByTestId('dialog-shell-backdrop');
+    fireEvent.click(backdrop);
     expect(onCancel).toHaveBeenCalledTimes(1);
   });
 

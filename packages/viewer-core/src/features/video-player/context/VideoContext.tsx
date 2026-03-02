@@ -130,7 +130,12 @@ export function VideoProvider({ children, defaultFps = 30 }: VideoProviderProps)
 
     const updateTime = () => {
       if (videoRef.current) {
-        setCurrentTime(videoRef.current.currentTime);
+        const now = performance.now();
+        currentTimeRef.current = videoRef.current.currentTime;
+        if (now - lastUIUpdateRef.current >= UI_UPDATE_THROTTLE_MS) {
+          setCurrentTime(videoRef.current.currentTime);
+          lastUIUpdateRef.current = now;
+        }
       }
       rafIdRef.current = requestAnimationFrame(updateTime);
     };

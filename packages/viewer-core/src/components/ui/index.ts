@@ -13,6 +13,9 @@ export type { ColorSwatchProps, ColorSwatchSize } from './ColorSwatch'
 export { Spinner } from './Spinner'
 export type { SpinnerProps, SpinnerSize } from './Spinner'
 
+export { LoadingCard } from './LoadingCard'
+export type { LoadingCardProps } from './LoadingCard'
+
 // Display
 export { Card, CardHeader, CardTitle, CardContent } from './Card'
 export type { CardProps, CardHeaderProps, CardTitleProps, CardContentProps } from './Card'

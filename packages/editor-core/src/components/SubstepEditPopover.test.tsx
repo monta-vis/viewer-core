@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { createElement } from 'react';
 import { SubstepEditPopover } from './SubstepEditPopover';
@@ -44,6 +44,23 @@ vi.mock('./ImageCropDialog', () => ({
       <div data-testid="crop-dialog">
         <button data-testid="crop-confirm" onClick={() => onConfirm({ x: 0.1, y: 0.1, width: 0.8, height: 0.8 })}>Confirm</button>
         <button data-testid="crop-cancel" onClick={() => onCancel()}>Cancel</button>
+      </div>
+    );
+  },
+}));
+
+// Mock VideoTrimDialog — renders confirm/close buttons for testing
+let mockVideoTrimOnConfirm: ((result: { file: File; trimData: null }) => void) | null = null;
+let mockVideoTrimOnClose: (() => void) | null = null;
+vi.mock('./VideoTrimDialog', () => ({
+  VideoTrimDialog: ({ open, file, onConfirm, onClose }: { open: boolean; file: File; onConfirm: (result: { file: File; trimData: null }) => void; onClose: () => void }) => {
+    mockVideoTrimOnConfirm = onConfirm;
+    mockVideoTrimOnClose = onClose;
+    if (!open) return null;
+    return (
+      <div data-testid="video-editor-dialog">
+        <button data-testid="video-editor-save" onClick={() => onConfirm({ file, trimData: null })}>Confirm</button>
+        <button data-testid="video-editor-cancel" onClick={() => onClose()}>Cancel</button>
       </div>
     );
   },
@@ -101,6 +118,7 @@ const callbacks = {
 };
 
 const mockOnUploadSubstepImage = vi.fn();
+const mockOnUploadSubstepVideo = vi.fn().mockResolvedValue(undefined);
 
 const baseProps: SubstepEditPopoverProps = {
   open: true,
@@ -130,7 +148,7 @@ const baseProps: SubstepEditPopoverProps = {
       order: 1,
       partTool: {
         id: 'pt-1', versionId: 'v1', instructionId: 'i1', previewImageId: null,
-        name: 'Wrench', type: 'Tool' as const, partNumber: 'PT-001',
+        name: 'Wrench', label: null, type: 'Tool' as const, partNumber: 'PT-001',
         amount: 10, description: null, unit: null, material: 'Steel', dimension: '10mm',
         iconId: null,
       },
@@ -144,7 +162,7 @@ const baseProps: SubstepEditPopoverProps = {
       order: 2,
       partTool: {
         id: 'pt-2', versionId: 'v1', instructionId: 'i1', previewImageId: null,
-        name: 'Bolt M6', type: 'Part' as const, partNumber: null,
+        name: 'Bolt M6', label: null, type: 'Part' as const, partNumber: null,
         amount: 50, description: null, unit: null, material: null, dimension: null,
         iconId: null,
       },
@@ -161,8 +179,12 @@ beforeEach(() => {
   Object.values(callbacks).forEach((fn) => fn.mockClear());
   (baseProps.onClose as ReturnType<typeof vi.fn>).mockClear();
   mockOnUploadSubstepImage.mockClear();
+  mockOnUploadSubstepVideo.mockClear();
+  mockOnUploadSubstepVideo.mockResolvedValue(undefined);
   mockCropOnConfirm = null;
   mockCropOnCancel = null;
+  mockVideoTrimOnConfirm = null;
+  mockVideoTrimOnClose = null;
   mockCaptureSnapshot.mockClear();
   mockUndo.mockClear();
   mockRedo.mockClear();
@@ -424,20 +446,40 @@ describe('SubstepEditPopover — descriptions', () => {
     expect(screen.queryByTestId('inline-edit-desc-desc-1')).not.toBeInTheDocument();
   });
 
-  it('clicking save button calls onSaveDescription(id, text)', async () => {
+  it('Enter saves description edit (plain Enter, no modifier)', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    // Enter edit mode by clicking text
     await user.click(screen.getByText('First description'));
 
     const textarea = screen.getByTestId('inline-edit-desc-desc-1');
     await user.clear(textarea);
-    await user.type(textarea, 'New text');
+    await user.type(textarea, 'Updated via Enter');
 
-    await user.click(screen.getByTestId('save-desc-desc-1'));
+    await user.keyboard('{Enter}');
 
-    expect(callbacks.onSaveDescription).toHaveBeenCalledWith('desc-1', 'New text');
+    expect(callbacks.onSaveDescription).toHaveBeenCalledWith('desc-1', 'Updated via Enter');
+    expect(mockCaptureSnapshot).toHaveBeenCalled();
+    expect(screen.queryByTestId('inline-edit-desc-desc-1')).not.toBeInTheDocument();
+  });
+
+  it('blur commits description edit + fires callback', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    await user.click(screen.getByText('First description'));
+
+    const textarea = screen.getByTestId('inline-edit-desc-desc-1');
+    await user.clear(textarea);
+    await user.type(textarea, 'Blurred text');
+
+    // Blur by tabbing away
+    await user.tab();
+
+    // Wait for setTimeout in handleBlurSave
+    await vi.waitFor(() => {
+      expect(callbacks.onSaveDescription).toHaveBeenCalledWith('desc-1', 'Blurred text');
+    });
     expect(mockCaptureSnapshot).toHaveBeenCalled();
   });
 
@@ -459,7 +501,7 @@ describe('SubstepEditPopover — descriptions', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('clicking "+" shows inline add textarea, save calls onAddDescription(text)', async () => {
+  it('clicking "+" shows inline add textarea, Enter commits onAddDescription(text)', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
@@ -469,10 +511,29 @@ describe('SubstepEditPopover — descriptions', () => {
     const textarea = screen.getByTestId('inline-add-desc-input');
     await user.type(textarea, 'New description');
 
-    await user.click(screen.getByTestId('save-add-desc'));
+    await user.keyboard('{Enter}');
 
     expect(callbacks.onAddDescription).toHaveBeenCalledWith('New description');
     expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('Cancel discards description edit without firing callback', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    await user.click(screen.getByText('First description'));
+    const textarea = screen.getByTestId('inline-edit-desc-desc-1');
+    await user.clear(textarea);
+    await user.type(textarea, 'Should be discarded');
+
+    // Click cancel button
+    await user.click(screen.getByLabelText('Cancel'));
+
+    // Wait for any pending blur timeout
+    await vi.waitFor(() => {
+      expect(screen.queryByTestId('inline-edit-desc-desc-1')).not.toBeInTheDocument();
+    });
+    expect(callbacks.onSaveDescription).not.toHaveBeenCalled();
   });
 });
 
@@ -495,25 +556,48 @@ describe('SubstepEditPopover — notes', () => {
     expect(screen.getByTestId('inline-icon-picker')).toBeInTheDocument();
   });
 
-  it('save on note calls onSaveNote(id, text, iconId, category)', async () => {
+  it('Enter saves note edit (plain Enter, no modifier)', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
-    // Enter edit mode by clicking text
     await user.click(screen.getByText('Safety note'));
 
     const input = screen.getByTestId('inline-edit-note-note-row-1');
     await user.clear(input);
-    await user.type(input, 'Updated note');
+    await user.type(input, 'Updated note via Enter');
 
-    await user.click(screen.getByTestId('save-note-note-row-1'));
+    await user.keyboard('{Enter}');
 
     expect(callbacks.onSaveNote).toHaveBeenCalledWith(
       'note-row-1',
-      'Updated note',
+      'Updated note via Enter',
       'W001-Allgemeines-Warnzeichen.png',
       'Warnzeichen',
     );
+    expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('blur commits note edit + fires callback', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    await user.click(screen.getByText('Safety note'));
+
+    const input = screen.getByTestId('inline-edit-note-note-row-1');
+    await user.clear(input);
+    await user.type(input, 'Blurred note');
+
+    // Blur by tabbing away
+    await user.tab();
+
+    await vi.waitFor(() => {
+      expect(callbacks.onSaveNote).toHaveBeenCalledWith(
+        'note-row-1',
+        'Blurred note',
+        'W001-Allgemeines-Warnzeichen.png',
+        'Warnzeichen',
+      );
+    });
     expect(mockCaptureSnapshot).toHaveBeenCalled();
   });
 
@@ -535,7 +619,40 @@ describe('SubstepEditPopover — notes', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('clicking "+" shows inline add note, save without icon does not call onAddNote', async () => {
+  it('clicking inside icon picker does not close the inline note editor', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    // Enter edit mode
+    await user.click(screen.getByText('Safety note'));
+    expect(screen.getByTestId('inline-edit-note-note-row-1')).toBeInTheDocument();
+
+    // Click inside the icon picker wrapper (mouseDown + click)
+    const iconPicker = screen.getByTestId('inline-icon-picker');
+    fireEvent.mouseDown(iconPicker);
+
+    // The inline editor should still be visible (not closed by blur)
+    expect(screen.getByTestId('inline-edit-note-note-row-1')).toBeInTheDocument();
+    expect(callbacks.onSaveNote).not.toHaveBeenCalled();
+  });
+
+  it('clicking inside add-note icon picker does not close the inline editor', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    // Open add-note inline editor
+    await user.click(screen.getByTestId('popover-add-note'));
+    expect(screen.getByTestId('inline-add-note')).toBeInTheDocument();
+
+    // Click inside the icon picker wrapper
+    const iconPicker = screen.getByTestId('inline-icon-picker-add');
+    fireEvent.mouseDown(iconPicker);
+
+    // The inline editor should still be visible
+    expect(screen.getByTestId('inline-add-note')).toBeInTheDocument();
+  });
+
+  it('clicking "+" shows inline add note, Enter without icon does not call onAddNote', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
@@ -545,8 +662,8 @@ describe('SubstepEditPopover — notes', () => {
     const input = screen.getByTestId('inline-add-note-input');
     await user.type(input, 'New note text');
 
-    // Save without selecting an icon — should not call onAddNote (icon required)
-    await user.click(screen.getByTestId('save-add-note'));
+    // Enter without selecting an icon — should not call onAddNote (icon required)
+    await user.keyboard('{Enter}');
 
     expect(callbacks.onAddNote).not.toHaveBeenCalled();
   });
@@ -580,7 +697,23 @@ describe('SubstepEditPopover — repeat', () => {
     expect(screen.getByTestId('inline-edit-repeat-count')).toHaveValue(2);
   });
 
-  it('saving inline repeat fires onSaveRepeat', async () => {
+  it('Enter saves repeat edit (plain Enter, no modifier)', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} repeatCount={3} repeatLabel="left & right" />);
+
+    await user.click(screen.getByText(/×3/));
+
+    const labelInput = screen.getByTestId('inline-edit-repeat-label');
+    await user.clear(labelInput);
+    await user.type(labelInput, 'both sides');
+
+    await user.keyboard('{Enter}');
+
+    expect(callbacks.onSaveRepeat).toHaveBeenCalledWith(3, 'both sides');
+    expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('blur commits repeat edit + fires onSaveRepeat', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} repeatCount={1} repeatLabel={null} />);
 
@@ -593,19 +726,28 @@ describe('SubstepEditPopover — repeat', () => {
     const labelInput = screen.getByTestId('inline-edit-repeat-label');
     await user.type(labelInput, 'each side');
 
-    await user.click(screen.getByTestId('save-repeat'));
+    // Simulate blur leaving the repeat editor container (relatedTarget outside)
+    const container = screen.getByTestId('inline-edit-repeat');
+    fireEvent.blur(labelInput, { relatedTarget: document.body });
+    // Also trigger container onBlur
+    fireEvent.blur(container, { relatedTarget: document.body });
 
-    expect(callbacks.onSaveRepeat).toHaveBeenCalledWith(5, 'each side');
+    await vi.waitFor(() => {
+      expect(callbacks.onSaveRepeat).toHaveBeenCalledWith(5, 'each side');
+    });
     expect(mockCaptureSnapshot).toHaveBeenCalled();
   });
 
-  it('saving inline repeat with empty label passes null', async () => {
+  it('Enter on repeat label commits repeat with empty label as null', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} repeatCount={1} repeatLabel={null} />);
 
     await user.click(screen.getByTestId('popover-add-repeat'));
 
-    await user.click(screen.getByTestId('save-repeat'));
+    // Focus the label and press Enter
+    const labelInput = screen.getByTestId('inline-edit-repeat-label');
+    await user.click(labelInput);
+    await user.keyboard('{Enter}');
 
     expect(callbacks.onSaveRepeat).toHaveBeenCalledWith(2, null);
   });
@@ -739,15 +881,42 @@ describe('SubstepEditPopover — parts/tools table', () => {
 });
 
 // ============================================================
+// PartTool list open button
+// ============================================================
+describe('SubstepEditPopover — onOpenPartToolList button', () => {
+  it('does not render edit-list button when onOpenPartToolList is undefined', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    expect(screen.queryByTestId('parttool-list-open')).not.toBeInTheDocument();
+  });
+
+  it('renders edit-list button with correct aria-label when onOpenPartToolList is provided', () => {
+    const onOpenPartToolList = vi.fn();
+    render(<SubstepEditPopover {...baseProps} onOpenPartToolList={onOpenPartToolList} />);
+    const btn = screen.getByTestId('parttool-list-open');
+    expect(btn).toBeInTheDocument();
+    expect(btn).toHaveAttribute('aria-label', 'Edit part/tool list');
+  });
+
+  it('clicking edit-list button fires callback without closing popover', async () => {
+    const user = userEvent.setup();
+    const onOpenPartToolList = vi.fn();
+    render(<SubstepEditPopover {...baseProps} onOpenPartToolList={onOpenPartToolList} />);
+
+    await user.click(screen.getByTestId('parttool-list-open'));
+    expect(onOpenPartToolList).toHaveBeenCalledOnce();
+    expect(baseProps.onClose).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================
 // Modal close behavior
 // ============================================================
 describe('SubstepEditPopover — modal close', () => {
   it('fires onClose when backdrop is clicked', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
-    const dialog = screen.getByRole('dialog');
-    // Click the backdrop (first child of the dialog overlay)
-    await user.click(dialog.firstElementChild!);
+    const backdrop = screen.getByTestId('dialog-shell-backdrop');
+    await user.click(backdrop);
     expect(baseProps.onClose).toHaveBeenCalledOnce();
   });
 
@@ -876,5 +1045,68 @@ describe('SubstepEditPopover — undo/redo', () => {
     render(<SubstepEditPopover {...baseProps} />);
     await user.click(screen.getByLabelText('Redo'));
     expect(mockRedo).toHaveBeenCalledOnce();
+  });
+});
+
+// ============================================================
+// Video upload flow
+// ============================================================
+describe('SubstepEditPopover — video upload', () => {
+  const videoProps = {
+    ...baseProps,
+    substepId: 's1',
+    onUploadSubstepVideo: mockOnUploadSubstepVideo,
+  };
+
+  it('shows "Add video" button when hasVideo=false and onUploadSubstepVideo is provided', () => {
+    render(<SubstepEditPopover {...videoProps} hasVideo={false} />);
+    expect(screen.getByTestId('btn-add-video')).toBeInTheDocument();
+  });
+
+  it('does not show "Add video" when onUploadSubstepVideo is not provided', () => {
+    render(<SubstepEditPopover {...baseProps} hasVideo={false} />);
+    expect(screen.queryByTestId('btn-add-video')).not.toBeInTheDocument();
+  });
+
+  it('shows video file input when onUploadSubstepVideo is provided', () => {
+    render(<SubstepEditPopover {...videoProps} />);
+    expect(screen.getByTestId('substep-video-file-input')).toBeInTheDocument();
+  });
+
+  it('"Add video" click opens file picker', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...videoProps} hasVideo={false} hasImage={false} />);
+
+    const fileInput = screen.getByTestId('substep-video-file-input') as HTMLInputElement;
+    const clickSpy = vi.spyOn(fileInput, 'click');
+
+    await user.click(screen.getByTestId('btn-add-video'));
+    expect(clickSpy).toHaveBeenCalledOnce();
+    clickSpy.mockRestore();
+  });
+
+  it('selecting a video file opens VideoTrimDialog', async () => {
+    render(<SubstepEditPopover {...videoProps} />);
+
+    const fileInput = screen.getByTestId('substep-video-file-input') as HTMLInputElement;
+    const testFile = new File(['video-data'], 'clip.mp4', { type: 'video/mp4' });
+
+    await userEvent.upload(fileInput, testFile);
+
+    expect(screen.getByTestId('video-editor-dialog')).toBeInTheDocument();
+  });
+
+  it('cancelling VideoTrimDialog closes it without calling upload', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...videoProps} />);
+
+    const fileInput = screen.getByTestId('substep-video-file-input') as HTMLInputElement;
+    const testFile = new File(['video-data'], 'clip.mp4', { type: 'video/mp4' });
+    await userEvent.upload(fileInput, testFile);
+
+    await user.click(screen.getByTestId('video-editor-cancel'));
+
+    expect(screen.queryByTestId('video-editor-dialog')).not.toBeInTheDocument();
+    expect(mockOnUploadSubstepVideo).not.toHaveBeenCalled();
   });
 });

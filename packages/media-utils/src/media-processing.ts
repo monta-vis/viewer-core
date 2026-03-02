@@ -8,7 +8,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -46,14 +46,19 @@ export interface ImageDimensions {
  * @param basePath  - In dev: the app root (where `resources/` lives).
  *                    In packaged: `process.resourcesPath`.
  * @param isPackaged - Whether the app is running from a packaged build.
- * @returns Absolute path to the `ffmpeg` executable.
+ * @param tool      - Which binary to resolve: `'ffmpeg'` (default) or `'ffprobe'`.
+ * @returns Absolute path to the binary.
  * @throws If the binary cannot be found.
  */
-export function resolveFFmpegBinary(basePath: string, isPackaged: boolean): string {
+export function resolveFFmpegBinary(
+  basePath: string,
+  isPackaged: boolean,
+  tool: 'ffmpeg' | 'ffprobe' = 'ffmpeg',
+): string {
   const ext = process.platform === 'win32' ? '.exe' : '';
   const binPath = isPackaged
-    ? path.join(basePath, 'ffmpeg', `ffmpeg${ext}`)
-    : path.join(basePath, 'resources', 'ffmpeg', `ffmpeg${ext}`);
+    ? path.join(basePath, 'ffmpeg', `${tool}${ext}`)
+    : path.join(basePath, 'resources', 'ffmpeg', `${tool}${ext}`);
 
   if (!fs.existsSync(binPath)) {
     throw new Error(`FFmpeg binary not found at ${binPath}`);
@@ -128,6 +133,17 @@ export function isProcessingCurrent(outputDir: string, expectedHash: string): bo
 }
 
 // ---------------------------------------------------------------------------
+// assertFinitePositive
+// ---------------------------------------------------------------------------
+
+/** Validate that a numeric value is a finite positive number. */
+export function assertFinitePositive(value: number, name: string): void {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Invalid ${name}: expected finite positive number, got ${value}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // buildImageProcessArgs
 // ---------------------------------------------------------------------------
 
@@ -149,8 +165,14 @@ export function buildImageProcessArgs(
   const filters: string[] = [];
 
   if (crop) {
+    assertFinitePositive(crop.width, 'crop.width');
+    assertFinitePositive(crop.height, 'crop.height');
+    if (!Number.isFinite(crop.x) || crop.x < 0) throw new Error(`Invalid crop.x: ${crop.x}`);
+    if (!Number.isFinite(crop.y) || crop.y < 0) throw new Error(`Invalid crop.y: ${crop.y}`);
     filters.push(`crop=iw*${crop.width}:ih*${crop.height}:iw*${crop.x}:ih*${crop.y}`);
   }
+
+  assertFinitePositive(maxHeight, 'maxHeight');
 
   // Only downscale — never upscale. Width divisible by 2.
   filters.push(`scale=-2:'min(ih\\,${maxHeight})'`);
@@ -170,13 +192,15 @@ export function buildImageProcessArgs(
 // spawnFFmpeg
 // ---------------------------------------------------------------------------
 
-/** Promise wrapper around `child_process.execFile`. */
+/** Promise wrapper around `child_process.spawn` with ignored stdio. */
 export function spawnFFmpeg(bin: string, args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    execFile(bin, args, (error) => {
-      if (error) reject(error);
-      else resolve();
+    const proc = spawn(bin, args, { stdio: 'ignore' });
+    proc.on('close', (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(`FFmpeg exited with code ${code}`));
     });
+    proc.on('error', reject);
   });
 }
 
@@ -213,7 +237,6 @@ export async function processImage(
   fs.mkdirSync(outputDir, { recursive: true });
 
   const allArgs = buildImageProcessArgs(ffmpegBin, sourcePath, outputPath, crop, maxHeight);
-  // allArgs[0] is the binary, rest are the arguments
   await spawnFFmpeg(allArgs[0], allArgs.slice(1));
 
   // Write sidecar for future cache checks

@@ -150,7 +150,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
     return allPartTools.map((pt) => ({
       id: pt.id,
       label: pt.name,
-      sublabel: [pt.partNumber, pt.material].filter(Boolean).join(' · ') || undefined,
+      sublabel: [pt.partNumber, pt.material, pt.dimension].filter(Boolean).join(' · ') || undefined,
     }));
   }, [allPartTools]);
 

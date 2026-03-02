@@ -51,13 +51,29 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
     useBlurred: !!snapshot.instruction.use_blurred,
     currentVersionId: versionId,
     liteSubstepLimit: null,
-    assemblies: {},
+    assemblies: Object.fromEntries(
+      Object.values(snapshot.assemblies ?? {}).map(a => {
+        const stepIds = Object.values(snapshot.steps)
+          .filter(s => s.assembly_id === a.id)
+          .map(s => s.id);
+        return [a.id, {
+          id: a.id,
+          versionId,
+          instructionId: a.instruction_id,
+          title: a.title,
+          description: a.description,
+          order: a.order,
+          previewImageId: null,
+          stepIds,
+        }];
+      })
+    ),
     steps: Object.fromEntries(
       Object.values(snapshot.steps).map(s => [s.id, {
         id: s.id,
         versionId,
         instructionId: s.instruction_id,
-        assemblyId: null,
+        assemblyId: s.assembly_id ?? null,
         stepNumber: s.step_number,
         title: s.title,
         description: null,

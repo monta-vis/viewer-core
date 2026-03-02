@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import {
   sqliteToSnapshot,
   transformSnapshotToStore,
@@ -13,7 +13,9 @@ import {
   ViewerDataProvider,
   VideoProvider,
   IconButton,
+  LoadingCard,
   Navbar,
+  useTheme,
 } from "@monta-vis/viewer-core";
 import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow } from "@monta-vis/viewer-core";
 import { buildMediaUrl } from "@monta-vis/viewer-core";
@@ -54,6 +56,7 @@ export function ViewPage() {
   const location = useLocation();
   const editModeActive = (location.state as { editMode?: boolean } | null)?.editMode ?? false;
   const { t, i18n } = useTranslation();
+  const { resolvedTheme } = useTheme();
 
   const [data, setData] = useState<InstructionData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,11 +115,10 @@ export function ViewPage() {
         snapshotRef.current = snap;
         baseDataRef.current = base;
 
-        // Hydrate the Zustand store for change tracking
-        useEditorStore.getState().setData(base);
-
-        // Apply translations for current i18n language
-        setData(translateData(snap, base, i18n.language));
+        // Hydrate the Zustand store with translated data
+        const translated = translateData(snap, base, i18n.language);
+        useEditorStore.getState().setData(translated);
+        setData(translated);
         setIsLoading(false);
       })
       .catch((err: Error) => {
@@ -130,7 +132,9 @@ export function ViewPage() {
   // ── Re-apply translations when global i18n language changes ──
   useEffect(() => {
     if (!snapshotRef.current || !baseDataRef.current) return;
-    setData(translateData(snapshotRef.current, baseDataRef.current, i18n.language));
+    const translated = translateData(snapshotRef.current, baseDataRef.current, i18n.language);
+    useEditorStore.getState().setData(translated);
+    setData(translated);
   }, [i18n.language]);
 
   // Use store data when available (reflects edits), fallback to local state
@@ -190,19 +194,43 @@ export function ViewPage() {
   }, []);
 
   // --- Note operations (inline save) ---
-  const onSaveNote = useCallback((noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => {
+  const onSaveNote = useCallback(async (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, _substepId: string, sourceIconId?: string) => {
+    let finalIconId = safetyIconId;
+
+    // Copy catalog icon to project folder when a new icon was picked
+    if (sourceIconId && decodedFolderName && adapter.copySafetyIcon) {
+      const result = await adapter.copySafetyIcon(decodedFolderName, sourceIconId);
+      if (result.success && result.vfaId) {
+        finalIconId = result.vfaId;
+      } else {
+        console.error('[copySafetyIcon] Failed to copy icon:', result.error ?? 'unknown error');
+      }
+    }
+
     const store = useEditorStore.getState();
     const substepNote = store.data?.substepNotes[noteRowId];
     if (!substepNote) return;
 
     store.updateNote(substepNote.noteId, {
       text,
-      safetyIconId,
+      safetyIconId: finalIconId,
       safetyIconCategory,
     });
-  }, []);
+  }, [decodedFolderName, adapter]);
 
-  const onAddNote = useCallback((text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string) => {
+  const onAddNote = useCallback(async (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string, sourceIconId?: string) => {
+    let finalIconId = safetyIconId;
+
+    // Copy catalog icon to project folder when a new icon was picked
+    if (sourceIconId && decodedFolderName && adapter.copySafetyIcon) {
+      const result = await adapter.copySafetyIcon(decodedFolderName, sourceIconId);
+      if (result.success && result.vfaId) {
+        finalIconId = result.vfaId;
+      } else {
+        console.error('[copySafetyIcon] Failed to copy icon:', result.error ?? 'unknown error');
+      }
+    }
+
     const noteId = generateId();
     const substepNoteId = generateId();
     const versionId = getVersionId();
@@ -219,7 +247,7 @@ export function ViewPage() {
       versionId,
       instructionId,
       text,
-      safetyIconId,
+      safetyIconId: finalIconId,
       safetyIconCategory,
     });
 
@@ -231,7 +259,7 @@ export function ViewPage() {
       noteId,
       order: maxOrder + 1,
     });
-  }, [getVersionId, getInstructionId]);
+  }, [getVersionId, getInstructionId, decodedFolderName, adapter]);
 
   const onDeleteNote = useCallback((noteRowId: string) => {
     const store = useEditorStore.getState();
@@ -286,6 +314,33 @@ export function ViewPage() {
     for (const spt of sptRows) {
       store.deleteSubstepPartTool(spt.id);
     }
+  }, []);
+
+  const onAddSubstepPartTool = useCallback((substepId: string) => {
+    const store = useEditorStore.getState();
+    const data = store.data;
+    if (!data) return;
+    const pt = createDefaultPartTool(getVersionId(), getInstructionId());
+    store.addPartTool(pt);
+    const substep = data.substeps[substepId];
+    const maxOrder = substep
+      ? substep.partToolRowIds.reduce((max, id) => {
+          const spt = data.substepPartTools[id];
+          return spt ? Math.max(max, spt.order) : max;
+        }, 0)
+      : 0;
+    store.addSubstepPartTool({
+      id: crypto.randomUUID(), versionId: getVersionId(), substepId,
+      partToolId: pt.id, amount: 1, order: maxOrder + 1,
+    });
+  }, [getVersionId, getInstructionId]);
+
+  const onUpdateSubstepPartToolAmount = useCallback((substepPartToolId: string, amount: number) => {
+    useEditorStore.getState().updateSubstepPartTool(substepPartToolId, { amount });
+  }, []);
+
+  const onDeleteSubstepPartTool = useCallback((substepPartToolId: string) => {
+    useEditorStore.getState().deleteSubstepPartTool(substepPartToolId);
   }, []);
 
   // ── PartToolListPanel state & callbacks ──
@@ -521,11 +576,15 @@ export function ViewPage() {
     onDeletePartTool,
     onEditPartToolImage: onOpenPartToolList,
     onUpdatePartTool,
+    onAddSubstepPartTool,
+    onUpdateSubstepPartToolAmount,
+    onDeleteSubstepPartTool,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
     onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
     onDeleteSubstep, onDeleteImage, onDeleteTutorial, onDeletePartTool,
     onOpenPartToolList, onUpdatePartTool,
+    onAddSubstepPartTool, onUpdateSubstepPartToolAmount, onDeleteSubstepPartTool,
   ]);
 
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
@@ -540,18 +599,19 @@ export function ViewPage() {
         getPartToolImages={getPartToolImages}
         imageCallbacks={imageCallbacks}
         onUploadSubstepVideo={onUploadSubstepVideo}
+        onOpenPartToolList={onOpenPartToolList}
       />
     ),
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, onUploadSubstepVideo, viewerData?.partTools],
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, onUploadSubstepVideo, viewerData?.partTools, onOpenPartToolList],
   );
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-[var(--color-bg-base)]">
-        <Loader2 className="w-8 h-8 text-[var(--color-text-subtle)] animate-spin" />
-        <p className="mt-4 text-[var(--color-text-muted)]">
-          {t("common.loading", "Loading...")}
-        </p>
+      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-base)]">
+        <LoadingCard
+          title={decodedFolderName}
+          subtitle={t("common.loadingInstruction", "Loading instruction...")}
+        />
       </div>
     );
   }
@@ -580,7 +640,7 @@ export function ViewPage() {
     <div className="h-screen flex flex-col bg-[var(--color-bg-base)]">
       <div className="flex-1 overflow-hidden">
         <VideoProvider>
-          <InstructionViewProvider>
+          <InstructionViewProvider defaultTheme={resolvedTheme}>
             <ViewerDataProvider data={viewerData}>
               <InstructionViewContainer>
                 <InstructionView

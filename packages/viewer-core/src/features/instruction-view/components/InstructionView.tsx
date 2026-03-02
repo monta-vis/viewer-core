@@ -92,9 +92,9 @@ interface InstructionViewProps {
     onSaveDescription?: (descriptionId: string, text: string, substepId: string) => void;
     onDeleteDescription?: (descriptionId: string, substepId: string) => void;
     onAddDescription?: (text: string, substepId: string) => void;
-    onSaveNote?: (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string) => void;
+    onSaveNote?: (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string, sourceIconId?: string) => void;
     onDeleteNote?: (noteRowId: string, substepId: string) => void;
-    onAddNote?: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string) => void;
+    onAddNote?: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string, sourceIconId?: string) => void;
     onSaveRepeat?: (count: number, label: string | null, substepId: string) => void;
     onDeleteRepeat?: (substepId: string) => void;
     onEditTutorial?: (tutorialIndex: number, substepId: string) => void;
@@ -274,9 +274,9 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         onSaveDescription: (descId, text) => editCallbacks.onSaveDescription?.(descId, text, substepId),
         onDeleteDescription: (descId) => editCallbacks.onDeleteDescription?.(descId, substepId),
         onAddDescription: (text) => editCallbacks.onAddDescription?.(text, substepId),
-        onSaveNote: (noteRowId, text, iconId, iconCat) => editCallbacks.onSaveNote?.(noteRowId, text, iconId, iconCat, substepId),
+        onSaveNote: (noteRowId, text, iconId, iconCat, sourceIconId) => editCallbacks.onSaveNote?.(noteRowId, text, iconId, iconCat, substepId, sourceIconId),
         onDeleteNote: (noteRowId) => editCallbacks.onDeleteNote?.(noteRowId, substepId),
-        onAddNote: (text, iconId, iconCat) => editCallbacks.onAddNote?.(text, iconId, iconCat, substepId),
+        onAddNote: (text, iconId, iconCat, sourceIconId) => editCallbacks.onAddNote?.(text, iconId, iconCat, substepId, sourceIconId),
         onSaveRepeat: (count, label) => editCallbacks.onSaveRepeat?.(count, label, substepId),
         onDeleteRepeat: () => editCallbacks.onDeleteRepeat?.(substepId),
         onEditTutorial: (refIdx) => editCallbacks.onEditTutorial?.(refIdx, substepId),
@@ -998,6 +998,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                           <SubstepCard
                             title={substep.title}
                             stepOrder={index + 1}
+                            totalSubsteps={substeps.length}
                             imageUrl={imageUrl}
                             frameCaptureData={frameCaptureData}
                             descriptions={descriptions}
@@ -1078,6 +1079,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                             <SubstepCard
                               title={targetSubstep.title}
                               stepOrder={targetIdx + 1}
+                              totalSubsteps={activeTutorial.targetSubstepIds.length}
                               imageUrl={targetImageUrl}
                               frameCaptureData={targetFrameCapture}
                               descriptions={targetDescriptions}

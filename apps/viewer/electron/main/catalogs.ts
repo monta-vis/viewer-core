@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import type { SafetyIconCatalog } from "@monta-vis/editor-core";
 import type { CatalogJson } from "../../src/types/catalog.js";
+import { isInsidePath } from "./pathUtils.js";
 
 /**
  * Scan ~/Documents/Montavis/Catalogs/SafetyIcons/ for subdirectories,
@@ -33,6 +34,7 @@ export function getSafetyIconCatalogs(): SafetyIconCatalog[] {
 
       catalogs.push({
         name: parsed.name ?? entry.name,
+        dirName: entry.name,
         assetsDir: path.join(catalogsDir, entry.name, "assets"),
         categories: parsed.categories ?? [],
         entries: parsed.entries ?? [],
@@ -43,4 +45,28 @@ export function getSafetyIconCatalogs(): SafetyIconCatalog[] {
   }
 
   return catalogs;
+}
+
+/**
+ * Resolve a safety icon source path from a catalog.
+ * Returns the absolute path to the icon file, or null if not found / outside catalogs dir.
+ */
+export function resolveSafetyIconPath(catalogName: string, filename: string): string | null {
+  const catalogsDir = path.join(
+    app.getPath("documents"),
+    "Montavis",
+    "Catalogs",
+    "SafetyIcons",
+  );
+
+  const iconPath = path.join(catalogsDir, catalogName, "assets", filename);
+
+  // Security: ensure the resolved path is inside the catalogs directory
+  if (!isInsidePath(iconPath, catalogsDir)) {
+    return null;
+  }
+
+  if (!fs.existsSync(iconPath)) return null;
+
+  return iconPath;
 }

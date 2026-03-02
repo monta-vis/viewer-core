@@ -9,6 +9,8 @@ import {
   PARTTOOL_EXPORT_SIZE,
   EXPORT_SIZE,
 } from "@monta-vis/media-utils";
+import { resolveSafetyIconPath } from "./catalogs.js";
+import { isInsidePath } from "./pathUtils.js";
 import {
   saveProjectData as dbSaveProjectData,
   type ProjectChanges as DbProjectChanges,
@@ -67,35 +69,17 @@ export function getProjectsBasePath(): string {
 
 /** Verify that a resolved path stays within the Montavis directory tree (projects + catalogs). */
 function isInsideMontavisPath(filePath: string): boolean {
-  const normalize =
-    process.platform === "win32"
-      ? (p: string) => path.resolve(p).toLowerCase()
-      : (p: string) => path.resolve(p);
-  const resolved = normalize(filePath);
-  const montavisBase = normalize(
-    path.join(app.getPath("documents"), "Montavis"),
-  );
-  return resolved.startsWith(montavisBase + path.sep) || resolved === montavisBase;
+  return isInsidePath(filePath, path.join(app.getPath("documents"), "Montavis"));
 }
 
 /** Verify that a resolved path stays within the Montavis base directory. */
 export function isInsideBasePath(filePath: string): boolean {
-  const normalize =
-    process.platform === "win32"
-      ? (p: string) => path.resolve(p).toLowerCase()
-      : (p: string) => path.resolve(p);
-  const resolved = normalize(filePath);
-  const base = normalize(getProjectsBasePath());
-  return resolved.startsWith(base + path.sep) || resolved === base;
+  return isInsidePath(filePath, getProjectsBasePath());
 }
 
 /** Verify the file is within a user-accessible directory (not system paths). */
 function isInsideUserHome(filePath: string): boolean {
-  const normalize =
-    process.platform === "win32"
-      ? (p: string) => path.resolve(p).toLowerCase()
-      : (p: string) => path.resolve(p);
-  return normalize(filePath).startsWith(normalize(app.getPath("home")));
+  return isInsidePath(filePath, app.getPath("home"));
 }
 
 /**
@@ -519,24 +503,23 @@ export async function uploadPartToolImage(
     db.exec("BEGIN TRANSACTION");
 
     try {
-      const now = new Date().toISOString();
-
       // Insert video_frame_areas row with crop coordinates
       const cx = crop?.x ?? 0;
       const cy = crop?.y ?? 0;
       const cw = crop?.width ?? 1;
       const ch = crop?.height ?? 1;
+
       db.prepare(
-        `INSERT INTO video_frame_areas (id, x, y, width, height, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).run(vfaId, cx, cy, cw, ch, now, now);
+        `INSERT INTO video_frame_areas (id, x, y, width, height)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).run(vfaId, cx, cy, cw, ch);
 
       // Insert junction row
       const junctionId = crypto.randomUUID();
       db.prepare(
-        `INSERT INTO part_tool_video_frame_areas (id, part_tool_id, video_frame_area_id, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?)`,
-      ).run(junctionId, partToolId, vfaId, now, now);
+        `INSERT INTO part_tool_video_frame_areas (id, part_tool_id, video_frame_area_id)
+         VALUES (?, ?, ?)`,
+      ).run(junctionId, partToolId, vfaId);
 
       // Update part_tool preview_image_id
       db.prepare(
@@ -605,16 +588,15 @@ export async function uploadCoverImage(
     db.exec("BEGIN TRANSACTION");
 
     try {
-      const now = new Date().toISOString();
       const cx = crop?.x ?? 0;
       const cy = crop?.y ?? 0;
       const cw = crop?.width ?? 1;
       const ch = crop?.height ?? 1;
 
       db.prepare(
-        `INSERT INTO video_frame_areas (id, x, y, width, height, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).run(vfaId, cx, cy, cw, ch, now, now);
+        `INSERT INTO video_frame_areas (id, x, y, width, height)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).run(vfaId, cx, cy, cw, ch);
 
       db.prepare(
         `UPDATE instructions SET cover_image_area_id = ?`,
@@ -630,6 +612,89 @@ export async function uploadCoverImage(
         fs.rmSync(destDir, { recursive: true });
       } catch { /* ignore cleanup errors */ }
       throw txErr;
+    }
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Copy safety icon from catalog to project
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse a composite icon ID ("catalogName/filename") into its parts.
+ */
+function parseIconId(iconId: string): { catalogName: string; filename: string } | null {
+  const slashIdx = iconId.indexOf("/");
+  if (slashIdx <= 0 || slashIdx >= iconId.length - 1) return null;
+  const catalogName = iconId.slice(0, slashIdx);
+  const filename = iconId.slice(slashIdx + 1);
+  // Reject path traversal: no extra slashes, backslashes, or ".."
+  if (filename.includes("/") || filename.includes("\\") || filename.includes("..")) return null;
+  if (catalogName.includes("\\") || catalogName.includes("..")) return null;
+  return { catalogName, filename };
+}
+
+/**
+ * Copy a safety icon from a catalog into the project's media/frames folder
+ * and create a video_frame_areas DB row (type='SafetyIcon').
+ *
+ * @param folderName - Project folder name
+ * @param iconId - Composite ID: "catalogName/filename"
+ * @returns Object with success status and the new VFA UUID
+ */
+export function copySafetyIcon(
+  folderName: string,
+  iconId: string,
+): { success: boolean; vfaId?: string; error?: string } {
+  const parsed = parseIconId(iconId);
+  if (!parsed) {
+    return { success: false, error: "Invalid icon ID format (expected catalogName/filename)" };
+  }
+
+  const sourcePath = resolveSafetyIconPath(parsed.catalogName, parsed.filename);
+  if (!sourcePath) {
+    return { success: false, error: `Safety icon not found: ${iconId}` };
+  }
+
+  const basePath = getProjectsBasePath();
+  const dbPath = path.join(basePath, folderName, "montavis.db");
+
+  if (!isInsideBasePath(dbPath) || !fs.existsSync(dbPath)) {
+    return { success: false, error: "Project not found" };
+  }
+
+  const vfaId = crypto.randomUUID();
+  const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
+  const ext = path.extname(parsed.filename).toLowerCase() || ".png";
+  const destFile = path.join(destDir, `image${ext}`);
+
+  try {
+    fs.mkdirSync(destDir, { recursive: true });
+    fs.copyFileSync(sourcePath, destFile);
+
+    const db = new Database(dbPath);
+    db.pragma("foreign_keys = ON");
+
+    try {
+      db.prepare(
+        `INSERT INTO video_frame_areas (id, x, y, width, height)
+         VALUES (?, 0, 0, 1, 1)`,
+      ).run(vfaId);
+
+      db.close();
+      return { success: true, vfaId };
+    } catch (dbErr) {
+      db.close();
+      // Clean up copied file on DB failure
+      try {
+        fs.rmSync(destDir, { recursive: true });
+      } catch { /* ignore cleanup errors */ }
+      throw dbErr;
     }
   } catch (err) {
     return {

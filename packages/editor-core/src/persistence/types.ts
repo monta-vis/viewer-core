@@ -45,11 +45,31 @@ export interface CoverImageUploadResult extends PersistenceResult {
   vfaId?: string;
 }
 
+export interface SafetyIconCopyResult extends PersistenceResult {
+  vfaId?: string;
+}
+
+export interface VideoUploadResult extends PersistenceResult {
+  videoId?: string;
+  sectionId?: string;
+  substepVideoSectionId?: string;
+  frameCount?: number;
+  fps?: number;
+  videoPath?: string;
+}
+
+export interface VideoUploadArgs {
+  sourceVideoPath: string;
+}
+
 export interface PersistenceAdapter {
   listProjects(): Promise<ProjectListItem[]>;
   getProjectData(projectId: string): Promise<unknown>;
   saveChanges(projectId: string, changes: ProjectChanges): Promise<PersistenceResult>;
   uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource, crop?: NormalizedCrop): Promise<ImageUploadResult>;
   uploadCoverImage?(projectId: string, image: ImageSource, crop?: NormalizedCrop): Promise<CoverImageUploadResult>;
+  uploadSubstepVideo?(projectId: string, substepId: string, args: VideoUploadArgs): Promise<VideoUploadResult>;
+  /** Copy a safety icon from a catalog into the project's media folder and create a VFA row. */
+  copySafetyIcon?(projectId: string, iconId: string): Promise<SafetyIconCopyResult>;
   resolveMediaUrl(projectId: string, relativePath: string): string;
 }

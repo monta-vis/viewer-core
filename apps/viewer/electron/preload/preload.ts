@@ -43,6 +43,19 @@ const electronAPI = {
         imagePath,
         crop,
       ),
+    uploadSubstepVideo: (
+      folderName: string,
+      substepId: string,
+      args: { sourceVideoPath: string },
+    ) =>
+      ipcRenderer.invoke(
+        "projects:upload-substep-video",
+        folderName,
+        substepId,
+        args,
+      ),
+    copySafetyIcon: (folderName: string, iconId: string) =>
+      ipcRenderer.invoke("projects:copy-safety-icon", folderName, iconId),
   },
 };
 

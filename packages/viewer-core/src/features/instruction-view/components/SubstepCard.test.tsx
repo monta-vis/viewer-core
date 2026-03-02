@@ -97,6 +97,21 @@ beforeEach(() => {
 });
 
 // ============================================================
+// substep order badge — "X/N" format
+// ============================================================
+describe('SubstepCard — substep order badge', () => {
+  it('renders "stepOrder/totalSubsteps" when totalSubsteps is provided', () => {
+    render(<SubstepCard {...baseProps} stepOrder={2} totalSubsteps={5} />);
+    expect(screen.getByText('2/5')).toBeInTheDocument();
+  });
+
+  it('renders just stepOrder when totalSubsteps is not provided', () => {
+    render(<SubstepCard {...baseProps} stepOrder={3} />);
+    expect(screen.getByText('3')).toBeInTheDocument();
+  });
+});
+
+// ============================================================
 // editMode=false — no edit controls at all
 // ============================================================
 describe('SubstepCard — editMode=false (default)', () => {

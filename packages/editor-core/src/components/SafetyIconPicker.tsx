@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   getCategoryPriority,
@@ -12,6 +12,10 @@ export interface SafetyIconItem {
   filename: string;
   category: string;
   label: string;
+  /** Catalog display name (undefined for built-in icons). */
+  catalogName?: string;
+  /** Actual catalog directory name on disk (undefined for built-in icons). */
+  catalogDirName?: string;
 }
 
 export interface SafetyIconPickerProps {
@@ -30,6 +34,14 @@ export function SafetyIconPicker({
   const { t } = useTranslation();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<string | null>(null);
+
+  // Auto-select the tab matching the initially selected icon
+  useEffect(() => {
+    if (selectedIconId && !activeTab) {
+      const selected = icons.find((ic) => ic.id === selectedIconId);
+      if (selected) setActiveTab(selected.category);
+    }
+  }, [selectedIconId, icons, activeTab]);
 
   // Filter icons by search term
   const filtered = useMemo(() => {

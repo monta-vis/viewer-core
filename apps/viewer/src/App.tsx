@@ -86,6 +86,10 @@ declare global {
           substepId: string,
           args: { sourceVideoPath: string },
         ) => Promise<{ success: boolean; videoId?: string; sectionId?: string; substepVideoSectionId?: string; frameCount?: number; error?: string }>;
+        copySafetyIcon: (
+          folderName: string,
+          iconId: string,
+        ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
       };
     };
   }
@@ -206,12 +210,7 @@ function DashboardPage() {
     <div className="min-h-screen flex flex-col bg-[var(--color-bg-base)]">
       <Navbar
         left={
-          <div className="flex items-center gap-2">
-            <img src="/logo_icon.svg" alt="Montavis" className="h-8" />
-            <span className="text-lg font-semibold text-[var(--color-text-primary)]">
-              Montavis Viewer
-            </span>
-          </div>
+          <img src="./logo_icon.svg" alt="Montavis" className="h-8" />
         }
         right={
           <IconButton
