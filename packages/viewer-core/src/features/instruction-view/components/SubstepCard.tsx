@@ -13,10 +13,10 @@ import type {
   SubstepDescriptionRow,
   ViewportKeyframeRow,
 } from '@/features/instruction';
-import { interpolateVideoViewport, viewportToTransform } from '@/features/video-player';
+import { interpolateVideoViewport, viewportToTransform, useVideo } from '@/features/video-player';
 import { ShapeLayer } from '@/features/video-overlay';
 import { getVisibleVideoDrawings } from '../utils/filterSubstepDrawings';
-import { toggleCardSpeed, computeSkipTime, computeSeekTime, SKIP_SECONDS, type CardSpeed } from '../utils/substepPlaybackControls';
+import { computeSkipTime, computeSeekTime, SKIP_SECONDS, type CardSpeed } from '../utils/substepPlaybackControls';
 import { VideoFrameCapture } from './VideoFrameCapture';
 import { LoupeOverlay } from './LoupeOverlay';
 import { NoteCard, getNoteSortPriority } from './NoteCard';
@@ -169,6 +169,7 @@ export const SubstepCard = memo(function SubstepCard({
   renderEditPopover,
 }: SubstepCardProps) {
   const { t } = useTranslation();
+  const { playbackSpeed } = useVideo();
 
   // Edit popover state
   const [editPopoverOpen, setEditPopoverOpen] = useState(false);
@@ -239,12 +240,14 @@ export const SubstepCard = memo(function SubstepCard({
   const progressBarRef = useRef<HTMLDivElement>(null);
   const endTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Per-card speed override (resets when playback ends)
-  const [cardSpeed, setCardSpeed] = useState<CardSpeed>(1);
+  // Per-card speed override: null = follow global playbackSpeed, CardSpeed = manual button press
+  const [speedOverride, setSpeedOverride] = useState<CardSpeed | null>(null);
+  // Effective playback rate: manual override wins, otherwise global speed
+  const effectiveSpeed = speedOverride ?? playbackSpeed;
 
-  // Ref to always access current cardSpeed without re-triggering effects
-  const cardSpeedRef = useRef(cardSpeed);
-  cardSpeedRef.current = cardSpeed;
+  // Ref to always access current effective speed without re-triggering effects
+  const cardSpeedRef = useRef(effectiveSpeed);
+  cardSpeedRef.current = effectiveSpeed;
 
   // Start inline playback
   const startInlinePlay = useCallback(() => {
@@ -301,7 +304,7 @@ export const SubstepCard = memo(function SubstepCard({
         video.pause();
         if (progressBarRef.current) progressBarRef.current.style.width = '100%';
         endTimerRef.current = setTimeout(() => {
-          setCardSpeed(1);
+          setSpeedOverride(null);
           setIsPlayingInline(false);
         }, 200);
         return;
@@ -374,7 +377,7 @@ export const SubstepCard = memo(function SubstepCard({
 
     const handleEnded = () => {
       endTimerRef.current = setTimeout(() => {
-        setCardSpeed(1);
+        setSpeedOverride(null);
         setIsPlayingInline(false);
       }, 200);
     };
@@ -388,12 +391,12 @@ export const SubstepCard = memo(function SubstepCard({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- cardSpeed synced via separate effect to avoid restarting playback
   }, [isPlayingInline, videoData, applyViewportTransform, videoDrawings]);
 
-  // Sync cardSpeed to video playbackRate live (without restarting playback effect)
+  // Sync effective speed to video playbackRate live (without restarting playback effect)
   useEffect(() => {
     if (videoRef.current && isPlayingInline) {
-      videoRef.current.playbackRate = cardSpeed;
+      videoRef.current.playbackRate = effectiveSpeed;
     }
-  }, [cardSpeed, isPlayingInline]);
+  }, [effectiveSpeed, isPlayingInline]);
 
   // Skip forward/backward by SKIP_SECONDS, clamped to section bounds.
   // At section end: pauses. At section start: stays at start.
@@ -455,7 +458,7 @@ export const SubstepCard = memo(function SubstepCard({
 
   // Stable close function (per-instance identity stays constant)
   const closeInlinePlayback = useCallback(() => {
-    setCardSpeed(1);
+    setSpeedOverride(null);
     setIsPlayingInline(false);
   }, []);
 
@@ -658,11 +661,11 @@ export const SubstepCard = memo(function SubstepCard({
                 aria-label={t('instructionView.setSpeedTo', { speed: 0.5, defaultValue: 'Set speed to 0.5x' })}
                 className={clsx(
                   'w-16 h-16 rounded-full text-base font-semibold backdrop-blur-sm transition-colors cursor-pointer flex items-center justify-center',
-                  cardSpeed === 0.5
+                  speedOverride === 0.5
                     ? 'bg-[var(--color-secondary)] text-white'
                     : 'bg-black/50 text-white hover:bg-black/70',
                 )}
-                onClick={(e) => { e.stopPropagation(); setCardSpeed(toggleCardSpeed(cardSpeed, 0.5)); }}
+                onClick={(e) => { e.stopPropagation(); setSpeedOverride(speedOverride === 0.5 ? null : 0.5); }}
               >
                 ×0.5
               </button>
@@ -671,11 +674,11 @@ export const SubstepCard = memo(function SubstepCard({
                 aria-label={t('instructionView.setSpeedTo', { speed: 2, defaultValue: 'Set speed to 2x' })}
                 className={clsx(
                   'w-16 h-16 rounded-full text-base font-semibold backdrop-blur-sm transition-colors cursor-pointer flex items-center justify-center',
-                  cardSpeed === 2
+                  speedOverride === 2
                     ? 'bg-[var(--color-secondary)] text-white'
                     : 'bg-black/50 text-white hover:bg-black/70',
                 )}
-                onClick={(e) => { e.stopPropagation(); setCardSpeed(toggleCardSpeed(cardSpeed, 2)); }}
+                onClick={(e) => { e.stopPropagation(); setSpeedOverride(speedOverride === 2 ? null : 2); }}
               >
                 ×2
               </button>
@@ -893,7 +896,7 @@ export const SubstepCard = memo(function SubstepCard({
             imageSrc={loupeImageSrc}
             containerSize={imageAreaSize}
             contentBounds={contentBounds}
-            halfSize={imageAreaSize.width / 4}
+            halfSize={imageAreaSize.width / 2.67}
           />
         )}
       </div>

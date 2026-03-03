@@ -8,6 +8,10 @@ const mockDeleteSubstep = vi.fn();
 const mockDeleteSubstepImage = vi.fn();
 const mockDeleteSubstepTutorial = vi.fn();
 const mockDeleteSubstepPartTool = vi.fn();
+const mockAddAssembly = vi.fn();
+const mockDeleteAssembly = vi.fn();
+const mockUpdateAssembly = vi.fn();
+const mockAssignStepToAssembly = vi.fn();
 
 let mockData: Record<string, Record<string, Record<string, unknown>>> | null = null;
 
@@ -24,6 +28,10 @@ vi.mock('../store', () => ({
         deleteSubstepImage: mockDeleteSubstepImage,
         deleteSubstepTutorial: mockDeleteSubstepTutorial,
         deleteSubstepPartTool: mockDeleteSubstepPartTool,
+        addAssembly: mockAddAssembly,
+        deleteAssembly: mockDeleteAssembly,
+        updateAssembly: mockUpdateAssembly,
+        assignStepToAssembly: mockAssignStepToAssembly,
       }),
     }
   ),
@@ -123,6 +131,65 @@ describe('useEditCallbacks', () => {
     expect(mockDeleteSubstepPartTool).toHaveBeenCalledWith('spt-3');
   });
 
+  it('onAddAssembly calls store.addAssembly with correct shape', () => {
+    mockData = {
+      currentVersionId: 'v1',
+      instructionId: 'i1',
+      assemblies: { 'asm-1': { order: 3 } },
+    } as unknown as Record<string, Record<string, Record<string, unknown>>>;
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onAddAssembly!();
+    expect(mockAddAssembly).toHaveBeenCalledTimes(1);
+    const arg = mockAddAssembly.mock.calls[0][0];
+    expect(arg).toHaveProperty('id');
+    expect(arg).toHaveProperty('order', 4);
+    expect(arg).toHaveProperty('title', null);
+    expect(arg).toHaveProperty('stepIds');
+    expect(arg.stepIds).toEqual([]);
+  });
+
+  it('onAddAssembly uses order=1 when no assemblies exist', () => {
+    mockData = {
+      currentVersionId: 'v1',
+      instructionId: 'i1',
+      assemblies: {},
+    } as unknown as Record<string, Record<string, Record<string, unknown>>>;
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onAddAssembly!();
+    const arg = mockAddAssembly.mock.calls[0][0];
+    expect(arg.order).toBe(1);
+  });
+
+  it('onDeleteAssembly calls store.deleteAssembly', () => {
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onDeleteAssembly!('asm-1');
+    expect(mockDeleteAssembly).toHaveBeenCalledWith('asm-1');
+  });
+
+  it('onRenameAssembly calls store.updateAssembly', () => {
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onRenameAssembly!('asm-1', 'New Name');
+    expect(mockUpdateAssembly).toHaveBeenCalledWith('asm-1', { title: 'New Name' });
+  });
+
+  it('onRenameAssembly with empty string sets title to null', () => {
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onRenameAssembly!('asm-1', '');
+    expect(mockUpdateAssembly).toHaveBeenCalledWith('asm-1', { title: null });
+  });
+
+  it('onMoveStepToAssembly calls store.assignStepToAssembly', () => {
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onMoveStepToAssembly!('s1', 'asm-2');
+    expect(mockAssignStepToAssembly).toHaveBeenCalledWith('s1', 'asm-2');
+  });
+
+  it('onMoveStepToAssembly with null unassigns step', () => {
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onMoveStepToAssembly!('s1', null);
+    expect(mockAssignStepToAssembly).toHaveBeenCalledWith('s1', null);
+  });
+
   it('all callbacks are referentially stable across renders', () => {
     const { result, rerender } = renderHook(() => useEditCallbacks());
     const first = result.current;
@@ -135,5 +202,9 @@ describe('useEditCallbacks', () => {
     expect(second.onDeleteImage).toBe(first.onDeleteImage);
     expect(second.onDeleteTutorial).toBe(first.onDeleteTutorial);
     expect(second.onDeletePartTool).toBe(first.onDeletePartTool);
+    expect(second.onAddAssembly).toBe(first.onAddAssembly);
+    expect(second.onDeleteAssembly).toBe(first.onDeleteAssembly);
+    expect(second.onRenameAssembly).toBe(first.onRenameAssembly);
+    expect(second.onMoveStepToAssembly).toBe(first.onMoveStepToAssembly);
   });
 });

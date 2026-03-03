@@ -21,6 +21,10 @@ interface StepOverviewCardProps {
   frameCaptureData?: FrameCaptureData | null;
   /** Called when card is clicked */
   onClick?: () => void;
+  /** Step ID — used for drag-and-drop transfer */
+  stepId?: string;
+  /** Whether the card is draggable (edit mode). Default: false */
+  draggable?: boolean;
 }
 
 /**
@@ -37,8 +41,16 @@ export function StepOverviewCard({
   useRawVideo = false,
   frameCaptureData,
   onClick,
+  stepId,
+  draggable = false,
 }: StepOverviewCardProps) {
   const { t } = useTranslation();
+
+  const handleDragStart = (e: React.DragEvent) => {
+    if (!stepId) return;
+    e.dataTransfer.setData('application/x-step-id', stepId);
+    e.dataTransfer.effectAllowed = 'move';
+  };
 
   return (
     <Card
@@ -50,7 +62,9 @@ export function StepOverviewCard({
       variant="glass"
       bordered={false}
       padding="none"
-      className="overflow-hidden group"
+      className={`overflow-hidden group${draggable ? ' cursor-grab active:cursor-grabbing' : ''}`}
+      draggable={draggable}
+      onDragStart={handleDragStart}
     >
       <div className="flex flex-row">
         {/* Thumbnail — 1:1 square, left side */}

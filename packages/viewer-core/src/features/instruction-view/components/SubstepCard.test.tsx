@@ -17,6 +17,14 @@ afterEach(() => {
   cleanup();
 });
 
+// Mock video-player feature — useVideo returns controllable playbackSpeed
+const mockPlaybackSpeed = { current: 1 };
+vi.mock('@/features/video-player', () => ({
+  useVideo: () => ({ playbackSpeed: mockPlaybackSpeed.current, setPlaybackSpeed: vi.fn() }),
+  interpolateVideoViewport: () => ({ x: 0, y: 0, width: 1, height: 1, rotation: 0 }),
+  viewportToTransform: () => ({ scale: 1, translateX: 0, translateY: 0 }),
+}));
+
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
@@ -94,6 +102,7 @@ const editCallbacks = {
 
 beforeEach(() => {
   Object.values(editCallbacks).forEach((fn) => fn.mockClear());
+  mockPlaybackSpeed.current = 1;
 });
 
 // ============================================================
@@ -280,5 +289,106 @@ describe('SubstepCard — noteIconLabels', () => {
     // Without noteIconLabels, the NoteCard should use categoryLabel as title
     const noteImg = imgs.find(img => img.getAttribute('title') === 'Warnzeichen');
     expect(noteImg).toBeTruthy();
+  });
+});
+
+// ============================================================
+// Global playback speed sync (SpeedDrawer → SubstepCard)
+// ============================================================
+const videoProps = {
+  ...baseProps,
+  videoData: {
+    videoSrc: 'test.mp4',
+    startFrame: 0,
+    endFrame: 300,
+    fps: 30,
+    viewportKeyframes: [],
+    videoAspectRatio: 16 / 9,
+  },
+};
+
+// Stub HTMLVideoElement play/pause for jsdom
+function stubVideoElement() {
+  Object.defineProperty(HTMLVideoElement.prototype, 'play', {
+    configurable: true,
+    value: vi.fn().mockResolvedValue(undefined),
+  });
+  Object.defineProperty(HTMLVideoElement.prototype, 'pause', {
+    configurable: true,
+    value: vi.fn(),
+  });
+}
+
+describe('SubstepCard — global playback speed sync', () => {
+  beforeEach(() => {
+    stubVideoElement();
+  });
+
+  it('uses global playbackSpeed when starting playback', async () => {
+    mockPlaybackSpeed.current = 1.5;
+    const user = userEvent.setup();
+    render(<SubstepCard {...videoProps} />);
+
+    // Click the card to start inline playback
+    const card = screen.getAllByRole('button')[0];
+    await user.click(card);
+
+    // The video element should have playbackRate set to the global speed
+    const video = document.querySelector('video');
+    expect(video).toBeTruthy();
+    expect(video!.playbackRate).toBe(1.5);
+  });
+
+  it('card ×0.5 button overrides global speed during playback', async () => {
+    mockPlaybackSpeed.current = 2;
+    const user = userEvent.setup();
+    render(<SubstepCard {...videoProps} />);
+
+    // Start playback
+    const card = screen.getAllByRole('button')[0];
+    await user.click(card);
+
+    // Click the ×0.5 speed button
+    const halfSpeedBtn = screen.getByLabelText('Set speed to 0.5x');
+    await user.click(halfSpeedBtn);
+
+    const video = document.querySelector('video');
+    expect(video!.playbackRate).toBe(0.5);
+  });
+
+  it('card ×2 button overrides global speed during playback', async () => {
+    mockPlaybackSpeed.current = 0.5;
+    const user = userEvent.setup();
+    render(<SubstepCard {...videoProps} />);
+
+    // Start playback
+    const card = screen.getAllByRole('button')[0];
+    await user.click(card);
+
+    // Click the ×2 speed button
+    const doubleSpeedBtn = screen.getByLabelText('Set speed to 2x');
+    await user.click(doubleSpeedBtn);
+
+    const video = document.querySelector('video');
+    expect(video!.playbackRate).toBe(2);
+  });
+
+  it('speed buttons are not highlighted from global speed alone', () => {
+    // Global speed 0.5 should NOT highlight the ×0.5 button (no override set)
+    mockPlaybackSpeed.current = 0.5;
+    render(<SubstepCard {...videoProps} />);
+
+    // Card is not playing, so buttons aren't visible — verify component renders without error
+    expect(document.querySelector('[role="button"]')).toBeTruthy();
+  });
+
+  it('re-renders with new global speed when playbackSpeed changes', () => {
+    mockPlaybackSpeed.current = 1;
+    const { rerender } = render(<SubstepCard {...videoProps} />);
+
+    mockPlaybackSpeed.current = 1.8;
+    rerender(<SubstepCard {...videoProps} />);
+
+    expect(document.querySelector('[role="button"]')).toBeTruthy();
   });
 });

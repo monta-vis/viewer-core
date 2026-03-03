@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Plus } from 'lucide-react';
 
 import { usePreferredResolution } from '@/hooks';
 import { UNASSIGNED_STEP_ID, sortSubstepsByVideoFrame, buildSortData } from '@/features/instruction';
@@ -10,6 +11,13 @@ import { AssemblySection, UnassignedSection, getStepPreviewUrl } from './Assembl
 import { resolveRawFrameCapture, type FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
 
+export interface StepOverviewEditCallbacks {
+  onAddAssembly?: () => void;
+  onDeleteAssembly?: (assemblyId: string) => void;
+  onRenameAssembly?: (assemblyId: string, title: string) => void;
+  onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
+}
+
 interface StepOverviewProps {
   /** Called when a step is selected */
   onStepSelect: (stepId: string) => void;
@@ -17,6 +25,10 @@ interface StepOverviewProps {
   useRawVideo?: boolean;
   /** Project folder name for mvis-media:// URLs (enables source video in Editor preview) */
   folderName?: string;
+  /** Edit mode active */
+  editMode?: boolean;
+  /** Edit callbacks for assembly management */
+  editCallbacks?: StepOverviewEditCallbacks;
 }
 
 /**
@@ -24,7 +36,7 @@ interface StepOverviewProps {
  *
  * Shows each step as a card with the last substep's image as preview.
  */
-export function StepOverview({ onStepSelect, useRawVideo = false, folderName }: StepOverviewProps) {
+export function StepOverview({ onStepSelect, useRawVideo = false, folderName, editMode = false, editCallbacks }: StepOverviewProps) {
   const { t } = useTranslation();
   const { resolvedResolution } = usePreferredResolution();
   const data = useViewerData();
@@ -139,7 +151,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName }: 
     };
   }, [data, stepsWithPreview]);
 
-  if (stepsWithPreview.length === 0) {
+  if (stepsWithPreview.length === 0 && !editMode) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--color-text-muted)]">
         <p>{t('instructionView.noSteps', 'No steps available')}</p>
@@ -152,8 +164,11 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName }: 
     (assembly) => (assemblyStepsMap.get(assembly.id)?.length ?? 0) > 0
   );
 
-  // Use grouped layout only if there are assemblies with assigned steps
-  const useGroupedLayout = hasAssemblies && hasAssignedSteps;
+  // In edit mode: always use grouped layout so assemblies are visible
+  // In view mode: only group if assemblies exist with assigned steps
+  const useGroupedLayout = editMode
+    ? (hasAssemblies || stepsWithPreview.length === 0)
+    : (hasAssemblies && hasAssignedSteps);
 
   return (
     <div className="h-full overflow-y-auto scrollbar-subtle p-4 sm:p-6">
@@ -163,7 +178,6 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName }: 
           {/* Assembly Sections */}
           {sortedAssemblies.map((assembly) => {
             const steps = assemblyStepsMap.get(assembly.id) || [];
-            if (steps.length === 0) return null;
 
             return (
               <AssemblySection
@@ -172,9 +186,29 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName }: 
                 steps={steps}
                 onStepSelect={onStepSelect}
                 useRawVideo={useRawVideo}
+                editMode={editMode}
+                allowEmpty={editMode}
+                allSteps={editMode ? stepsWithPreview : undefined}
+                onDeleteAssembly={editCallbacks?.onDeleteAssembly}
+                onRenameAssembly={editCallbacks?.onRenameAssembly}
+                onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
               />
             );
           })}
+
+          {/* Add Assembly button (edit mode only) — before Unassigned */}
+          {editMode && (
+            <button
+              type="button"
+              onClick={() => editCallbacks?.onAddAssembly?.()}
+              className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--color-border)] rounded-xl text-[var(--color-text-muted)] hover:text-[var(--color-text-base)] hover:border-[var(--color-text-muted)] transition-colors"
+            >
+              <Plus className="h-4 w-4" />
+              <span className="text-sm font-medium">
+                {t('editorCore.addAssembly', 'Add assembly')}
+              </span>
+            </button>
+          )}
 
           {/* Unassigned Steps Section */}
           {unassignedSteps.length > 0 && (
@@ -182,6 +216,8 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName }: 
               steps={unassignedSteps}
               onStepSelect={onStepSelect}
               useRawVideo={useRawVideo}
+              editMode={editMode}
+              onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
             />
           )}
         </div>
@@ -190,7 +226,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName }: 
         <div
           className="grid gap-4 sm:gap-6"
           style={{
-            gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(24rem, 1fr))',
           }}
         >
           {stepsWithPreview.map((step) => (

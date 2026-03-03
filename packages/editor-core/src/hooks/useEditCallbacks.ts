@@ -45,6 +45,10 @@ export interface EditCallbacks {
   onEditPartToolAmount?: (partToolId: string, newAmount: string) => void;
   onEditPartToolImage?: (partToolId: string) => void;
   onDeletePartTool?: (partToolId: string) => void;
+  onAddAssembly?: () => void;
+  onDeleteAssembly?: (assemblyId: string) => void;
+  onRenameAssembly?: (assemblyId: string, title: string) => void;
+  onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
 }
 
 /**
@@ -134,6 +138,36 @@ export function useEditCallbacks(): EditCallbacks {
     useEditorStore.getState().deleteSubstepPartTool(substepPartToolId);
   }, []);
 
+  const onAddAssembly = useCallback(() => {
+    const store = useEditorStore.getState();
+    const data = store.data;
+    if (!data) return;
+    const assemblies = Object.values(data.assemblies);
+    const maxOrder = assemblies.reduce((max, a) => Math.max(max, a.order), 0);
+    store.addAssembly({
+      id: crypto.randomUUID(),
+      versionId: data.currentVersionId,
+      instructionId: data.instructionId,
+      title: null,
+      description: null,
+      order: maxOrder + 1,
+      previewImageId: null,
+      stepIds: [],
+    });
+  }, []);
+
+  const onDeleteAssembly = useCallback((assemblyId: string) => {
+    useEditorStore.getState().deleteAssembly(assemblyId);
+  }, []);
+
+  const onRenameAssembly = useCallback((assemblyId: string, title: string) => {
+    useEditorStore.getState().updateAssembly(assemblyId, { title: title || null });
+  }, []);
+
+  const onMoveStepToAssembly = useCallback((stepId: string, assemblyId: string | null) => {
+    useEditorStore.getState().assignStepToAssembly(stepId, assemblyId);
+  }, []);
+
   return useMemo(() => ({
     onDeleteDescription,
     onDeleteNote,
@@ -145,6 +179,10 @@ export function useEditCallbacks(): EditCallbacks {
     onUpdateSubstepPartToolAmount,
     onAddSubstepPartTool,
     onDeleteSubstepPartTool,
+    onAddAssembly,
+    onDeleteAssembly,
+    onRenameAssembly,
+    onMoveStepToAssembly,
   }), [
     onDeleteDescription,
     onDeleteNote,
@@ -156,5 +194,9 @@ export function useEditCallbacks(): EditCallbacks {
     onUpdateSubstepPartToolAmount,
     onAddSubstepPartTool,
     onDeleteSubstepPartTool,
+    onAddAssembly,
+    onDeleteAssembly,
+    onRenameAssembly,
+    onMoveStepToAssembly,
   ]);
 }

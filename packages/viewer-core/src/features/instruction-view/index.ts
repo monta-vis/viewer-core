@@ -23,6 +23,7 @@ export {
 export { InstructionView } from './components/InstructionView';
 export { SubstepCard, type SubstepEditCallbacks } from './components/SubstepCard';
 export { StepOverview } from './components/StepOverview';
+export type { StepOverviewEditCallbacks } from './components/StepOverview';
 export { StepOverviewCard } from './components/StepOverviewCard';
 export { VideoFrameCapture } from './components/VideoFrameCapture';
 export { PartsToolsOverviewCard } from './components/PartsToolsOverviewCard';

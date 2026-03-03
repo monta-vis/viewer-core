@@ -346,6 +346,37 @@ export function ViewPage() {
     store.updateSubstepPartTool(substepPartToolId, { partToolId: pt.id });
   }, [getVersionId, getInstructionId]);
 
+  // --- Assembly operations ---
+  const onAddAssembly = useCallback(() => {
+    const store = useEditorStore.getState();
+    const data = store.data;
+    if (!data) return;
+    const assemblies = Object.values(data.assemblies);
+    const maxOrder = assemblies.reduce((max, a) => Math.max(max, a.order), 0);
+    store.addAssembly({
+      id: crypto.randomUUID(),
+      versionId: getVersionId(),
+      instructionId: getInstructionId(),
+      title: null,
+      description: null,
+      order: maxOrder + 1,
+      previewImageId: null,
+      stepIds: [],
+    });
+  }, [getVersionId, getInstructionId]);
+
+  const onDeleteAssembly = useCallback((assemblyId: string) => {
+    useEditorStore.getState().deleteAssembly(assemblyId);
+  }, []);
+
+  const onRenameAssembly = useCallback((assemblyId: string, title: string) => {
+    useEditorStore.getState().updateAssembly(assemblyId, { title: title || null });
+  }, []);
+
+  const onMoveStepToAssembly = useCallback((stepId: string, assemblyId: string | null) => {
+    useEditorStore.getState().assignStepToAssembly(stepId, assemblyId);
+  }, []);
+
   // ── PartToolListPanel state & callbacks ──
   const [partToolListOpen, setPartToolListOpen] = useState(false);
 
@@ -515,6 +546,10 @@ export function ViewPage() {
     onDeleteSubstepPartTool,
     onReplaceSubstepPartTool,
     onCreateAndReplacePartTool,
+    onAddAssembly,
+    onDeleteAssembly,
+    onRenameAssembly,
+    onMoveStepToAssembly,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
     onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
@@ -522,6 +557,7 @@ export function ViewPage() {
     onUpdatePartTool,
     onAddSubstepPartTool, onUpdateSubstepPartToolAmount, onDeleteSubstepPartTool,
     onReplaceSubstepPartTool, onCreateAndReplacePartTool,
+    onAddAssembly, onDeleteAssembly, onRenameAssembly, onMoveStepToAssembly,
   ]);
 
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
