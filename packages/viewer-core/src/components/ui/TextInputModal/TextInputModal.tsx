@@ -2,11 +2,14 @@ import { useState, useRef, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '../Button';
 import { DialogShell } from '../DialogShell';
+import { filterSuggestions } from './filterSuggestions';
 
 export interface TextInputSuggestion {
   id: string;
   label: string;
   sublabel?: string;
+  /** Extra text to match against when filtering (not displayed). */
+  searchTerms?: string;
 }
 
 export interface TextInputModalProps {
@@ -24,31 +27,41 @@ export interface TextInputModalProps {
   suggestions?: TextInputSuggestion[];
   /** Called when a suggestion is selected (fires instead of onConfirm) */
   onSelect?: (id: string) => void;
+  /** Optional second confirm action — renders a second button alongside the primary confirm. */
+  onSecondaryConfirm?: (newValue: string) => void;
+  /** Label for the secondary confirm button. Required when onSecondaryConfirm is provided. */
+  secondaryConfirmLabel?: string;
+  /** Override label for the primary confirm button (default: t('common.confirm')). */
+  confirmLabel?: string;
 }
 
-export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 'text', suggestions, onSelect }: TextInputModalProps) {
+export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 'text', suggestions, onSelect, onSecondaryConfirm, secondaryConfirmLabel, confirmLabel }: TextInputModalProps) {
   const { t } = useTranslation();
   const [inputValue, setInputValue] = useState(value);
+  const [dirty, setDirty] = useState(false);
   const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const dirtyRef = useRef(false);
 
-  // Filter suggestions by input value (case-insensitive, matches label + sublabel)
+  // Show all suggestions until the user edits the input; then filter.
   const filteredSuggestions = useMemo(() => {
     if (!suggestions) return undefined;
-    const query = inputValue.toLowerCase();
-    if (!query) return suggestions;
-    return suggestions.filter((s) =>
-      s.label.toLowerCase().includes(query) ||
-      (s.sublabel?.toLowerCase().includes(query) ?? false)
-    );
-  }, [suggestions, inputValue]);
+    if (!dirty) return [...suggestions];
+    return filterSuggestions(suggestions, inputValue);
+  }, [suggestions, inputValue, dirty]);
 
-  // Auto-focus and select all on mount
+  // Auto-focus and select all on mount.
+  // `autoFocus` on the elements handles immediate focus (critical for tablet
+  // virtual keyboards which require focus during user gesture / element insertion).
+  // The delayed `.focus()` + `.select()` is a fallback that also selects text.
   useEffect(() => {
-    const el = inputRef.current;
-    if (el) {
-      el.focus();
-      el.select();
-    }
+    const timer = setTimeout(() => {
+      const el = inputRef.current;
+      if (el) {
+        el.focus();
+        if (!dirtyRef.current) el.select();
+      }
+    }, 50);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleConfirm = () => {
@@ -56,8 +69,9 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && inputType !== 'textarea') {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
+      e.stopPropagation();
       handleConfirm();
     }
   };
@@ -65,7 +79,7 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
   const inputClassName = 'w-full rounded-lg border border-[var(--color-border-base)] bg-[var(--color-bg-base)] px-3 py-2 text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]/40';
 
   return (
-    <DialogShell open blur maxWidth="max-w-sm" onClose={onCancel} className="bg-[var(--color-bg-surface)] border-[var(--color-border-muted)] space-y-4">
+    <DialogShell open blur maxWidth={onSecondaryConfirm ? 'max-w-md' : 'max-w-sm'} onClose={onCancel} className="bg-[var(--color-bg-surface)] border-[var(--color-border-muted)] space-y-4">
       {/* Label */}
       <h3 className="text-base font-medium text-[var(--color-text-base)]">{label}</h3>
 
@@ -74,8 +88,9 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
         <textarea
           ref={inputRef as React.RefObject<HTMLTextAreaElement>}
           aria-label={label}
+          autoFocus
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={(e) => { dirtyRef.current = true; setDirty(true); setInputValue(e.target.value); }}
           onKeyDown={handleKeyDown}
           rows={3}
           className={inputClassName}
@@ -84,9 +99,10 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
         <input
           ref={inputRef as React.RefObject<HTMLInputElement>}
           aria-label={label}
+          autoFocus
           type={inputType}
           value={inputValue}
-          onChange={(e) => setInputValue(e.target.value)}
+          onChange={(e) => { dirtyRef.current = true; setDirty(true); setInputValue(e.target.value); }}
           onKeyDown={handleKeyDown}
           className={inputClassName}
         />
@@ -122,8 +138,13 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
         <Button variant="ghost" size="sm" onClick={onCancel} aria-label={t('common.cancel', 'Cancel')}>
           {t('common.cancel', 'Cancel')}
         </Button>
-        <Button variant="primary" size="sm" onClick={handleConfirm} aria-label={t('common.confirm', 'Confirm')}>
-          {t('common.confirm', 'Confirm')}
+        {onSecondaryConfirm && (
+          <Button variant="ghost" size="sm" className="text-xs" onClick={() => onSecondaryConfirm(inputValue)} aria-label={secondaryConfirmLabel ?? ''}>
+            {secondaryConfirmLabel}
+          </Button>
+        )}
+        <Button variant="primary" size="sm" className={onSecondaryConfirm ? 'text-xs' : undefined} onClick={handleConfirm} aria-label={confirmLabel ?? t('common.confirm', 'Confirm')}>
+          {confirmLabel ?? t('common.confirm', 'Confirm')}
         </Button>
       </div>
     </DialogShell>

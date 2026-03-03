@@ -17,13 +17,14 @@ import {
   Navbar,
   useTheme,
 } from "@monta-vis/viewer-core";
-import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, AggregatedPartTool } from "@monta-vis/viewer-core";
 import { buildMediaUrl } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
   useAutoSave,
   SubstepEditPopover,
   PartToolListPanel,
+  PartToolDetailEditor,
   createDefaultPartTool,
   type SafetyIconCatalog,
   type NormalizedCrop,
@@ -45,10 +46,6 @@ function translateData(
 }
 
 const editEnabled = import.meta.env.VITE_EDIT_ENABLED !== 'false';
-
-function generateId(): string {
-  return crypto.randomUUID();
-}
 
 export function ViewPage() {
   const { folderName } = useParams<{ folderName: string }>();
@@ -181,7 +178,7 @@ export function ViewPage() {
     const maxOrder = existingDescs.reduce((max, d) => Math.max(max, d.order), -1);
 
     store.addSubstepDescription({
-      id: generateId(),
+      id: crypto.randomUUID(),
       substepId,
       text,
       order: maxOrder + 1,
@@ -226,8 +223,8 @@ export function ViewPage() {
     const finalIconId = await tryCopyCatalogIcon(sourceIconId, safetyIconId);
     if (!finalIconId) return;
 
-    const noteId = generateId();
-    const substepNoteId = generateId();
+    const noteId = crypto.randomUUID();
+    const substepNoteId = crypto.randomUUID();
     const versionId = getVersionId();
     const instructionId = getInstructionId();
 
@@ -337,6 +334,18 @@ export function ViewPage() {
   const onDeleteSubstepPartTool = useCallback((substepPartToolId: string) => {
     useEditorStore.getState().deleteSubstepPartTool(substepPartToolId);
   }, []);
+
+  const onReplaceSubstepPartTool = useCallback((substepPartToolId: string, newPartToolId: string) => {
+    useEditorStore.getState().updateSubstepPartTool(substepPartToolId, { partToolId: newPartToolId });
+  }, []);
+
+  const onCreateAndReplacePartTool = useCallback((substepPartToolId: string, field: 'name' | 'label' | 'partNumber', value: string) => {
+    const store = useEditorStore.getState();
+    const pt = createDefaultPartTool(getVersionId(), getInstructionId());
+    pt[field] = value;
+    store.addPartTool(pt);
+    store.updateSubstepPartTool(substepPartToolId, { partToolId: pt.id });
+  }, [getVersionId, getInstructionId]);
 
   // ── PartToolListPanel state & callbacks ──
   const [partToolListOpen, setPartToolListOpen] = useState(false);
@@ -568,18 +577,19 @@ export function ViewPage() {
     onDeleteSubstep,
     onDeleteImage,
     onDeleteTutorial,
-    onDeletePartTool,
-    onEditPartToolImage: onOpenPartToolList,
     onUpdatePartTool,
     onAddSubstepPartTool,
     onUpdateSubstepPartToolAmount,
     onDeleteSubstepPartTool,
+    onReplaceSubstepPartTool,
+    onCreateAndReplacePartTool,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
     onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
-    onDeleteSubstep, onDeleteImage, onDeleteTutorial, onDeletePartTool,
-    onOpenPartToolList, onUpdatePartTool,
+    onDeleteSubstep, onDeleteImage, onDeleteTutorial,
+    onUpdatePartTool,
     onAddSubstepPartTool, onUpdateSubstepPartToolAmount, onDeleteSubstepPartTool,
+    onReplaceSubstepPartTool, onCreateAndReplacePartTool,
   ]);
 
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
@@ -599,6 +609,66 @@ export function ViewPage() {
     ),
     [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, onUploadSubstepVideo, viewerData?.partTools, onOpenPartToolList],
   );
+
+  // ── Part/tool editor render function (render prop for PartsDrawer) ──
+  const renderPartToolEditor = useCallback(
+    ({ item, onClose }: { item: AggregatedPartTool; onClose: () => void }) => {
+      const previewUrl = getPartToolPreviewUrl(item.partTool.id);
+      return (
+        <PartToolDetailEditor
+          partToolId={item.partTool.id}
+          item={item}
+          onClose={onClose}
+          imageCallbacks={imageCallbacks}
+          getPartToolImages={getPartToolImages}
+          allPartTools={Object.values(viewerData?.partTools ?? {})}
+          onReplacePartTool={(oldId, newId) => {
+            // Find substepPartTool rows for oldId and swap partToolId to newId
+            const store = useEditorStore.getState();
+            const sptRows = Object.values(store.data?.substepPartTools ?? {})
+              .filter((spt) => spt.partToolId === oldId);
+            for (const spt of sptRows) {
+              store.updateSubstepPartTool(spt.id, { partToolId: newId });
+            }
+            onClose();
+          }}
+          onCreatePartTool={(oldId, newName) => {
+            const store = useEditorStore.getState();
+            store.updatePartTool(oldId, { name: newName });
+          }}
+          onEditPartToolAmount={(partToolId, newAmount) => {
+            const store = useEditorStore.getState();
+            const num = parseInt(newAmount, 10);
+            if (!isNaN(num) && num > 0) {
+              store.updatePartTool(partToolId, { amount: num });
+            }
+          }}
+          onDeletePartTool={(partToolId) => {
+            onDeletePartTool(partToolId);
+            onClose();
+          }}
+          onUpdatePartTool={(partToolId, updates) => {
+            onUpdatePartTool(partToolId, updates as Partial<PartToolRow>);
+          }}
+          previewImageUrl={previewUrl}
+        />
+      );
+    },
+    [imageCallbacks, getPartToolImages, getPartToolPreviewUrl, viewerData?.partTools, onDeletePartTool, onUpdatePartTool],
+  );
+
+  // Build noteIconLabels map: safetyIconId (entry UUID) → localized label
+  const noteIconLabels = useMemo(() => {
+    const lang = i18n.language;
+    const map: Record<string, string> = {};
+    for (const cat of safetyIconCatalogs) {
+      for (const entry of cat.entries ?? []) {
+        const label = entry.label[lang] ?? entry.label.de ?? entry.label.en ?? Object.values(entry.label)[0];
+        if (label) map[entry.id] = label;
+      }
+    }
+    return map;
+  }, [safetyIconCatalogs, i18n.language]);
 
   if (isLoading) {
     return (
@@ -646,6 +716,9 @@ export function ViewPage() {
                   editModeActive={editEnabled && editModeActive}
                   editCallbacks={editEnabled ? editCallbacks : undefined}
                   renderEditPopover={editEnabled ? renderEditPopover : undefined}
+                  renderPartToolEditor={editEnabled ? renderPartToolEditor : undefined}
+                  web3FormsKey={import.meta.env.VITE_WEB3FORMS_KEY}
+                  noteIconLabels={noteIconLabels}
                 />
               </InstructionViewContainer>
               {editEnabled && editModeActive && (

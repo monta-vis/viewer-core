@@ -1,10 +1,13 @@
 import { useState, useCallback, useMemo, useRef } from 'react';
+import { filterSuggestions } from '@monta-vis/viewer-core';
 import { EditInput, type EditInputProps } from './EditInput';
 
 export interface AutocompleteSuggestion {
   id: string;
   label: string;
   sublabel?: string;
+  /** Extra text to match against when filtering (not displayed). */
+  searchTerms?: string;
 }
 
 export interface AutocompleteEditInputProps extends Omit<EditInputProps, 'onSelect'> {
@@ -33,12 +36,7 @@ export function AutocompleteEditInput({
 
   const filtered = useMemo(() => {
     if (strValue.length < minChars) return [];
-    const query = strValue.toLowerCase();
-    return suggestions.filter(
-      (s) =>
-        s.label.toLowerCase().includes(query) ||
-        (s.sublabel && s.sublabel.toLowerCase().includes(query)),
-    );
+    return filterSuggestions(suggestions, strValue);
   }, [suggestions, strValue, minChars]);
 
   const showDropdown = focused && filtered.length > 0;
@@ -116,7 +114,7 @@ export function AutocompleteEditInput({
       {showDropdown && (
         <ul
           role="listbox"
-          className="absolute left-0 bottom-full z-50 mb-0.5 w-max min-w-full max-h-[10rem] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] shadow-lg text-[0.65rem]"
+          className="absolute left-0 bottom-full z-50 mb-0.5 w-max min-w-full max-h-[12rem] overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] shadow-lg text-base"
         >
           {filtered.map((s, i) => (
             <li

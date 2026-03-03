@@ -15,6 +15,8 @@ interface StarRatingProps {
   onComplete?: () => void;
   /** Additional class names */
   className?: string;
+  /** Web3Forms access key (provided by app layer) */
+  web3FormsKey?: string;
 }
 
 type State = 'initial' | 'comment' | 'success';
@@ -25,7 +27,7 @@ type State = 'initial' | 'comment' | 'success';
  * - 5 stars: Shows "Danke!" and auto-closes
  * - 1-4 stars: Shows centered modal with optional comment input
  */
-export function StarRating({ instructionName, supportEmail, onComplete, className }: StarRatingProps) {
+export function StarRating({ instructionName, supportEmail, onComplete, className, web3FormsKey }: StarRatingProps) {
   const { t } = useTranslation();
   const [state, setState] = useState<State>('initial');
   const [hoveredStar, setHoveredStar] = useState<number>(0);
@@ -41,6 +43,7 @@ export function StarRating({ instructionName, supportEmail, onComplete, classNam
         description: `Rating: ${stars}/5 stars`,
         instructionName,
         supportEmail,
+        accessKey: web3FormsKey,
       }).catch(err => console.error('Failed to submit rating:', err));
 
       setState('success');
@@ -49,7 +52,7 @@ export function StarRating({ instructionName, supportEmail, onComplete, classNam
       // Less than perfect - ask for feedback
       setState('comment');
     }
-  }, [instructionName, supportEmail, onComplete]);
+  }, [instructionName, supportEmail, onComplete, web3FormsKey]);
 
   const handleSubmitComment = useCallback(() => {
     // Fire and forget
@@ -60,11 +63,12 @@ export function StarRating({ instructionName, supportEmail, onComplete, classNam
       description: msg,
       instructionName,
       supportEmail,
+      accessKey: web3FormsKey,
     }).catch(err => console.error('Failed to submit rating:', err));
 
     setState('success');
     setTimeout(() => onComplete?.(), 1500);
-  }, [selectedStars, comment, instructionName, supportEmail, onComplete]);
+  }, [selectedStars, comment, instructionName, supportEmail, onComplete, web3FormsKey]);
 
   const handleCancel = useCallback(() => {
     // Reset everything - no API call

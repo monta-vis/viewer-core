@@ -49,6 +49,38 @@ describe('buildIconList', () => {
       expect(icon.catalogDirName).toBeUndefined();
     }
   });
+
+  it('passes through isoCode from catalog entries', () => {
+    const catalog = makeCatalog('Test', [
+      { id: 'uuid-1', filename: 'M009.png', category: 'Gebotszeichen', label: { de: 'Handschutz benutzen' }, isoCode: 'M009 Handschutz benutzen' },
+    ]);
+
+    const icons = buildIconList([catalog], 'de');
+
+    expect(icons[0].isoCode).toBe('M009 Handschutz benutzen');
+    expect(icons[0].label).toBe('Handschutz benutzen');
+  });
+
+  it('sets isoCode to undefined when catalog entry has no isoCode', () => {
+    const catalog = makeCatalog('Test', [
+      { id: 'uuid-1', filename: 'W001.png', category: 'Warn', label: { en: 'Warning' } },
+    ]);
+
+    const icons = buildIconList([catalog], 'en');
+
+    expect(icons[0].isoCode).toBeUndefined();
+  });
+
+  it('strips ISO prefix from built-in fallback labels', () => {
+    // Built-in icons derive labels from filenames; the regex should strip ISO prefixes
+    const icons = buildIconList([], 'en');
+
+    // Find a known built-in icon with an ISO prefix pattern (e.g. M009)
+    const m009 = icons.find((i) => i.filename.includes('M009'));
+    if (m009) {
+      expect(m009.label).not.toMatch(/^M009\s/);
+    }
+  });
 });
 
 describe('resolveNoteIconUrl', () => {

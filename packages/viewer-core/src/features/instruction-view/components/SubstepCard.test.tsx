@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SubstepCard } from './SubstepCard';
 import type { SubstepDescriptionRow, EnrichedSubstepNote, EnrichedSubstepPartTool } from '@/features/instruction';
@@ -192,5 +192,93 @@ describe('SubstepCard — editMode=true', () => {
     // Descriptions should just be plain paragraphs, not clickable edit wrappers
     expect(screen.getByText('First description')).toBeInTheDocument();
     expect(screen.queryByTestId('editable-description')).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// hideFooter prop
+// ============================================================
+describe('SubstepCard — hideFooter', () => {
+  it('hides the description footer when hideFooter is true', () => {
+    render(<SubstepCard {...baseProps} hideFooter />);
+    // Descriptions should not be rendered
+    expect(screen.queryByText('First description')).not.toBeInTheDocument();
+    expect(screen.queryByText('Second description')).not.toBeInTheDocument();
+    // The "—" dash should not appear either
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
+  });
+
+  it('shows the description footer by default', () => {
+    render(<SubstepCard {...baseProps} />);
+    expect(screen.getByText('First description')).toBeInTheDocument();
+    expect(screen.getByText('Second description')).toBeInTheDocument();
+  });
+
+  it('shows the "—" placeholder when descriptions are empty and hideFooter is not set', () => {
+    render(<SubstepCard {...minimalProps} />);
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('hides the "—" placeholder when descriptions are empty and hideFooter is true', () => {
+    render(<SubstepCard {...minimalProps} hideFooter />);
+    expect(screen.queryByText('—')).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// Enter key propagation — edit popover open
+// ============================================================
+describe('SubstepCard — Enter key when edit popover is open', () => {
+  it('does not call onClick on Enter when edit popover is open', async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const renderEditPopover = vi.fn().mockReturnValue(
+      <div data-testid="mock-popover">
+        <textarea data-testid="mock-textarea" />
+      </div>
+    );
+
+    render(
+      <SubstepCard
+        {...baseProps}
+        editMode
+        editCallbacks={editCallbacks}
+        renderEditPopover={renderEditPopover}
+        onClick={onClick}
+      />
+    );
+
+    // Open the edit popover
+    await user.click(screen.getByLabelText('Edit substep'));
+    expect(screen.getByTestId('mock-popover')).toBeInTheDocument();
+
+    // Fire Enter keydown on the card (the outermost role="button" element)
+    const card = screen.getAllByRole('button')[0];
+    fireEvent.keyDown(card, { key: 'Enter' });
+
+    expect(onClick).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================
+// noteIconLabels → NoteCard iconLabel prop
+// ============================================================
+describe('SubstepCard — noteIconLabels', () => {
+  it('NoteCard img receives title from noteIconLabels map', () => {
+    const noteIconLabels = { 'W001-Allgemeines-Warnzeichen.png': 'General Warning' };
+    render(<SubstepCard {...baseProps} noteIconLabels={noteIconLabels} />);
+    // The NoteCard img should have title="General Warning"
+    const imgs = screen.getAllByRole('img');
+    // Find the note card img (inside the note card area)
+    const noteImg = imgs.find(img => img.getAttribute('title') === 'General Warning');
+    expect(noteImg).toBeTruthy();
+  });
+
+  it('NoteCard img falls back to categoryLabel when noteIconLabels not provided', () => {
+    render(<SubstepCard {...baseProps} />);
+    const imgs = screen.getAllByRole('img');
+    // Without noteIconLabels, the NoteCard should use categoryLabel as title
+    const noteImg = imgs.find(img => img.getAttribute('title') === 'Warnzeichen');
+    expect(noteImg).toBeTruthy();
   });
 });

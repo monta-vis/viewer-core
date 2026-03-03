@@ -23,18 +23,22 @@ export function buildIconList(catalogs: SafetyIconCatalog[], lang: string): Safe
       filename: entry.filename,
       category: entry.category,
       label: resolveLabel(entry.label, lang, entry.filename),
+      isoCode: entry.isoCode,
       catalogName: cat.name,
       catalogDirName: cat.dirName,
     })),
   );
 
   // Built-in manifest icons (fallback)
-  const builtinIcons: SafetyIconItem[] = SAFETY_ICON_MANIFEST.map((entry) => ({
-    id: entry.filename,
-    filename: entry.filename,
-    category: entry.category,
-    label: entry.filename.replace(/\.png$/, '').replace(/[-_]/g, ' '),
-  }));
+  const builtinIcons: SafetyIconItem[] = SAFETY_ICON_MANIFEST.map((entry) => {
+    const rawLabel = entry.filename.replace(/\.png$/, '').replace(/[-_]/g, ' ');
+    return {
+      id: entry.filename,
+      filename: entry.filename,
+      category: entry.category,
+      label: rawLabel.replace(/^(?:D )?[A-Z]{1,3}\d{2,3}(?: gr)?\s*/, ''),
+    };
+  });
 
   return catalogIcons.length > 0 ? catalogIcons : builtinIcons;
 }

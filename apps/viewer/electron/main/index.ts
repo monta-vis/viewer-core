@@ -198,13 +198,6 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
-    "projects:get-media-url",
-    (_event, folderName: string, relativePath: string) => {
-      return `mvis-media://${encodeURIComponent(folderName)}/${encodeURIComponent(relativePath)}`;
-    },
-  );
-
-  ipcMain.handle(
     "projects:save-data",
     (_event, folderName: string, changes: ProjectChanges) =>
       saveProjectData(folderName, changes),

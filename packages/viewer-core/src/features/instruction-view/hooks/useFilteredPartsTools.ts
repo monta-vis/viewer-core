@@ -6,8 +6,6 @@ import { sortedValues, byStepNumber } from '@/lib/sortedValues';
 export interface AggregatedPartTool {
   partTool: PartToolRow;
   totalAmount: number;
-  /** Which step numbers use this part/tool */
-  usedInSteps: number[];
   /** Amount used per substep: substepId → amount */
   amountsPerSubstep: Map<string, number>;
 }
@@ -135,7 +133,6 @@ export function useFilteredPartsTools(
       .map((partTool) => ({
         partTool,
         totalAmount: computeTotalAmount(partToolSubstepAmounts.get(partTool.id), partTool.amount),
-        usedInSteps: Array.from(partToolSteps.get(partTool.id) ?? []).sort((a, b) => a - b),
         amountsPerSubstep: partToolSubstepAmounts.get(partTool.id) ?? new Map(),
       }))
       .sort((a, b) => a.partTool.name.localeCompare(b.partTool.name));
@@ -145,7 +142,6 @@ export function useFilteredPartsTools(
       .map((partTool) => ({
         partTool,
         totalAmount: computeToolAmount(partTool.amount),
-        usedInSteps: Array.from(partToolSteps.get(partTool.id) ?? []).sort((a, b) => a - b),
         amountsPerSubstep: partToolSubstepAmounts.get(partTool.id) ?? new Map(),
       }))
       .sort((a, b) => a.partTool.name.localeCompare(b.partTool.name));

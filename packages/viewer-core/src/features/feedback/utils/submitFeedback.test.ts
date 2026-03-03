@@ -31,14 +31,13 @@ describe('submitViaEmail', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) });
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await submitViaEmail({ description: 'email test' });
+    const result = await submitViaEmail({ description: 'email test', accessKey: 'test-key' });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, opts] = fetchMock.mock.calls[0];
     expect(url).toBe('https://api.web3forms.com/submit');
     const body = opts.body as FormData;
-    // Key comes from VITE_WEB3FORMS_KEY env var (empty in test environment)
-    expect(body.has('access_key')).toBe(true);
+    expect(body.get('access_key')).toBe('test-key');
     expect(body.get('botcheck')).toBe('');
     expect(result.success).toBe(true);
   });
@@ -47,7 +46,7 @@ describe('submitViaEmail', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) });
     vi.stubGlobal('fetch', fetchMock);
 
-    await submitViaEmail({ description: 'cc test', supportEmail: 'support@acme.com' });
+    await submitViaEmail({ description: 'cc test', supportEmail: 'support@acme.com', accessKey: 'test-key' });
 
     const body = fetchMock.mock.calls[0][1].body as FormData;
     expect(body.get('ccemail')).toBe('support@acme.com');
@@ -57,7 +56,7 @@ describe('submitViaEmail', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) });
     vi.stubGlobal('fetch', fetchMock);
 
-    await submitViaEmail({ description: 'step test', stepNumber: 3 });
+    await submitViaEmail({ description: 'step test', stepNumber: 3, accessKey: 'test-key' });
 
     const body = fetchMock.mock.calls[0][1].body as FormData;
     expect(body.get('step')).toBe('Step 3');
@@ -95,7 +94,7 @@ describe('submitFeedback', () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: () => Promise.resolve({ success: true }) });
     vi.stubGlobal('fetch', fetchMock);
 
-    const result = await submitFeedback({ description: 'test' });
+    const result = await submitFeedback({ description: 'test', accessKey: 'test-key' });
     expect(fetchMock).toHaveBeenCalled();
     expect(result.success).toBe(true);
     expect(result.channel).toBe('email');

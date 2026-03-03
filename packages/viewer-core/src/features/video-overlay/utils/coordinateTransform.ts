@@ -34,7 +34,6 @@ import type { Rectangle, Point } from '../types';
  * │   containerToLocalSpace() - Container % → Local (0-1)                       │
  * │   localSpaceToContainer() - Local (0-1) → Container %                       │
  * │   pointContainerToLocal() - Transform point with bounds                     │
- * │   pointLocalToContainer() - Transform point with bounds                     │
  * │                                                                              │
  * └─────────────────────────────────────────────────────────────────────────────┘
  */
@@ -83,20 +82,6 @@ export function pointContainerToLocal(point: Point, bounds: Rectangle): Point {
   return {
     x: containerToLocalSpace(point.x, bounds.x, bounds.width),
     y: containerToLocalSpace(point.y, bounds.y, bounds.height),
-  };
-}
-
-/**
- * Transform a point from Local-Space (0-1) to Container-Space (0-100%)
- *
- * @param point - Point in local space (0-1)
- * @param bounds - Rectangle defining the local space in container space
- * @returns Point in container space (0-100%)
- */
-export function pointLocalToContainer(point: Point, bounds: Rectangle): Point {
-  return {
-    x: localSpaceToContainer(point.x, bounds.x, bounds.width),
-    y: localSpaceToContainer(point.y, bounds.y, bounds.height),
   };
 }
 

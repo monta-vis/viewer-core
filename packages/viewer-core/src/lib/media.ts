@@ -4,9 +4,6 @@
  * Pure functions, no IPC, no side effects.
  */
 
-/** Inlined from timeline feature to avoid circular dependency */
-type VideoStatus = 'complete' | 'proxy-only' | 'source-only' | 'missing';
-
 /**
  * Resolve a public asset path that works in both dev (/) and Electron (./).
  * Uses Vite's BASE_URL which is '/' in dev and './' in Electron builds.
@@ -43,46 +40,3 @@ export function buildMediaUrl(folderName: string, filePath: string): string {
     : `mvis-media://${encodedFolder}/${encodedPath}`;
 }
 
-/** Result of checking what media files exist on disk for a video */
-export interface MediaAvailability {
-  sourceExists: boolean;
-  proxyExists: boolean;
-}
-
-/**
- * Derive VideoStatus from actual file existence.
- */
-export function getVideoStatus(availability: MediaAvailability): VideoStatus {
-  const { sourceExists, proxyExists } = availability;
-  if (sourceExists && proxyExists) return 'complete';
-  if (!sourceExists && proxyExists) return 'proxy-only';
-  if (sourceExists && !proxyExists) return 'source-only';
-  return 'missing';
-}
-
-/**
- * Pick the best video URL given cached availability.
- * Default priority: source → proxy (use `preferProxy` to flip).
- * Returns empty string if neither exists.
- */
-export function resolveVideoUrl(
-  folderName: string,
-  videoId: string,
-  sourcePath: string | null,
-  availability?: MediaAvailability,
-  preferProxy = false,
-): string {
-  if (!availability) {
-    return sourcePath ? buildMediaUrl(folderName, sourcePath) : '';
-  }
-
-  const proxyUrl = availability.proxyExists
-    ? buildMediaUrl(folderName, MediaPaths.proxy(videoId))
-    : '';
-  const sourceUrl = availability.sourceExists && sourcePath
-    ? buildMediaUrl(folderName, sourcePath)
-    : '';
-
-  if (preferProxy) return proxyUrl || sourceUrl;
-  return sourceUrl || proxyUrl;
-}

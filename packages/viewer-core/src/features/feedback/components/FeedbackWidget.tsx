@@ -24,6 +24,8 @@ interface FeedbackWidgetProps {
   instructionName?: string;
   /** Current step number for context (1-based) */
   stepNumber?: number;
+  /** Web3Forms access key (provided by app layer) */
+  web3FormsKey?: string;
 }
 
 interface Point {
@@ -49,6 +51,7 @@ export function FeedbackWidget({
   supportEmail,
   instructionName,
   stepNumber,
+  web3FormsKey,
 }: FeedbackWidgetProps) {
   const { t } = useTranslation();
 
@@ -277,6 +280,7 @@ export function FeedbackWidget({
         instructionName,
         stepNumber,
         supportEmail,
+        accessKey: web3FormsKey,
       });
 
       if (result.success) {
@@ -289,7 +293,7 @@ export function FeedbackWidget({
     } finally {
       setIsSubmitting(false);
     }
-  }, [isSubmitting, canSend, screenshotUrl, description, phoneNumber, attachmentFile, instructionName, stepNumber, supportEmail, t]);
+  }, [isSubmitting, canSend, screenshotUrl, description, phoneNumber, attachmentFile, instructionName, stepNumber, supportEmail, web3FormsKey, t]);
 
   // Reset on close
   useEffect(() => {

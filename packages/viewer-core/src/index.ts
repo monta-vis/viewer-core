@@ -47,3 +47,7 @@ export { viewerCoreTranslations } from './lib/translations';
 
 // Language persistence (localStorage helpers for i18n)
 export { getStoredLanguage, saveLanguage, LANGUAGE_STORAGE_KEY } from './lib/languagePersistence';
+
+// Search utilities
+export { fuzzyScore, fuzzySearch } from './lib/fuzzySearch';
+export { matchTermsSearch, type MatchableEntry, type MatchResult } from './lib/matchTermsSearch';

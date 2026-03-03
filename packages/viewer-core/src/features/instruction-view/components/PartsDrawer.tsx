@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { X, Package, Wrench, ChevronDown, Pencil, Filter, Box, Ruler } from 'lucide-react';
@@ -5,8 +6,7 @@ import { clsx } from 'clsx';
 
 import type { LucideIcon } from 'lucide-react';
 
-import { Drawer, TutorialClickIcon } from '@/components/ui';
-import type { TextInputSuggestion } from '@/components/ui';
+import { Drawer, TutorialClickIcon, IconButton } from '@/components/ui';
 import { useClickOutside } from '@/hooks';
 import type { VideoFrameAreaRow, VideoRow } from '@/features/instruction';
 import { useViewerData } from '../context';
@@ -17,7 +17,7 @@ import {
 import { resolvePartToolImageUrl } from '../utils/resolvePartToolImageUrl';
 import { resolvePartToolFrameCapture, type FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { VideoFrameCapture } from './VideoFrameCapture';
-import { PartToolDetailModal, type PartToolEditCallbacks } from './PartToolDetailModal';
+import { PartToolDetailModal } from './PartToolDetailModal';
 
 // localStorage keys for persisting preferences (shared with fullpage mode)
 const STORAGE_KEY_START = 'montavis-parts-tools-start-step';
@@ -67,10 +67,8 @@ interface PartsDrawerProps {
   tutorialHighlight?: boolean;
   /** Show inline edit controls. Default: false */
   editMode?: boolean;
-  /** Edit callbacks for part tool fields — only used when editMode=true */
-  editCallbacks?: PartToolEditCallbacks;
-  /** Catalog of available parts/tools for search + swap */
-  partToolCatalog?: TextInputSuggestion[];
+  /** Render function for the part/tool editor (provided by editor-core via app shell). */
+  renderPartToolEditor?: (props: { item: AggregatedPartTool; onClose: () => void }) => ReactNode;
 }
 
 /** Step Range Selector with edit mode for manual input (used in fullpage mode) */
@@ -382,16 +380,20 @@ export function PartsDrawer({
   useRawVideo = false,
   tutorialHighlight = false,
   editMode = false,
-  editCallbacks,
-  partToolCatalog,
+  renderPartToolEditor,
 }: PartsDrawerProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const maxSteps = totalSteps;
   const isFullpage = variant === 'fullpage';
 
-  // Selected item for detail modal
+  // Selected item for read-only detail modal
   const [selectedItem, setSelectedItem] = useState<AggregatedPartTool | null>(null);
+
+  // Editing item ID for editor render prop (separate from read-only detail).
+  // We store only the ID so that the rendered item always reflects the latest
+  // store data instead of a stale snapshot.
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   // Step range state
   const [startStep, setStartStep] = useState(1);
@@ -424,15 +426,16 @@ export function PartsDrawer({
   }
   if (!isOpen && prevIsOpen) {
     setPrevIsOpen(false);
+    setSelectedItem(null);
+    setEditingItemId(null);
   }
 
-  // Calculate effective step range
-  const effectiveStepRange = useMemo<[number, number]>(() => {
-    return [startStep, Math.min(endStep, maxSteps)];
-  }, [startStep, endStep, maxSteps]);
-
   // Get filtered parts/tools using the hook
-  const { parts, tools } = useFilteredPartsTools(effectiveStepRange, totalSteps);
+  const stepRange = useMemo<[number, number]>(
+    () => [startStep, Math.min(endStep, maxSteps)],
+    [startStep, endStep, maxSteps],
+  );
+  const { parts, tools } = useFilteredPartsTools(stepRange, totalSteps);
 
   const hasNoTools = tools.length === 0;
   const hasNoParts = parts.length === 0;
@@ -598,6 +601,8 @@ export function PartsDrawer({
                   useRawVideo={useRawVideo}
                   videoFrameAreas={data?.videoFrameAreas}
                   videos={data?.videos}
+                  editMode={editMode}
+                  onEditClick={renderPartToolEditor ? (item) => setEditingItemId(item.partTool.id) : undefined}
                 />
               )}
 
@@ -617,12 +622,14 @@ export function PartsDrawer({
                   useRawVideo={useRawVideo}
                   videoFrameAreas={data?.videoFrameAreas}
                   videos={data?.videos}
+                  editMode={editMode}
+                  onEditClick={renderPartToolEditor ? (item) => setEditingItemId(item.partTool.id) : undefined}
                 />
               )}
             </div>
           )}
         </div>
-      {/* Detail Modal */}
+      {/* Read-only Detail Modal */}
       <PartToolDetailModal
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
@@ -630,9 +637,6 @@ export function PartsDrawer({
         partToolVideoFrameAreas={data?.partToolVideoFrameAreas}
         useBlurred={useBlurred}
         videoFrameAreas={data?.videoFrameAreas}
-        editMode={editMode}
-        editCallbacks={editMode ? editCallbacks : undefined}
-        partToolCatalog={editMode ? partToolCatalog : undefined}
         frameCaptureData={
           useRawVideo && selectedItem && folderName
             ? resolvePartToolFrameCapture(
@@ -645,6 +649,16 @@ export function PartsDrawer({
             : null
         }
       />
+
+      {/* Editor render prop (provided by app shell via editor-core) */}
+      {editingItemId && (() => {
+        const editingItem = [...parts, ...tools].find((i) => i.partTool.id === editingItemId);
+        if (!editingItem) return null;
+        return renderPartToolEditor?.({
+          item: editingItem,
+          onClose: () => setEditingItemId(null),
+        });
+      })()}
     </Drawer>
   );
 }
@@ -664,6 +678,10 @@ interface PartToolSectionProps {
   useRawVideo?: boolean;
   videoFrameAreas?: Record<string, VideoFrameAreaRow>;
   videos?: Record<string, VideoRow>;
+  /** Show edit controls on cards */
+  editMode?: boolean;
+  /** Callback when edit icon is clicked on a card */
+  onEditClick?: (item: AggregatedPartTool) => void;
 }
 
 function PartToolSection({
@@ -680,6 +698,8 @@ function PartToolSection({
   useRawVideo,
   videoFrameAreas,
   videos,
+  editMode,
+  onEditClick,
 }: PartToolSectionProps) {
   return (
     <section>
@@ -713,6 +733,8 @@ function PartToolSection({
             useRawVideo={useRawVideo}
             videoFrameAreas={videoFrameAreas}
             videos={videos}
+            editMode={editMode}
+            onEditClick={onEditClick ? () => onEditClick(item) : undefined}
           />
         ))}
       </div>
@@ -738,6 +760,8 @@ export function PartToolCard({
   useRawVideo = false,
   videoFrameAreas,
   videos,
+  editMode = false,
+  onEditClick,
 }: {
   item: AggregatedPartTool;
   size: 'small' | 'large';
@@ -749,7 +773,10 @@ export function PartToolCard({
   useRawVideo?: boolean;
   videoFrameAreas?: Record<string, VideoFrameAreaRow>;
   videos?: Record<string, VideoRow>;
+  editMode?: boolean;
+  onEditClick?: () => void;
 }) {
+  const { t } = useTranslation();
   const Icon = item.partTool.type === 'Part' ? Package : Wrench;
   const iconColorClass = item.partTool.type === 'Part'
     ? 'text-[var(--color-element-part)]'
@@ -788,9 +815,6 @@ export function PartToolCard({
     ? item.amountsPerSubstep.get(highlightedSubstepId)
     : undefined;
 
-  // substepsInStepUsingItem calculation removed - not currently displayed
-
-  // Sum of amounts for all substeps in the highlighted step
   const stepTotalAmount = item.totalAmount;
 
   // Determine if we should show the fractional amount (N/Mx)
@@ -808,11 +832,25 @@ export function PartToolCard({
     : '';
 
   return (
+    <div className="relative">
+      {/* Edit pencil icon (top-right corner of card) */}
+      {editMode && onEditClick && (
+        <div className="absolute top-1.5 right-1.5 z-10" onClick={(e) => e.stopPropagation()}>
+          <IconButton
+            variant="overlay"
+            size="md"
+            icon={<Pencil />}
+            data-testid={`edit-parttool-${item.partTool.id}`}
+            aria-label={t('common.edit', 'Edit')}
+            onClick={onEditClick}
+          />
+        </div>
+      )}
     <button
       type="button"
       onClick={onClick}
       className={clsx(
-        'flex flex-col rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer',
+        'flex flex-col rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer w-full',
         'shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]',
         'bg-[var(--color-bg-elevated)]',
         borderColorClass,
@@ -822,7 +860,7 @@ export function PartToolCard({
     >
       {/* Square image area */}
       <div className={clsx(
-        'aspect-square flex items-center justify-center',
+        'aspect-square flex items-center justify-center overflow-hidden flex-shrink-0',
         'bg-black'
       )}>
         {frameCaptureData ? (
@@ -919,5 +957,6 @@ export function PartToolCard({
         )}
       </div>
     </button>
+    </div>
   );
 }

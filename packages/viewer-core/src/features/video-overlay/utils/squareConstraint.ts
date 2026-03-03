@@ -44,32 +44,12 @@ export function applySquareConstraint({
     return { width, height };
   }
 
-  // Convert to pixel-equivalent units for comparison
-  const widthInPixelUnits = width;
-  const heightInPixelUnits = height / aspectRatio;
+  // Use the larger dimension (in pixel-equivalent units) as the base for the square.
+  // height / aspectRatio converts height-% to the same pixel-equivalent unit as width-%.
+  const squareSize = Math.max(width, height / aspectRatio);
 
-  // Use the larger dimension as the base for the square
-  let squareSize: number;
-  if (widthInPixelUnits >= heightInPixelUnits) {
-    squareSize = width;
-  } else {
-    squareSize = height / aspectRatio;
-  }
-
-  // Apply square with aspect ratio correction
   return {
     width: squareSize,
     height: squareSize * aspectRatio,
   };
-}
-
-/**
- * Calculate the aspect ratio from a container element.
- *
- * @param container - The HTML element to get aspect ratio from
- * @returns The aspect ratio (width / height)
- */
-export function getContainerAspectRatio(container: HTMLElement): number {
-  const { clientWidth, clientHeight } = container;
-  return clientWidth / clientHeight || 1;
 }

@@ -13,17 +13,51 @@ vi.mock('react-image-crop', () => ({
 }));
 vi.mock('react-image-crop/dist/ReactCrop.css', () => ({}));
 
-// Mock viewer-core useMenuClose (used by PartToolImagePicker)
+// Track TextInputModal instances for testing
+let textInputModalProps: {
+  label: string; value: string; inputType?: string;
+  suggestions?: Array<{ id: string; label: string; sublabel?: string }>;
+  onConfirm: (v: string) => void; onCancel: () => void;
+  onSelect?: (id: string) => void;
+  onSecondaryConfirm?: (v: string) => void;
+  secondaryConfirmLabel?: string;
+  confirmLabel?: string;
+} | null = null;
+
+// Mock viewer-core useMenuClose (used by PartToolImagePicker) + TextInputModal
 vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
     useMenuClose: vi.fn(),
+    TextInputModal: ({ label, value, inputType, suggestions, onConfirm, onCancel, onSelect, onSecondaryConfirm, secondaryConfirmLabel, confirmLabel }: {
+      label: string; value: string; inputType?: string;
+      suggestions?: Array<{ id: string; label: string; sublabel?: string }>;
+      onConfirm: (v: string) => void; onCancel: () => void;
+      onSelect?: (id: string) => void;
+      onSecondaryConfirm?: (v: string) => void;
+      secondaryConfirmLabel?: string;
+      confirmLabel?: string;
+    }) => {
+      textInputModalProps = { label, value, inputType, suggestions, onConfirm, onCancel, onSelect, onSecondaryConfirm, secondaryConfirmLabel, confirmLabel };
+      return (
+        <div data-testid="text-input-modal">
+          <span data-testid="text-input-modal-label">{label}</span>
+          <span data-testid="text-input-modal-value">{value}</span>
+          {suggestions?.map((s) => (
+            <button key={s.id} data-testid={`suggestion-${s.id}`} onClick={() => onSelect?.(s.id)}>{s.label}</button>
+          ))}
+          <button data-testid="text-input-modal-confirm" onClick={() => onConfirm(value)}>Confirm</button>
+          <button data-testid="text-input-modal-cancel" onClick={() => onCancel()}>Cancel</button>
+        </div>
+      );
+    },
   };
 });
 
 afterEach(() => {
   cleanup();
+  textInputModalProps = null;
 });
 
 // Mock react-i18next
@@ -84,16 +118,16 @@ describe('PartToolTable', () => {
     expect(screen.getByTestId('parttool-row-spt-2')).toBeInTheDocument();
   });
 
-  it('shows inputs pre-filled with partTool values', () => {
+  it('shows cell buttons with partTool values', () => {
     const rows = [makeRow('1', 'Wrench', 'Tool', 3, { partNumber: 'PN-99', material: 'Steel', dimension: '10mm', unit: 'pcs' })];
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
 
-    expect(screen.getByDisplayValue('Wrench')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('PN-99')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('3')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('Steel')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('10mm')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('pcs')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-row-name-spt-1')).toHaveTextContent('Wrench');
+    expect(screen.getByTestId('parttool-row-partNumber-spt-1')).toHaveTextContent('PN-99');
+    expect(screen.getByTestId('parttool-row-amount-spt-1')).toHaveTextContent('3');
+    expect(screen.getByTestId('parttool-row-material-spt-1')).toHaveTextContent('Steel');
+    expect(screen.getByTestId('parttool-row-dimension-spt-1')).toHaveTextContent('10mm');
+    expect(screen.getByTestId('parttool-row-unit-spt-1')).toHaveTextContent('pcs');
   });
 
   it('type toggle fires onUpdatePartTool with toggled type', async () => {
@@ -107,29 +141,36 @@ describe('PartToolTable', () => {
     expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { type: 'Part' });
   });
 
-  it('name change fires onUpdatePartTool on blur', async () => {
+  it('name change via TextInputModal fires onUpdatePartTool on confirm', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
     const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
     render(<PartToolTable rows={rows} callbacks={cbs} />);
 
-    const input = screen.getByDisplayValue('Wrench');
-    await user.clear(input);
-    await user.type(input, 'Hammer');
-    await user.tab(); // blur
+    // Click name cell to open modal
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.value).toBe('Wrench');
+
+    // Confirm with new value
+    textInputModalProps!.onConfirm('Hammer');
     expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { name: 'Hammer' });
   });
 
-  it('amount change fires onUpdateAmount on blur', async () => {
+  it('amount change via TextInputModal fires onUpdateAmount on confirm', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
     const rows = [makeRow('1', 'Wrench', 'Tool', 2)];
     render(<PartToolTable rows={rows} callbacks={cbs} />);
 
-    const input = screen.getByDisplayValue('2');
-    await user.clear(input);
-    await user.type(input, '5');
-    await user.tab();
+    // Click amount cell to open modal
+    await user.click(screen.getByTestId('parttool-row-amount-spt-1'));
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.value).toBe('2');
+    expect(textInputModalProps!.inputType).toBe('number');
+
+    // Confirm with new value
+    textInputModalProps!.onConfirm('5');
     expect(cbs.onUpdateAmount).toHaveBeenCalledWith('spt-1', 5);
   });
 
@@ -144,12 +185,12 @@ describe('PartToolTable', () => {
     expect(cbs.onDelete).toHaveBeenCalledWith('spt-1');
   });
 
-  it('shows red border on empty name', () => {
+  it('shows red text on empty name', () => {
     const rows = [makeRow('1', '', 'Part', 1)];
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
 
-    const nameInput = screen.getByTestId('parttool-row-name-spt-1');
-    expect(nameInput.className).toContain('border-red');
+    const nameBtn = screen.getByTestId('parttool-row-name-spt-1');
+    expect(nameBtn.className).toContain('text-red');
   });
 
   it('renders empty table when no rows', () => {
@@ -158,17 +199,20 @@ describe('PartToolTable', () => {
     expect(screen.queryAllByTestId(/^parttool-row-/)).toHaveLength(0);
   });
 
-  it('description column renders and edits on blur', async () => {
+  it('description column renders and edits via TextInputModal', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
     const rows = [makeRow('1', 'Wrench', 'Tool', 1, { description: 'A wrench' })];
     render(<PartToolTable rows={rows} callbacks={cbs} />);
 
-    const descInput = screen.getByDisplayValue('A wrench');
-    expect(descInput).toBeInTheDocument();
-    await user.clear(descInput);
-    await user.type(descInput, 'Big wrench');
-    await user.tab();
+    const descBtn = screen.getByTestId('parttool-row-description-spt-1');
+    expect(descBtn).toHaveTextContent('A wrench');
+
+    await user.click(descBtn);
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.value).toBe('A wrench');
+
+    textInputModalProps!.onConfirm('Big wrench');
     expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { description: 'Big wrench' });
   });
 
@@ -327,14 +371,17 @@ describe('PartToolTable', () => {
 
   // ── Autocomplete integration ──
 
-  it('no autocomplete when allPartTools not provided (plain EditInput)', () => {
+  it('clicking name cell without allPartTools opens TextInputModal without suggestions', async () => {
+    const user = userEvent.setup();
     const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
-    // Name input is a plain input, not wrapped in autocomplete
-    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.suggestions).toBeUndefined();
   });
 
-  it('autocomplete dropdown appears when typing in name field with allPartTools', async () => {
+  it('clicking name cell with allPartTools opens TextInputModal with suggestions', async () => {
     const user = userEvent.setup();
     const allPartTools = [
       makePt('cat-1', 'Wrench', 'Tool'),
@@ -342,20 +389,19 @@ describe('PartToolTable', () => {
     ];
     const rows = [makeRow('1', '', 'Part', 1)];
     const cbs = makeCallbacks();
-    const { rerender } = render(
+    render(
       <PartToolTable rows={rows} callbacks={cbs} allPartTools={allPartTools} />,
     );
 
-    const nameInput = screen.getByTestId('parttool-row-name-spt-1');
-    await user.click(nameInput);
-    await user.type(nameInput, 'Wre');
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
 
-    // The dropdown should appear with matching suggestion
-    expect(screen.getByRole('listbox')).toBeInTheDocument();
-    expect(screen.getByText('Wrench')).toBeInTheDocument();
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.suggestions).toHaveLength(2);
+    expect(textInputModalProps!.suggestions![0].label).toBe('Wrench');
+    expect(textInputModalProps!.suggestions![1].label).toBe('Bolt');
   });
 
-  it('selecting autocomplete suggestion calls onSelectPartTool', async () => {
+  it('selecting suggestion in TextInputModal calls onSelectPartTool', async () => {
     const user = userEvent.setup();
     const allPartTools = [
       makePt('cat-1', 'Wrench', 'Tool'),
@@ -368,13 +414,148 @@ describe('PartToolTable', () => {
       <PartToolTable rows={rows} callbacks={cbs} allPartTools={allPartTools} />,
     );
 
-    const nameInput = screen.getByTestId('parttool-row-name-spt-1');
-    await user.click(nameInput);
-    await user.type(nameInput, 'Bolt');
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
 
-    // Select the suggestion
-    await user.click(screen.getByText('Bolt'));
+    // Select a suggestion via the mock's onSelect
+    expect(textInputModalProps).not.toBeNull();
+    textInputModalProps!.onSelect!('pt-cat-2');
     expect(onSelectPartTool).toHaveBeenCalledWith('spt-1', 'pt-cat-2');
+  });
+
+  it('clicking label cell with allPartTools opens TextInputModal with suggestions', async () => {
+    const user = userEvent.setup();
+    const allPartTools = [makePt('cat-1', 'Wrench', 'Tool', 1, { label: 'W1' })];
+    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} allPartTools={allPartTools} />);
+
+    await user.click(screen.getByTestId('parttool-row-label-spt-1'));
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.suggestions).toHaveLength(1);
+  });
+
+  it('clicking partNumber cell with allPartTools opens TextInputModal with suggestions', async () => {
+    const user = userEvent.setup();
+    const allPartTools = [makePt('cat-1', 'Wrench', 'Tool', 1, { partNumber: 'PN-1' })];
+    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} allPartTools={allPartTools} />);
+
+    await user.click(screen.getByTestId('parttool-row-partNumber-spt-1'));
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.suggestions).toHaveLength(1);
+  });
+
+  it('clicking unit/material/dimension/description cells with allPartTools opens TextInputModal WITHOUT suggestions', async () => {
+    const user = userEvent.setup();
+    const allPartTools = [makePt('cat-1', 'Wrench', 'Tool', 1, { unit: 'pcs', material: 'Steel', dimension: '10mm', description: 'Desc' })];
+    const rows = [makeRow('1', 'Bolt', 'Part', 1, { unit: 'kg', material: 'Aluminum', dimension: '5mm', description: 'Test' })];
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} allPartTools={allPartTools} />);
+
+    for (const field of ['unit', 'material', 'dimension', 'description'] as const) {
+      await user.click(screen.getByTestId(`parttool-row-${field}-spt-1`));
+      expect(textInputModalProps).not.toBeNull();
+      expect(textInputModalProps!.suggestions).toBeUndefined();
+      textInputModalProps!.onCancel();
+      textInputModalProps = null;
+    }
+  });
+
+  // ── Inline dual-confirm for autocomplete fields ──
+
+  it('shows dual confirm buttons when autocomplete field on named partTool with onCreateAndReplacePartTool', async () => {
+    const user = userEvent.setup();
+    const cbs = { ...makeCallbacks(), onCreateAndReplacePartTool: vi.fn() };
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
+    expect(textInputModalProps).not.toBeNull();
+    expect(textInputModalProps!.onSecondaryConfirm).toBeDefined();
+    expect(textInputModalProps!.secondaryConfirmLabel).toBe('Create new');
+    expect(textInputModalProps!.confirmLabel).toBe('Update');
+  });
+
+  it('no dual confirm without onCreateAndReplacePartTool — direct update', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
+    expect(textInputModalProps!.onSecondaryConfirm).toBeUndefined();
+    expect(textInputModalProps!.confirmLabel).toBeUndefined();
+
+    textInputModalProps!.onConfirm('Hammer');
+    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { name: 'Hammer' });
+  });
+
+  it('no dual confirm for non-autocomplete fields even with onCreateAndReplacePartTool', async () => {
+    const user = userEvent.setup();
+    const cbs = { ...makeCallbacks(), onCreateAndReplacePartTool: vi.fn() };
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1, { unit: 'pcs' })];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-unit-spt-1'));
+    expect(textInputModalProps!.onSecondaryConfirm).toBeUndefined();
+
+    textInputModalProps!.onConfirm('kg');
+    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { unit: 'kg' });
+  });
+
+  it('no dual confirm for blank partTool (name is empty) — direct update', async () => {
+    const user = userEvent.setup();
+    const cbs = { ...makeCallbacks(), onCreateAndReplacePartTool: vi.fn() };
+    const rows = [makeRow('1', '', 'Part', 1)];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
+    expect(textInputModalProps!.onSecondaryConfirm).toBeUndefined();
+
+    textInputModalProps!.onConfirm('NewName');
+    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { name: 'NewName' });
+  });
+
+  it('onSecondaryConfirm calls onCreateAndReplacePartTool', async () => {
+    const user = userEvent.setup();
+    const cbs = { ...makeCallbacks(), onCreateAndReplacePartTool: vi.fn() };
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
+    textInputModalProps!.onSecondaryConfirm!('Hammer');
+    expect(cbs.onCreateAndReplacePartTool).toHaveBeenCalledWith('spt-1', 'name', 'Hammer');
+    expect(cbs.onUpdatePartTool).not.toHaveBeenCalled();
+  });
+
+  it('onConfirm (primary) calls onUpdatePartTool even with dual confirm', async () => {
+    const user = userEvent.setup();
+    const cbs = { ...makeCallbacks(), onCreateAndReplacePartTool: vi.fn() };
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
+    textInputModalProps!.onConfirm('Hammer');
+    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { name: 'Hammer' });
+    expect(cbs.onCreateAndReplacePartTool).not.toHaveBeenCalled();
+  });
+
+  it('dual confirm shown for label field on existing partTool', async () => {
+    const user = userEvent.setup();
+    const cbs = { ...makeCallbacks(), onCreateAndReplacePartTool: vi.fn() };
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1, { label: 'W1' })];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-label-spt-1'));
+    expect(textInputModalProps!.onSecondaryConfirm).toBeDefined();
+  });
+
+  it('dual confirm shown for partNumber field on existing partTool', async () => {
+    const user = userEvent.setup();
+    const cbs = { ...makeCallbacks(), onCreateAndReplacePartTool: vi.fn() };
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1, { partNumber: 'PN-1' })];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-partNumber-spt-1'));
+    expect(textInputModalProps!.onSecondaryConfirm).toBeDefined();
   });
 
   it('image picker add triggers file input flow', async () => {

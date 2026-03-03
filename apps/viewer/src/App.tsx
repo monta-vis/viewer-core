@@ -59,10 +59,6 @@ declare global {
       projects: {
         list: () => Promise<ProjectListItem[]>;
         getData: (folderName: string) => Promise<Record<string, unknown>>;
-        getMediaUrl: (
-          folderName: string,
-          relativePath: string,
-        ) => Promise<string>;
         saveData: (
           folderName: string,
           changes: {

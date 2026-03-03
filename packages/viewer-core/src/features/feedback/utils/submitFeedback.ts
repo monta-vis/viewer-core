@@ -1,7 +1,6 @@
 // Feedback submission via Web3Forms email
 
 const WEB3FORMS_URL = 'https://api.web3forms.com/submit';
-const WEB3FORMS_KEY = import.meta.env.VITE_WEB3FORMS_KEY ?? '';
 
 export interface FeedbackData {
   description?: string;
@@ -12,6 +11,8 @@ export interface FeedbackData {
   instructionName?: string;
   stepNumber?: number;
   supportEmail?: string | null;
+  /** Web3Forms access key — must be provided by the app layer. */
+  accessKey?: string;
 }
 
 export interface FeedbackResult {
@@ -35,7 +36,7 @@ export function dataUrlToBlob(dataUrl: string): Blob {
 export async function submitViaEmail(data: FeedbackData): Promise<FeedbackResult> {
   try {
     const form = new FormData();
-    form.append('access_key', WEB3FORMS_KEY);
+    form.append('access_key', data.accessKey ?? '');
     form.append('botcheck', '');
     form.append('subject', 'Montavis Feedback');
 

@@ -60,6 +60,7 @@ export interface CatalogEntry {
   filename: string;
   category: string;
   label: Record<string, string>;
+  isoCode?: string;
 }
 
 /** A category definition from catalog.json. */

@@ -61,5 +61,9 @@ export { DialogShell } from './DialogShell'
 export type { DialogShellProps } from './DialogShell'
 
 // Text Input Modal
-export { TextInputModal } from './TextInputModal'
+export { TextInputModal, filterSuggestions } from './TextInputModal'
 export type { TextInputModalProps, TextInputSuggestion } from './TextInputModal'
+
+// Tooltip
+export { Tooltip } from './Tooltip'
+export type { TooltipProps } from './Tooltip'

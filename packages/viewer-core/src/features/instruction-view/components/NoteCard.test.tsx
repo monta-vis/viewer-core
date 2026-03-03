@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { NoteCard } from './NoteCard';
 
 afterEach(() => cleanup());
@@ -115,5 +115,32 @@ describe('NoteCard safety icon resolution', () => {
     // No <img> tag — fallback category text abbreviation is rendered
     expect(screen.queryByRole('img')).toBeNull();
     expect(screen.getByText('War')).toBeInTheDocument(); // first 3 chars of 'Warnzeichen'
+  });
+});
+
+describe('NoteCard icon label tooltip', () => {
+  const tooltipProps = {
+    safetyIconCategory: 'Warnzeichen' as const,
+    safetyIconId: 'W001-Allgemeines-Warnzeichen.png',
+    text: 'Caution',
+    isExpanded: true,
+    onToggle: vi.fn(),
+  };
+
+  it('shows iconLabel as tooltip on hover when iconLabel prop is provided', () => {
+    render(<NoteCard {...tooltipProps} iconLabel="General Warning" />);
+    const img = screen.getByRole('img');
+    const wrapper = img.parentElement!;
+    fireEvent.mouseEnter(wrapper);
+    expect(screen.getByRole('tooltip')).toHaveTextContent('General Warning');
+  });
+
+  it('shows categoryLabel as tooltip on hover when iconLabel is not provided', () => {
+    render(<NoteCard {...tooltipProps} />);
+    const img = screen.getByRole('img');
+    const wrapper = img.parentElement!;
+    fireEvent.mouseEnter(wrapper);
+    // categoryLabel = t('editor.safetyCategory.Warnzeichen', 'Warnzeichen') → 'Warnzeichen'
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Warnzeichen');
   });
 });

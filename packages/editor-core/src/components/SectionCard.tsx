@@ -1,10 +1,10 @@
 import type { ReactNode } from 'react';
 
 const CARD_CLASS = 'rounded-xl border border-[var(--color-border-base)] bg-[var(--color-bg-surface)] flex flex-col';
-const CARD_HEADER_CLASS = 'flex items-center gap-2 px-4 py-3 border-b border-[var(--color-border-base)]';
-const CARD_TITLE_CLASS = 'text-xs font-semibold uppercase tracking-wider text-[var(--color-text-muted)]';
-const CARD_BODY_CLASS = 'flex-1 p-3 flex flex-col gap-1';
-const EMPTY_STATE_CLASS = 'flex-1 flex items-center justify-center text-sm italic text-[var(--color-text-muted)] py-4';
+const CARD_HEADER_CLASS = 'flex items-center gap-3 px-5 py-3.5 border-b border-[var(--color-border-base)]';
+const CARD_TITLE_CLASS = 'text-base font-semibold uppercase tracking-wider text-[var(--color-text-muted)]';
+const CARD_BODY_CLASS = 'flex-1 p-4 flex flex-col gap-1.5';
+const EMPTY_STATE_CLASS = 'flex-1 flex items-center justify-center text-base italic text-[var(--color-text-muted)] py-4';
 
 export interface SectionCardProps {
   'data-testid': string;

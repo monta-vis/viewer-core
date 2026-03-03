@@ -91,6 +91,9 @@ export {
   type PartToolImageItem,
 } from './components/PartToolImagePicker';
 
+// PartToolDetailEditor (full editable detail view for a single part/tool — render prop for PartsDrawer)
+export { PartToolDetailEditor, type PartToolDetailEditorProps } from './components/PartToolDetailEditor';
+
 // ImageCropDialog (image crop dialog for part/tool images)
 export { ImageCropDialog, type ImageCropDialogProps } from './components/ImageCropDialog';
 
@@ -105,12 +108,9 @@ export type { CutRegion, TrimData, TrimmedFile } from './types/trim.types';
 
 // Video trim utilities
 export {
-  generateCutId,
   getKeptSegments,
   mergeOverlappingRegions,
   formatTimecode,
-  parseTimecode,
-  isVideoFile,
   type KeptSegment,
 } from './utils/trimUtils';
 

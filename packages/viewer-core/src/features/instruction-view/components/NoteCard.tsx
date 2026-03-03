@@ -2,6 +2,7 @@ import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { getCategoryPriority, safetyIconUrl, NOTE_CATEGORY_STYLES, type SafetyIconCategory } from '@/features/instruction';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
+import { Tooltip } from '@/components/ui/Tooltip';
 
 /** Unified note card: fixed icon + sliding text panel. */
 interface NoteCardProps {
@@ -14,9 +15,11 @@ interface NoteCardProps {
   folderName?: string;
   /** VideoFrameArea records for localPath fallback (mweb context without folderName). */
   videoFrameAreas?: Record<string, { localPath?: string | null }>;
+  /** Optional icon label for hover tooltip. Falls back to translated category label. */
+  iconLabel?: string;
 }
 
-export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, onToggle, folderName, videoFrameAreas }: NoteCardProps) {
+export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, onToggle, folderName, videoFrameAreas, iconLabel }: NoteCardProps) {
   const { t } = useTranslation();
   const styles = NOTE_CATEGORY_STYLES[safetyIconCategory] ?? NOTE_CATEGORY_STYLES.Warnzeichen;
   const categoryLabel = t(`editor.safetyCategory.${safetyIconCategory}`, safetyIconCategory);
@@ -49,11 +52,13 @@ export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, o
       {/* Icon — fixed size, never moves or resizes */}
       <span className="flex-shrink-0 w-14 h-14 flex items-center justify-center">
         {iconUrl ? (
-          <img
-            src={iconUrl}
-            alt={categoryLabel}
-            className="w-full h-full object-contain"
-          />
+          <Tooltip content={iconLabel ?? categoryLabel}>
+            <img
+              src={iconUrl}
+              alt={categoryLabel}
+              className="w-full h-full object-contain"
+            />
+          </Tooltip>
         ) : (
           <span className={clsx('text-xs font-bold uppercase', styles.text)}>{safetyIconCategory.slice(0, 3)}</span>
         )}

@@ -5,6 +5,7 @@ import {
   getCategoryColor,
   SAFETY_ICON_CATEGORIES,
   SearchInput,
+  fuzzySearch,
 } from '@monta-vis/viewer-core';
 
 export interface SafetyIconItem {
@@ -12,6 +13,8 @@ export interface SafetyIconItem {
   filename: string;
   category: string;
   label: string;
+  /** Full original string including ISO reference code (e.g. "M009 Handschutz benutzen"). */
+  isoCode?: string;
   /** Catalog display name (undefined for built-in icons). */
   catalogName?: string;
   /** Actual catalog directory name on disk (undefined for built-in icons). */
@@ -46,12 +49,11 @@ export function SafetyIconPicker({
   // Filter icons by search term
   const filtered = useMemo(() => {
     if (!search.trim()) return icons;
-    const q = search.toLowerCase();
-    return icons.filter(
-      (icon) =>
-        icon.label.toLowerCase().includes(q) ||
-        icon.filename.toLowerCase().includes(q),
-    );
+    return fuzzySearch(
+      icons,
+      search,
+      (icon) => [icon.label, icon.filename, icon.isoCode ?? ''],
+    ).map((m) => m.item);
   }, [icons, search]);
 
   // Get sorted categories from filtered icons
@@ -115,7 +117,7 @@ export function SafetyIconPicker({
       )}
 
       {/* Icon grid */}
-      <div className="h-72 overflow-y-auto pr-1">
+      <div className="max-h-72 overflow-y-auto pr-1">
         {tabIcons.length === 0 && (
           <p className="text-sm text-[var(--color-text-muted)] text-center py-4">
             {t('editorCore.noIconsFound', 'No icons found')}

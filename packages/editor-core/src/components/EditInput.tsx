@@ -2,10 +2,10 @@ import { forwardRef } from 'react';
 import clsx from 'clsx';
 
 const MD_CLASS =
-  'w-full px-2 py-1.5 rounded-lg text-sm border border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]';
+  'w-full px-2 py-1.5 rounded-lg text-lg border border-[var(--color-border)] bg-[var(--color-bg-elevated)] text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]';
 
 const SM_CLASS =
-  'w-full bg-transparent border-b border-transparent text-[0.65rem] text-[var(--color-text-base)] focus:outline-none focus:border-[var(--color-secondary)] transition-colors';
+  'w-full bg-transparent border-b border-transparent text-base text-[var(--color-text-base)] focus:outline-none focus:border-[var(--color-secondary)] transition-colors';
 
 type EditInputSize = 'sm' | 'md';
 

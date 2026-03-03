@@ -175,6 +175,37 @@ describe('AutocompleteEditInput', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
+  it('filters suggestions by searchTerms when provided', async () => {
+    const user = userEvent.setup();
+    const suggestionsWithSearchTerms: AutocompleteSuggestion[] = [
+      { id: 's1', label: 'Wrench', searchTerms: 'adjustable tool' },
+      { id: 's2', label: 'Bolt', sublabel: 'PN-02' },
+    ];
+    const { rerender } = render(
+      <AutocompleteEditInput
+        suggestions={suggestionsWithSearchTerms}
+        onSelectSuggestion={vi.fn()}
+        value=""
+        onChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole('textbox'));
+
+    rerender(
+      <AutocompleteEditInput
+        suggestions={suggestionsWithSearchTerms}
+        onSelectSuggestion={vi.fn()}
+        value="adjustable"
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+    expect(screen.getByText('Wrench')).toBeInTheDocument();
+    expect(screen.queryByText('Bolt')).not.toBeInTheDocument();
+  });
+
   it('respects minChars threshold', async () => {
     const user = userEvent.setup();
     const { rerender } = render(

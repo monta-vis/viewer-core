@@ -5,11 +5,11 @@ import { Check, ChevronLeft, ChevronRight, ChevronDown, Gauge, Package, Plus, X 
 import { clsx } from 'clsx';
 
 import { Button, TutorialClickIcon } from '@/components/ui';
-import type { TextInputSuggestion } from '@/components/ui';
 import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
 import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, ViewportKeyframeRow, SubstepRow, RichTutorialDisplay, SafetyIconCategory } from '@/features/instruction';
+import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
@@ -105,16 +105,15 @@ interface InstructionViewProps {
     onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
     onAddSubstepPartTool?: (substepId: string) => void;
     onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
+    onReplaceSubstepPartTool?: (substepPartToolId: string, newPartToolId: string) => void;
+    onCreateAndReplacePartTool?: (substepPartToolId: string, field: 'name' | 'label' | 'partNumber', value: string) => void;
     onDeleteSubstep?: (substepId: string) => void;
     onAddSubstep?: (stepId: string) => void;
-    onReplacePartTool?: (oldPartToolId: string, newPartToolId: string) => void;
-    onCreatePartTool?: (oldPartToolId: string, newName: string) => void;
-    onEditPartToolAmount?: (partToolId: string, newAmount: string) => void;
-    onEditPartToolImage?: (partToolId: string) => void;
-    onDeletePartTool?: (partToolId: string) => void;
   };
-  /** Catalog of available parts/tools for search + swap in PartToolDetailModal */
-  partToolCatalog?: TextInputSuggestion[];
+  /** Web3Forms access key for feedback submission (provided by app layer). */
+  web3FormsKey?: string;
+  /** Map of safetyIconId → localized label for note icon tooltips (provided by app layer from catalogs). */
+  noteIconLabels?: Record<string, string>;
   /** Render function for the edit popover (provided by editor-core via app shell). Passed through to SubstepCard. */
   renderEditPopover?: (props: {
     open: boolean;
@@ -130,6 +129,8 @@ interface InstructionViewProps {
     hasVideo: boolean;
     substepId?: string;
   }) => ReactNode;
+  /** Render function for the part/tool editor (provided by editor-core via app shell). Passed to PartsDrawer. */
+  renderPartToolEditor?: (props: { item: AggregatedPartTool; onClose: () => void }) => ReactNode;
 }
 
 /**
@@ -137,7 +138,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, partToolCatalog, renderEditPopover }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, web3FormsKey, noteIconLabels, renderEditPopover, renderPartToolEditor }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -287,6 +288,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         onUpdateSubstepPartToolAmount: (sptId, amount) => editCallbacks.onUpdateSubstepPartToolAmount?.(sptId, amount),
         onAddSubstepPartTool: () => editCallbacks.onAddSubstepPartTool?.(substepId),
         onDeleteSubstepPartTool: (sptId) => editCallbacks.onDeleteSubstepPartTool?.(sptId),
+        onReplaceSubstepPartTool: (sptId, newPtId) => editCallbacks.onReplaceSubstepPartTool?.(sptId, newPtId),
+        onCreateAndReplacePartTool: (sptId, field, value) => editCallbacks.onCreateAndReplacePartTool?.(sptId, field, value),
         onDeleteSubstep: () => editCallbacks.onDeleteSubstep?.(substepId),
       };
     },
@@ -897,6 +900,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
               backdropRef={feedbackBackdropRef}
               instructionName={data?.instructionName ?? undefined}
               stepNumber={currentIndex + 1}
+              web3FormsKey={web3FormsKey}
             />
             {/* Close button - always visible when onBreak exists */}
             {onBreak && (
@@ -1018,6 +1022,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                             tutorialDisplay={substepTutorialDisplayMap.get(substep.id)}
                             folderName={folderName}
                             videoFrameAreas={data.videoFrameAreas}
+                            noteIconLabels={noteIconLabels}
                             editMode={effectiveEditMode}
                             editCallbacks={substepEditCallbacksMap.get(substep.id)}
                             substepId={substep.id}
@@ -1140,7 +1145,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                     {t('instructionView.completed', 'Instruction complete')}
                   </span>
                 </div>
-                <StarRating instructionName={data?.instructionName ?? undefined} onComplete={onBreak} />
+                <StarRating instructionName={data?.instructionName ?? undefined} onComplete={onBreak} web3FormsKey={web3FormsKey} />
               </div>
             )}
           </div>
@@ -1189,14 +1194,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         tutorialHighlight={tutorialStep === 1}
         useRawVideo={useRawVideo}
         editMode={effectiveEditMode}
-        editCallbacks={effectiveEditMode && editCallbacks ? {
-          onReplacePartTool: editCallbacks.onReplacePartTool,
-          onCreatePartTool: editCallbacks.onCreatePartTool,
-          onEditPartToolAmount: editCallbacks.onEditPartToolAmount,
-          onEditPartToolImage: editCallbacks.onEditPartToolImage,
-          onDeletePartTool: editCallbacks.onDeletePartTool,
-        } : undefined}
-        partToolCatalog={effectiveEditMode ? partToolCatalog : undefined}
+        renderPartToolEditor={effectiveEditMode ? renderPartToolEditor : undefined}
       />
 
       <SpeedDrawer

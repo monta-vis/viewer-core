@@ -53,6 +53,8 @@ export interface SubstepEditCallbacks {
   onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
   /** Replace a substepPartTool's partTool reference with another instruction-level partTool. */
   onReplaceSubstepPartTool?: (substepPartToolId: string, newPartToolId: string) => void;
+  /** Create a new partTool with the given field value and replace the substepPartTool reference. */
+  onCreateAndReplacePartTool?: (substepPartToolId: string, field: 'name' | 'label' | 'partNumber', value: string) => void;
   onDeleteSubstep?: () => void;
 }
 
@@ -70,6 +72,8 @@ interface SubstepCardProps {
   onMouseLeave?: () => void;
   selected?: boolean;
   landscape?: boolean;
+  /** When true, the description footer is hidden. Used in popover previews. */
+  hideFooter?: boolean;
   isViewed?: boolean;
   onPartToolClick?: () => void;
   videoData?: { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number }[] } | null;
@@ -100,6 +104,8 @@ interface SubstepCardProps {
   editMode?: boolean;
   /** Edit callbacks — only used when editMode=true */
   editCallbacks?: SubstepEditCallbacks;
+  /** Map of safetyIconId → localized label for note icon tooltips. */
+  noteIconLabels?: Record<string, string>;
   /** Render function for the edit popover (provided by editor-core via app shell) */
   /** Substep ID — forwarded to the edit popover so it can associate uploads with the correct substep */
   substepId?: string;
@@ -116,8 +122,15 @@ interface SubstepCardProps {
     hasImage: boolean;
     hasVideo: boolean;
     substepId?: string;
-    /** Pre-rendered media preview (image / video frame capture) matching SubstepCard appearance */
-    mediaPreview?: ReactNode;
+    /** Props for rendering a read-only SubstepCard as media preview inside the popover */
+    stepOrder: number;
+    totalSubsteps?: number;
+    imageUrl?: string | null;
+    frameCaptureData?: FrameCaptureData | null;
+    videoData?: SubstepCardProps['videoData'];
+    title: string | null;
+    noteIconLabels?: Record<string, string>;
+    folderName?: string;
   }) => ReactNode;
 }
 
@@ -135,6 +148,7 @@ export const SubstepCard = memo(function SubstepCard({
   onMouseLeave,
   selected = false,
   landscape = false,
+  hideFooter = false,
   isViewed = false,
   onPartToolClick,
   videoData,
@@ -148,6 +162,7 @@ export const SubstepCard = memo(function SubstepCard({
   tutorialDisplay,
   folderName,
   videoFrameAreas,
+  noteIconLabels,
   editMode = false,
   editCallbacks,
   substepId,
@@ -530,7 +545,7 @@ export const SubstepCard = memo(function SubstepCard({
       role="button"
       tabIndex={0}
       onClick={handleActivate}
-      onKeyDown={(e) => { if (e.key === 'Enter') handleActivate(); }}
+      onKeyDown={(e) => { if (e.key === 'Enter' && !editPopoverOpen) handleActivate(); }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       interactive
@@ -753,24 +768,14 @@ export const SubstepCard = memo(function SubstepCard({
                     hasImage: !!(imageUrl || frameCaptureData),
                     hasVideo: !!videoData,
                     substepId,
-                    mediaPreview: frameCaptureData ? (
-                      <VideoFrameCapture
-                        videoId={frameCaptureData.videoId}
-                        fps={frameCaptureData.fps}
-                        frameNumber={frameCaptureData.frameNumber}
-                        cropArea={frameCaptureData.cropArea}
-                        videoSrc={frameCaptureData.videoSrc}
-                        alt={altText}
-                        className="w-full h-full object-contain"
-                      />
-                    ) : imageUrl ? (
-                      <img
-                        src={imageUrl}
-                        alt={altText}
-                        draggable={false}
-                        className="w-full h-full object-contain select-none"
-                      />
-                    ) : undefined,
+                    stepOrder,
+                    totalSubsteps,
+                    imageUrl,
+                    frameCaptureData,
+                    videoData,
+                    title,
+                    noteIconLabels,
+                    folderName,
                   })}
                 </div>
               )}
@@ -802,6 +807,7 @@ export const SubstepCard = memo(function SubstepCard({
                   onToggle={handleNoteToggle}
                   folderName={folderName}
                   videoFrameAreas={videoFrameAreas}
+                  iconLabel={noteIconLabels?.[noteRow.note.safetyIconId]}
                 />
               </div>
             ))}
@@ -893,25 +899,27 @@ export const SubstepCard = memo(function SubstepCard({
       </div>
 
       {/* Footer - descriptions */}
-      <div
-        className="px-4 py-3 shadow-[0_-1px_2px_rgba(0,0,0,0.08)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {descriptions.length > 0 ? (
-          <div className="space-y-1">
-            {descriptions.map((desc) => (
-              <p key={desc.id} className="text-lg text-[var(--color-text-base)] leading-relaxed">
-                <span className="text-[var(--color-text-muted)]">&ndash;</span>{' '}
-                {desc.text}
-              </p>
-            ))}
-          </div>
-        ) : (
-          <div className="py-2 flex items-center justify-center">
-            <span className="text-sm text-[var(--color-text-subtle)]">—</span>
-          </div>
-        )}
-      </div>
+      {!hideFooter && (
+        <div
+          className="px-4 py-3 shadow-[0_-1px_2px_rgba(0,0,0,0.08)]"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {descriptions.length > 0 ? (
+            <div className="space-y-1">
+              {descriptions.map((desc) => (
+                <p key={desc.id} className="text-lg text-[var(--color-text-base)] leading-relaxed">
+                  <span className="text-[var(--color-text-muted)] mr-1.5">•</span>
+                  {desc.text}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <div className="py-2 flex items-center justify-center">
+              <span className="text-sm text-[var(--color-text-subtle)]">—</span>
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 });

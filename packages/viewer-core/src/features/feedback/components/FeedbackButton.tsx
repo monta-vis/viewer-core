@@ -23,6 +23,8 @@ interface FeedbackButtonProps {
   instructionName?: string;
   /** Current step number for context (1-based) */
   stepNumber?: number;
+  /** Web3Forms access key (provided by app layer) */
+  web3FormsKey?: string;
 }
 
 export function FeedbackButton({
@@ -35,6 +37,7 @@ export function FeedbackButton({
   supportEmail,
   instructionName,
   stepNumber,
+  web3FormsKey,
 }: FeedbackButtonProps) {
   const { t } = useTranslation();
   const [internalIsOpen, setInternalIsOpen] = useState(false);
@@ -69,6 +72,7 @@ export function FeedbackButton({
         supportEmail={supportEmail}
         instructionName={instructionName}
         stepNumber={stepNumber}
+        web3FormsKey={web3FormsKey}
       />
     </>
   );

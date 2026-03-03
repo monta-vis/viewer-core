@@ -109,11 +109,58 @@ describe('TextInputModal', () => {
     expect(el.tagName).toBe('TEXTAREA');
   });
 
+  it('fires onConfirm on Enter key in textarea mode', async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(<TextInputModal {...defaultProps} onConfirm={onConfirm} inputType="textarea" />);
+
+    const textarea = screen.getByRole('textbox');
+    await user.clear(textarea);
+    await user.type(textarea, 'Some description{Enter}');
+
+    expect(onConfirm).toHaveBeenCalledWith('Some description');
+  });
+
+  it('inserts newline on Shift+Enter in textarea mode', async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(<TextInputModal {...defaultProps} onConfirm={onConfirm} inputType="textarea" />);
+
+    const textarea = screen.getByRole('textbox');
+    await user.clear(textarea);
+    await user.type(textarea, 'Line one{Shift>}{Enter}{/Shift}Line two');
+
+    expect(onConfirm).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue('Line one\nLine two');
+  });
+
   it('renders number input when inputType is number', () => {
     render(<TextInputModal {...defaultProps} inputType="number" value="42" />);
 
     const input = screen.getByRole('spinbutton');
     expect(input).toHaveValue(42);
+  });
+
+  it('stops Enter key propagation so ancestor handlers do not fire', async () => {
+    const onConfirm = vi.fn();
+    const ancestorKeyDown = vi.fn();
+    const user = userEvent.setup();
+
+    render(
+      // eslint-disable-next-line jsx-a11y/no-static-element-interactions
+      <div onKeyDown={ancestorKeyDown}>
+        <TextInputModal {...defaultProps} onConfirm={onConfirm} />
+      </div>
+    );
+
+    const input = screen.getByRole('textbox');
+    await user.clear(input);
+    await user.type(input, 'Hello{Enter}');
+
+    expect(onConfirm).toHaveBeenCalledWith('Hello');
+    expect(ancestorKeyDown).not.toHaveBeenCalledWith(
+      expect.objectContaining({ key: 'Enter' })
+    );
   });
 });
 
@@ -241,6 +288,28 @@ describe('TextInputModal — suggestions', () => {
     expect(screen.queryByTestId('suggestion-list')).not.toBeInTheDocument();
   });
 
+  it('filters suggestions by searchTerms when provided', async () => {
+    const user = userEvent.setup();
+    const suggestionsWithSearchTerms = [
+      { id: 'pt-1', label: 'Steel Bolt', sublabel: 'BLT-001', searchTerms: 'fastener hex' },
+      { id: 'pt-2', label: 'Aluminum Nut', sublabel: 'NUT-002' },
+    ];
+    render(
+      <TextInputModal
+        {...defaultProps}
+        value=""
+        suggestions={suggestionsWithSearchTerms}
+        onSelect={vi.fn()}
+      />
+    );
+
+    const input = screen.getByRole('textbox');
+    await user.type(input, 'fastener');
+
+    expect(screen.getByText('Steel Bolt')).toBeInTheDocument();
+    expect(screen.queryByText('Aluminum Nut')).not.toBeInTheDocument();
+  });
+
   it('shows "no results" message when filter matches nothing', async () => {
     const user = userEvent.setup();
     render(
@@ -256,5 +325,45 @@ describe('TextInputModal — suggestions', () => {
     await user.type(input, 'xyznonexistent');
 
     expect(screen.getByText('No results')).toBeInTheDocument();
+  });
+
+  it('shows all suggestions on open even when value is pre-filled', () => {
+    render(
+      <TextInputModal
+        {...defaultProps}
+        value="Steel Bolt"
+        suggestions={mockSuggestions}
+        onSelect={vi.fn()}
+      />
+    );
+
+    // All three suggestions should be visible despite the pre-filled value
+    expect(screen.getByText('Steel Bolt')).toBeInTheDocument();
+    expect(screen.getByText('Aluminum Nut')).toBeInTheDocument();
+    expect(screen.getByText('Copper Washer')).toBeInTheDocument();
+  });
+
+  it('filters suggestions after user edits the input', async () => {
+    const user = userEvent.setup();
+    render(
+      <TextInputModal
+        {...defaultProps}
+        value="Steel Bolt"
+        suggestions={mockSuggestions}
+        onSelect={vi.fn()}
+      />
+    );
+
+    // Initially all visible
+    expect(screen.getByText('Aluminum Nut')).toBeInTheDocument();
+    expect(screen.getByText('Copper Washer')).toBeInTheDocument();
+
+    // Type to filter
+    const input = screen.getByRole('textbox');
+    await user.clear(input);
+    await user.type(input, 'copper');
+
+    expect(screen.getByText('Copper Washer')).toBeInTheDocument();
+    expect(screen.queryByText('Aluminum Nut')).not.toBeInTheDocument();
   });
 });

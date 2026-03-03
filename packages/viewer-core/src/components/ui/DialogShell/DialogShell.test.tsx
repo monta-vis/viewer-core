@@ -108,6 +108,24 @@ describe('DialogShell', () => {
     expect(backdrop.className).not.toContain('backdrop-blur');
   });
 
+  it('Escape stops propagation so parent listeners do not fire', async () => {
+    const parentSpy = vi.fn();
+    document.addEventListener('keydown', parentSpy);
+    const user = userEvent.setup();
+    render(
+      <DialogShell {...defaultProps}>
+        <p>Content</p>
+      </DialogShell>,
+    );
+    await user.keyboard('{Escape}');
+    expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
+    const escCalls = parentSpy.mock.calls.filter(
+      ([e]: [KeyboardEvent]) => e.key === 'Escape',
+    );
+    expect(escCalls).toHaveLength(0);
+    document.removeEventListener('keydown', parentSpy);
+  });
+
   it('applies custom className to the panel', () => {
     render(
       <DialogShell {...defaultProps} className="custom-class">
@@ -116,5 +134,67 @@ describe('DialogShell', () => {
     );
     const panel = screen.getByTestId('dialog-shell-panel');
     expect(panel.className).toContain('custom-class');
+  });
+
+  describe('visual viewport (virtual keyboard)', () => {
+    let originalVisualViewport: VisualViewport | null;
+
+    beforeEach(() => {
+      originalVisualViewport = window.visualViewport;
+    });
+
+    afterEach(() => {
+      Object.defineProperty(window, 'visualViewport', {
+        value: originalVisualViewport,
+        writable: true,
+        configurable: true,
+      });
+    });
+
+    it('applies inline top/height from visualViewport when keyboard is open', () => {
+      const listeners: Record<string, EventListener> = {};
+      const fakeViewport = {
+        height: 400,
+        offsetTop: 0,
+        width: 800,
+        addEventListener: (type: string, fn: EventListener) => {
+          listeners[type] = fn;
+        },
+        removeEventListener: vi.fn(),
+      };
+      Object.defineProperty(window, 'visualViewport', {
+        value: fakeViewport,
+        writable: true,
+        configurable: true,
+      });
+
+      render(
+        <DialogShell {...defaultProps}>
+          <p>Content</p>
+        </DialogShell>,
+      );
+
+      const backdrop = screen.getByTestId('dialog-shell-backdrop');
+      expect(backdrop.style.height).toBe('400px');
+      expect(backdrop.style.top).toBe('0px');
+    });
+
+    it('falls back to innerHeight when visualViewport is unavailable', () => {
+      Object.defineProperty(window, 'visualViewport', {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
+
+      render(
+        <DialogShell {...defaultProps}>
+          <p>Content</p>
+        </DialogShell>,
+      );
+
+      const backdrop = screen.getByTestId('dialog-shell-backdrop');
+      expect(backdrop.style.height).toBe(`${window.innerHeight}px`);
+      expect(backdrop.style.top).toBe('0px');
+    });
   });
 });

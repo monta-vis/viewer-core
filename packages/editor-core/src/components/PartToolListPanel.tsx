@@ -137,12 +137,12 @@ export function PartToolListPanel({
       />
 
       {/* Panel */}
-      <div className="relative w-[95vw] max-w-[72rem] h-[90vh] max-h-[56rem] flex flex-col rounded-2xl bg-[var(--color-bg-elevated)] shadow-xl">
+      <div className="relative w-[95vw] h-[90vh] flex flex-col rounded-2xl bg-[var(--color-bg-elevated)] shadow-xl">
         {/* Header */}
-        <div className="shrink-0 flex items-center justify-between px-5 py-4 border-b border-[var(--color-border-base)]">
+        <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-[var(--color-border-base)]">
           <div className="flex items-center gap-2">
             <Package className="h-4 w-4 text-[var(--color-element-muted)]" />
-            <h2 className="text-base font-semibold text-[var(--color-text-base)]">
+            <h2 className="text-xl font-semibold text-[var(--color-text-base)]">
               {t('editorCore.partsToolsList', 'Parts / Tools')}
             </h2>
           </div>
@@ -180,7 +180,7 @@ export function PartToolListPanel({
         </div>
 
         {/* Body — scrollable table */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-6">
           <PartToolTable
             rows={tableRows}
             callbacks={tableCallbacks}
