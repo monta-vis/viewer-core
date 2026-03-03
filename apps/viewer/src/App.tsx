@@ -47,9 +47,11 @@ declare global {
       catalogs: {
         getSafetyIcons: () => Promise<Array<{
           name: string;
+          dirName: string;
           assetsDir: string;
           categories: Array<{ id: string; label: Record<string, string> }>;
           entries: Array<{
+            id: string;
             filename: string;
             category: string;
             label: Record<string, string>;
