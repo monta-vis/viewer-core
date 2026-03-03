@@ -109,6 +109,10 @@ interface InstructionViewProps {
     onCreateAndReplacePartTool?: (substepPartToolId: string, field: 'name' | 'label' | 'partNumber', value: string) => void;
     onDeleteSubstep?: (substepId: string) => void;
     onAddSubstep?: (stepId: string) => void;
+    onAddAssembly?: () => void;
+    onDeleteAssembly?: (assemblyId: string) => void;
+    onRenameAssembly?: (assemblyId: string, title: string) => void;
+    onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
   };
   /** Web3Forms access key for feedback submission (provided by app layer). */
   web3FormsKey?: string;
@@ -1170,11 +1174,18 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
           )}
           onClick={() => setShowOverview(false)}
         />
-        <div ref={overviewPanelRef} className={`absolute top-0 left-0 right-0 h-[90%] z-30 bg-[var(--color-bg-surface)] transition-transform duration-300 ease-out rounded-b-2xl shadow-2xl ${showOverview ? 'translate-y-0' : '-translate-y-full'}`}>
+        <div ref={overviewPanelRef} className={`absolute top-0 left-0 right-0 h-[90%] z-30 bg-[var(--color-bg-surface)] transition-transform duration-300 ease-out rounded-b-2xl shadow-2xl ${showOverview ? 'translate-y-0' : '-translate-y-[calc(100%+1rem)]'}`}>
           <StepOverview
             onStepSelect={handleOverviewStepSelect}
             useRawVideo={useRawVideo}
             folderName={folderName}
+            editMode={effectiveEditMode}
+            editCallbacks={effectiveEditMode ? {
+              onAddAssembly: editCallbacks?.onAddAssembly,
+              onDeleteAssembly: editCallbacks?.onDeleteAssembly,
+              onRenameAssembly: editCallbacks?.onRenameAssembly,
+              onMoveStepToAssembly: editCallbacks?.onMoveStepToAssembly,
+            } : undefined}
           />
         </div>
       </div>
