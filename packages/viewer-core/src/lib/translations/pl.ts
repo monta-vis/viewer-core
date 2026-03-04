@@ -23,6 +23,8 @@ export const pl = {
     save: 'Zapisz',
     delete: 'Usuń',
     back: 'Wstecz',
+    collapse: 'Zwiń',
+    expand: 'Rozwiń',
     loading: 'Ładowanie...',
     error: 'Błąd',
   },

@@ -23,6 +23,8 @@ export const zh = {
     save: '保存',
     delete: '删除',
     back: '返回',
+    collapse: '折叠',
+    expand: '展开',
     loading: '加载中...',
     error: '错误',
   },

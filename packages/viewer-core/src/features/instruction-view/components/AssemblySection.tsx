@@ -126,9 +126,7 @@ export function AssemblySection({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(t('editorCore.deleteAssemblyConfirm', 'Delete this assembly? Steps will become unassigned.'))) {
-      onDeleteAssembly?.(assembly.id);
-    }
+    onDeleteAssembly?.(assembly.id);
   };
 
   // DnD handlers
@@ -226,7 +224,7 @@ export function AssemblySection({
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
             className="p-1"
-            aria-label={isExpanded ? 'Collapse' : 'Expand'}
+            aria-label={isExpanded ? t('common.collapse', 'Collapse') : t('common.expand', 'Expand')}
           >
             <ChevronDown
               className={clsx(

@@ -23,6 +23,8 @@ export const fr = {
     save: 'Enregistrer',
     delete: 'Supprimer',
     back: 'Retour',
+    collapse: 'Réduire',
+    expand: 'Développer',
     loading: 'Chargement...',
     error: 'Erreur',
   },

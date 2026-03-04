@@ -23,6 +23,8 @@ export const nl = {
     save: 'Opslaan',
     delete: 'Verwijderen',
     back: 'Terug',
+    collapse: 'Inklappen',
+    expand: 'Uitklappen',
     loading: 'Laden...',
     error: 'Fout',
   },

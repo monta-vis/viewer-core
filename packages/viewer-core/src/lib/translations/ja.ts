@@ -23,6 +23,8 @@ export const ja = {
     save: '保存',
     delete: '削除',
     back: '戻る',
+    collapse: '折りたたむ',
+    expand: '展開する',
     loading: '読み込み中...',
     error: 'エラー',
   },

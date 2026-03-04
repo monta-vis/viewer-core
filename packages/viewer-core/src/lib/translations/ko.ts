@@ -23,6 +23,8 @@ export const ko = {
     save: '저장',
     delete: '삭제',
     back: '뒤로',
+    collapse: '접기',
+    expand: '펼치기',
     loading: '로딩 중...',
     error: '오류',
   },

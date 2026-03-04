@@ -21,6 +21,8 @@ export const en = {
     save: 'Save',
     delete: 'Delete',
     back: 'Back',
+    collapse: 'Collapse',
+    expand: 'Expand',
     loading: 'Loading...',
     error: 'Error',
   },

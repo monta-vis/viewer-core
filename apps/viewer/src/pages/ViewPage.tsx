@@ -22,6 +22,7 @@ import { buildMediaUrl } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
   useAutoSave,
+  useEditCallbacks,
   SubstepEditPopover,
   PartToolListPanel,
   PartToolDetailEditor,
@@ -346,36 +347,13 @@ export function ViewPage() {
     store.updateSubstepPartTool(substepPartToolId, { partToolId: pt.id });
   }, [getVersionId, getInstructionId]);
 
-  // --- Assembly operations ---
-  const onAddAssembly = useCallback(() => {
-    const store = useEditorStore.getState();
-    const data = store.data;
-    if (!data) return;
-    const assemblies = Object.values(data.assemblies);
-    const maxOrder = assemblies.reduce((max, a) => Math.max(max, a.order), 0);
-    store.addAssembly({
-      id: crypto.randomUUID(),
-      versionId: getVersionId(),
-      instructionId: getInstructionId(),
-      title: null,
-      description: null,
-      order: maxOrder + 1,
-      previewImageId: null,
-      stepIds: [],
-    });
-  }, [getVersionId, getInstructionId]);
-
-  const onDeleteAssembly = useCallback((assemblyId: string) => {
-    useEditorStore.getState().deleteAssembly(assemblyId);
-  }, []);
-
-  const onRenameAssembly = useCallback((assemblyId: string, title: string) => {
-    useEditorStore.getState().updateAssembly(assemblyId, { title: title || null });
-  }, []);
-
-  const onMoveStepToAssembly = useCallback((stepId: string, assemblyId: string | null) => {
-    useEditorStore.getState().assignStepToAssembly(stepId, assemblyId);
-  }, []);
+  // --- Assembly operations (from editor-core hook) ---
+  const {
+    onAddAssembly,
+    onDeleteAssembly,
+    onRenameAssembly,
+    onMoveStepToAssembly,
+  } = useEditCallbacks();
 
   // ── PartToolListPanel state & callbacks ──
   const [partToolListOpen, setPartToolListOpen] = useState(false);
@@ -560,12 +538,18 @@ export function ViewPage() {
     onAddAssembly, onDeleteAssembly, onRenameAssembly, onMoveStepToAssembly,
   ]);
 
+  // Memoized partTools array (avoids new array on every render prop call)
+  const allPartToolsList: PartToolRow[] = useMemo(
+    () => Object.values(viewerData?.partTools ?? {}),
+    [viewerData?.partTools],
+  );
+
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
   const renderEditPopover = useCallback(
     (props: Parameters<typeof SubstepEditPopover>[0]) => (
       <SubstepEditPopover
         {...props}
-        allPartTools={Object.values(viewerData?.partTools ?? {})}
+        allPartTools={allPartToolsList}
         folderName={decodedFolderName}
         catalogs={safetyIconCatalogs}
         getPreviewUrl={getPartToolPreviewUrl}
@@ -574,7 +558,7 @@ export function ViewPage() {
         onOpenPartToolList={onOpenPartToolList}
       />
     ),
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, viewerData?.partTools, onOpenPartToolList],
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, allPartToolsList, onOpenPartToolList],
   );
 
   // ── Part/tool editor render function (render prop for PartsDrawer) ──
@@ -588,7 +572,7 @@ export function ViewPage() {
           onClose={onClose}
           imageCallbacks={imageCallbacks}
           getPartToolImages={getPartToolImages}
-          allPartTools={Object.values(viewerData?.partTools ?? {})}
+          allPartTools={allPartToolsList}
           onReplacePartTool={(oldId, newId) => {
             // Find substepPartTool rows for oldId and swap partToolId to newId
             const store = useEditorStore.getState();
@@ -614,14 +598,12 @@ export function ViewPage() {
             onDeletePartTool(partToolId);
             onClose();
           }}
-          onUpdatePartTool={(partToolId, updates) => {
-            onUpdatePartTool(partToolId, updates as Partial<PartToolRow>);
-          }}
+          onUpdatePartTool={onUpdatePartTool}
           previewImageUrl={previewUrl}
         />
       );
     },
-    [imageCallbacks, getPartToolImages, getPartToolPreviewUrl, viewerData?.partTools, onDeletePartTool, onUpdatePartTool],
+    [imageCallbacks, getPartToolImages, getPartToolPreviewUrl, allPartToolsList, onDeletePartTool, onUpdatePartTool],
   );
 
   // Build noteIconLabels map: safetyIconId (entry UUID) → localized label

@@ -107,12 +107,20 @@ interface NoteAddState {
 type InlineEditState = NoteEditState | NoteAddState | null;
 
 /* ── TextInputModal state for descriptions ── */
-interface TextModalState {
-  kind: 'edit-desc' | 'add-desc';
-  descId?: string;
+interface TextModalEditDesc {
+  kind: 'edit-desc';
+  descId: string;
   label: string;
   value: string;
 }
+
+interface TextModalAddDesc {
+  kind: 'add-desc';
+  label: string;
+  value: string;
+}
+
+type TextModalState = TextModalEditDesc | TextModalAddDesc;
 
 /* ── TextInputModal state for note text ── */
 interface NoteTextModalState {
@@ -337,7 +345,7 @@ export function SubstepEditPopover({
     const trimmed = newValue.trim();
     if (textModal.kind === 'edit-desc') {
       if (trimmed) {
-        callbacks.onSaveDescription?.(textModal.descId!, trimmed);
+        callbacks.onSaveDescription?.(textModal.descId, trimmed);
         captureSnapshot();
       }
     } else if (textModal.kind === 'add-desc') {

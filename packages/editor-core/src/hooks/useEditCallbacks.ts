@@ -157,6 +157,7 @@ export function useEditCallbacks(): EditCallbacks {
   }, []);
 
   const onDeleteAssembly = useCallback((assemblyId: string) => {
+    if (!window.confirm('Delete this assembly? Steps will become unassigned.')) return;
     useEditorStore.getState().deleteAssembly(assemblyId);
   }, []);
 

@@ -30,7 +30,7 @@ export interface PartToolDetailEditorProps {
   /** Delete the partTool */
   onDeletePartTool?: (partToolId: string) => void;
   /** Update a generic field on the partTool */
-  onUpdatePartTool?: (partToolId: string, updates: Record<string, string | null>) => void;
+  onUpdatePartTool?: (partToolId: string, updates: Partial<PartToolRow>) => void;
   /** Preview image URL for display */
   previewImageUrl?: string | null;
   /** Raw frame capture data for Editor preview */
@@ -84,6 +84,13 @@ export function PartToolDetailEditor({
   const pendingFileRef = useRef<File | null>(null);
   const [cropDialogSrc, setCropDialogSrc] = useState<string | null>(null);
 
+  // Revoke object URL on unmount to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      if (cropDialogSrc) URL.revokeObjectURL(cropDialogSrc);
+    };
+  }, [cropDialogSrc]);
+
   // Close editing when item changes
   useEffect(() => {
     setEditingField(null);
@@ -127,7 +134,7 @@ export function PartToolDetailEditor({
   }, [allPartTools]);
 
   /** i18n field labels for the TextInputModal header */
-  const fieldLabels: Record<EditingField, string> = {
+  const fieldLabels: Record<EditingField, string> = useMemo(() => ({
     name: t('instructionView.fieldName', 'Name'),
     label: t('instructionView.fieldLabel', 'Label'),
     partNumber: t('instructionView.fieldPartNumber', 'Part number'),
@@ -136,7 +143,7 @@ export function PartToolDetailEditor({
     material: t('instructionView.fieldMaterial', 'Material'),
     dimension: t('instructionView.fieldDimension', 'Dimension'),
     description: t('instructionView.fieldDescription', 'Description'),
-  };
+  }), [t]);
 
   /** Unified confirm handler for all fields (primary action = update existing) */
   const handleFieldConfirm = useCallback((newValue: string) => {

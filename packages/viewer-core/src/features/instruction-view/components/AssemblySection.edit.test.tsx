@@ -200,8 +200,7 @@ describe('AssemblySection edit mode', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('delete button calls onDeleteAssembly(assemblyId) after confirm', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+  it('delete button calls onDeleteAssembly(assemblyId) directly', () => {
     const onDelete = vi.fn();
 
     render(
@@ -218,33 +217,7 @@ describe('AssemblySection edit mode', () => {
     );
 
     fireEvent.click(screen.getByLabelText(/delete assembly/i));
-    expect(confirmSpy).toHaveBeenCalled();
     expect(onDelete).toHaveBeenCalledWith('asm-1');
-
-    confirmSpy.mockRestore();
-  });
-
-  it('delete button does NOT call onDeleteAssembly when confirm is cancelled', () => {
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const onDelete = vi.fn();
-
-    render(
-      <AssemblySection
-        assembly={baseAssembly}
-        steps={baseSteps}
-        onStepSelect={vi.fn()}
-        editMode
-
-        onDeleteAssembly={onDelete}
-        onRenameAssembly={vi.fn()}
-        onMoveStepToAssembly={vi.fn()}
-      />
-    );
-
-    fireEvent.click(screen.getByLabelText(/delete assembly/i));
-    expect(onDelete).not.toHaveBeenCalled();
-
-    confirmSpy.mockRestore();
   });
 
   it('editMode=true → StepOverviewCard has draggable attribute', () => {

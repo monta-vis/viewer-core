@@ -23,6 +23,8 @@ export const de = {
     save: 'Speichern',
     delete: 'Löschen',
     back: 'Zurück',
+    collapse: 'Einklappen',
+    expand: 'Ausklappen',
     loading: 'Laden...',
     error: 'Fehler',
   },

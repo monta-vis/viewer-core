@@ -23,6 +23,8 @@ export const it = {
     save: 'Salva',
     delete: 'Elimina',
     back: 'Indietro',
+    collapse: 'Comprimi',
+    expand: 'Espandi',
     loading: 'Caricamento...',
     error: 'Errore',
   },

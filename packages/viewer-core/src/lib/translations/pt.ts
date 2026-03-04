@@ -23,6 +23,8 @@ export const pt = {
     save: 'Guardar',
     delete: 'Eliminar',
     back: 'Voltar',
+    collapse: 'Recolher',
+    expand: 'Expandir',
     loading: 'A carregar...',
     error: 'Erro',
   },

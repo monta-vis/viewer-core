@@ -266,7 +266,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
   const previewUrl = getPreviewUrl?.(pt.id) ?? null;
 
   /** Render a clickable cell that opens TextInputModal on click */
-  const renderCell = (field: PartToolFieldKey, displayValue: string, placeholder: string, inputType: 'text' | 'number' = 'text', withSuggestions = false, extraClass = '') => (
+  const renderCell = useCallback((field: PartToolFieldKey, displayValue: string, placeholder: string, inputType: 'text' | 'number' = 'text', withSuggestions = false, extraClass = '') => (
     <button
       type="button"
       data-testid={`${testIdPrefix}-${field}-${row.rowId}`}
@@ -277,7 +277,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
         {displayValue || placeholder}
       </span>
     </button>
-  );
+  ), [testIdPrefix, row.rowId, openField]);
 
   return (
     <tr data-testid={`${testIdPrefix}-${row.rowId}`} className="hover:bg-[var(--color-bg-hover)] transition-colors">
