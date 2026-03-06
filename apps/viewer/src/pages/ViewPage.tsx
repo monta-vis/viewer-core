@@ -18,7 +18,7 @@ import {
   useTheme,
 } from "@monta-vis/viewer-core";
 import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, AggregatedPartTool, DrawingRow } from "@monta-vis/viewer-core";
-import { buildMediaUrl } from "@monta-vis/viewer-core";
+import { buildMediaUrl, MediaPaths, DEFAULT_FPS } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
   useAutoSave,
@@ -48,6 +48,11 @@ function translateData(
 }
 
 const editEnabled = import.meta.env.VITE_EDIT_ENABLED !== 'false';
+
+/** Resolve video source URL for a standalone uploaded video (no parent videos row). */
+function resolveStandaloneVideoSrc(substepId: string, folderName: string): string {
+  return buildMediaUrl(folderName, MediaPaths.substepVideo(substepId));
+}
 
 export function ViewPage() {
   const { folderName } = useParams<{ folderName: string }>();
@@ -405,24 +410,35 @@ export function ViewPage() {
     const section = viewerData.videoSections[junction.videoSectionId];
     if (!section) return null;
     const video = section.videoId ? viewerData.videos[section.videoId] : undefined;
-    if (!video) return null;
 
     const kfRows = section.viewportKeyframeIds
       .map((id) => viewerData.viewportKeyframes[id])
       .filter(Boolean);
 
     const sectionDuration = section.endFrame - section.startFrame;
+
+    const fps = video?.fps ?? section.fps ?? DEFAULT_FPS;
+    if (!video && !decodedFolderName) return null;
+
+    // Standalone uploaded video (no parent videos row) — use substep video path
+    const videoSrc = video
+      ? (section.localPath ?? '')
+      : resolveStandaloneVideoSrc(editingVideoSubstepId, decodedFolderName!);
+    const videoAspectRatio = video
+      ? (video.width ?? 16) / (video.height ?? 9)
+      : 1;
+
     return {
-      videoSrc: section.localPath ?? '',
+      videoSrc,
       startFrame: 0,
       endFrame: sectionDuration,
-      fps: video.fps,
+      fps,
       viewportKeyframes: kfRows,
-      videoAspectRatio: (video.width ?? 16) / (video.height ?? 9),
+      videoAspectRatio,
       contentAspectRatio: section.contentAspectRatio,
       sections: [{ startFrame: 0, endFrame: sectionDuration }],
     };
-  }, [editingVideoSubstepId, viewerData]);
+  }, [editingVideoSubstepId, viewerData, decodedFolderName]);
 
   // ── Video annotations dialog state (mode='view') ──
   const [annotatingVideoSubstepId, setAnnotatingVideoSubstepId] = useState<string | null>(null);
@@ -446,9 +462,12 @@ export function ViewPage() {
     if (!section) return null;
     const video = section.videoId ? viewerData.videos[section.videoId] : undefined;
 
-    const fps = video?.fps ?? 30;
+    const fps = video?.fps ?? section.fps ?? DEFAULT_FPS;
     const durationFrames = section.endFrame - section.startFrame;
-    const videoSrc = section.localPath ?? '';
+    if (!video && !decodedFolderName) return null;
+    const videoSrc = video
+      ? (section.localPath ?? '')
+      : resolveStandaloneVideoSrc(annotatingVideoSubstepId, decodedFolderName!);
     const durationSeconds = durationFrames / fps;
     const contentAspectRatio = section.contentAspectRatio;
 
@@ -461,7 +480,7 @@ export function ViewPage() {
     const next = { videoSrc, fps, durationSeconds, contentAspectRatio };
     videoAnnotationDataRef.current = next;
     return next;
-  }, [annotatingVideoSubstepId, viewerData]);
+  }, [annotatingVideoSubstepId, viewerData, decodedFolderName]);
 
   const onAnnotateVideo = useCallback((substepId: string) => {
     setAnnotatingVideoSubstepId(substepId);

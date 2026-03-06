@@ -40,7 +40,7 @@ export * from './hooks';
 export * from './types/snapshot';
 
 // Media utilities (URL construction, path conventions)
-export { buildMediaUrl, MediaPaths, publicAsset } from './lib/media';
+export { buildMediaUrl, MediaPaths, publicAsset, DEFAULT_FPS } from './lib/media';
 
 // Default translations for viewer-core components
 export { viewerCoreTranslations } from './lib/translations';

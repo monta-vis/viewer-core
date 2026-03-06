@@ -197,12 +197,13 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
   const sectionFile = useBlurred ? 'video_blurred.mp4' : 'video.mp4';
   const videoSections: InstructionSnapshot['videoSections'] = {};
   for (const row of data.videoSections) {
-    const r = row as { id: string; video_id: string | null; start_frame: number; end_frame: number; content_aspect_ratio?: number | null };
+    const r = row as { id: string; video_id: string | null; start_frame: number; end_frame: number; fps?: number | null; content_aspect_ratio?: number | null };
     videoSections[r.id] = {
       id: r.id,
       video_id: r.video_id,
       start_frame: r.start_frame,
       end_frame: r.end_frame,
+      fps: r.fps ?? null,
       content_aspect_ratio: r.content_aspect_ratio ?? null,
       viewport_keyframe_ids: kfBySection[r.id] || [],
       url_720p: buildMediaUrl(folderName, `media/sections/${r.id}/${sectionFile}`),

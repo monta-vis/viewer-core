@@ -1190,6 +1190,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           videoId: section.videoId,
           startFrame: splitFrame + 1,
           endFrame: originalEndFrame,
+          fps: section.fps,
           contentAspectRatio: section.contentAspectRatio,
           localPath: section.localPath,
           viewportKeyframeIds: [newKfId],

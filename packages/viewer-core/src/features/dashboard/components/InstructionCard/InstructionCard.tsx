@@ -53,7 +53,9 @@ export function InstructionCard(props: InstructionCardProps) {
               isProcessing={props.isProcessing}
               onBlurPersons={props.onBlurPersons}
               isBlurring={props.isBlurring}
+              isBlurDisabled={props.isBlurDisabled}
               onTranslate={props.onTranslate}
+              isTranslateDisabled={props.isTranslateDisabled}
               isTranslating={state.translatingLangs.size > 0}
               onEditTranslations={onEditTranslations}
               onTutorial={props.onTutorial}

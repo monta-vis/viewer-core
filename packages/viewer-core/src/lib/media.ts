@@ -15,13 +15,15 @@ export function publicAsset(assetPath: string): string {
   return `${base}${clean}`;
 }
 
+/** Default FPS fallback for standalone uploaded videos without a parent videos row */
+export const DEFAULT_FPS = 30;
+
 /** Convention-based relative paths for all media types */
 export const MediaPaths = {
   proxy: (videoId: string) => `proxy/${videoId}.mp4`,
   section: (sectionId: string) => `media/sections/${sectionId}/video.mp4`,
   sectionBlurred: (sectionId: string) => `media/sections/${sectionId}/video_blurred.mp4`,
   substepVideo: (substepId: string) => `media/substeps/${substepId}/video.mp4`,
-  substepVideoBlurred: (substepId: string) => `media/substeps/${substepId}/video_blurred.mp4`,
   frame: (frameAreaId: string) => `media/frames/${frameAreaId}/image`,
   frameBlurred: (frameAreaId: string) => `media/frames/${frameAreaId}/image_blurred`,
 } as const;

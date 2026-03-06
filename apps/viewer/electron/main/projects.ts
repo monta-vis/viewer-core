@@ -267,6 +267,10 @@ export function getProjectData(folderName: string): ElectronProjectData {
       if (vfaCols.some(c => c.name === "has_blurred_version")) {
         migDb.exec("ALTER TABLE video_frame_areas DROP COLUMN has_blurred_version");
       }
+      // Add fps column to video_sections for standalone uploaded videos (no parent videos row)
+      if (!vsCols.some(c => c.name === "fps")) {
+        migDb.exec("ALTER TABLE video_sections ADD COLUMN fps REAL DEFAULT NULL");
+      }
     } finally {
       migDb.close();
     }

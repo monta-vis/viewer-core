@@ -977,6 +977,7 @@ describe('useEditorStore - Extended Tests', () => {
         videoId: 'video-1',
         startFrame: 0,
         endFrame: 100,
+        fps: null,
         contentAspectRatio: null,
         localPath: null,
       };
@@ -1018,6 +1019,7 @@ describe('useEditorStore - Extended Tests', () => {
           endFrame: 100,
           contentAspectRatio: null,
           localPath: null,
+          fps: null,
         },
       };
 
@@ -1059,6 +1061,7 @@ describe('useEditorStore - Extended Tests', () => {
           endFrame: 100,
           contentAspectRatio: null,
           localPath: null,
+          fps: null,
         },
       };
 
@@ -1089,6 +1092,7 @@ describe('useEditorStore - Extended Tests', () => {
           endFrame: 100,
           contentAspectRatio: null,
           localPath: null,
+          fps: null,
         },
       };
 
@@ -1901,7 +1905,7 @@ describe('useEditorStore - Extended Tests', () => {
       const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videoSections = {
-        'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, contentAspectRatio: null, localPath: null },
+        'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, fps: null, contentAspectRatio: null, localPath: null },
       };
 
       act(() => {
@@ -2035,6 +2039,7 @@ describe('useEditorStore - Extended Tests', () => {
           videoId: 'video-1',
           startFrame: 0,
           endFrame: 100,
+          fps: null,
           contentAspectRatio: null,
           localPath: null,
         });
@@ -2054,7 +2059,7 @@ describe('useEditorStore - Extended Tests', () => {
       const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videoSections = {
-        'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, contentAspectRatio: null, localPath: null },
+        'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, fps: null, contentAspectRatio: null, localPath: null },
       };
       mockData.videos = {
         'v-1': { id: 'v-1', instructionId: 'i-1', orderId: 'o-1', userId: 'u-1', videoPath: '/test.mp4', fps: 30, order: 1, proxyStatus: 'Pending', width: 1920, height: 1080, sectionIds: ['vs-1'], frameAreaIds: [], viewportKeyframeIds: [] },

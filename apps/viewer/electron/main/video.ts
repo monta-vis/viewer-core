@@ -41,6 +41,8 @@ const ALLOWED_VIDEO_EXTENSIONS = new Set([
   ".mp4", ".mov", ".avi", ".mkv", ".webm", ".m4v",
 ]);
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 function isInsideUserHome(filePath: string): boolean {
   return isInsidePath(filePath, getElectronPaths().homePath);
 }
@@ -84,12 +86,20 @@ export async function uploadSubstepVideo(
   }
   const resolvedSource = sourceCheck.resolved;
 
+  // Validate substepId format (must be a UUID)
+  if (!UUID_PATTERN.test(substepId)) {
+    return { success: false, error: "Invalid substep ID format" };
+  }
+
   // Generate IDs
   const sectionId = crypto.randomUUID();
   const substepVideoSectionId = crypto.randomUUID();
 
-  // Output path
-  const outputDir = path.join(basePath, folderName, "media", "sections", sectionId);
+  // Output path — save to substeps/ (final processed output, not sections/ cache)
+  const outputDir = path.join(basePath, folderName, "media", "substeps", substepId);
+  if (!isInsideBasePath(outputDir)) {
+    return { success: false, error: "Output path is outside project directory" };
+  }
   const outputPath = path.join(outputDir, "video.mp4");
 
   try {
@@ -161,9 +171,9 @@ export async function uploadSubstepVideo(
 
         // Insert new video_section (video_id = NULL — standalone uploaded video)
         db.prepare(
-          `INSERT INTO video_sections (id, video_id, start_frame, end_frame)
-           VALUES (?, NULL, ?, ?)`,
-        ).run(sectionId, 0, frameCount);
+          `INSERT INTO video_sections (id, video_id, start_frame, end_frame, fps)
+           VALUES (?, NULL, ?, ?, ?)`,
+        ).run(sectionId, 0, frameCount, meta.fps);
 
         // Insert junction: substep_video_sections
         db.prepare(
@@ -179,6 +189,8 @@ export async function uploadSubstepVideo(
       db.close();
     }
   } catch (err) {
+    console.error('[uploadSubstepVideo] Failed for substep %s:', substepId, err);
+
     // Clean up output on failure
     try {
       fs.rmSync(outputDir, { recursive: true });

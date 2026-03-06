@@ -85,6 +85,7 @@ export interface SnapshotVideoSection {
   video_id: string | null;
   start_frame: number;
   end_frame: number;
+  fps?: number | null;
   content_aspect_ratio?: number | null;
   viewport_keyframe_ids: string[];  // Per-section viewport keyframes (v36+)
   url_1080p: string;

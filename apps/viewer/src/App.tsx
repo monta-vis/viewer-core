@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { HashRouter, Routes, Route, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { FileText, Loader2, Settings } from "lucide-react";
@@ -11,6 +11,7 @@ import {
   Navbar,
   IconButton,
   PreferencesDialog,
+  LoadingCard,
 } from "@monta-vis/viewer-core";
 import type { SortOption, SortDirection } from "@monta-vis/viewer-core";
 import { ViewPage } from "./pages/ViewPage";
@@ -101,6 +102,8 @@ declare global {
           folderName: string,
           type: "mvis" | "mweb" | "pdf",
         ) => Promise<{ success: boolean; error?: string }>;
+        onImportStart: (callback: (data: { fileName: string }) => void) => (() => void);
+        onImportComplete: (callback: (data: { success: boolean; folderName?: string }) => void) => (() => void);
       };
     };
   }
@@ -166,13 +169,14 @@ function useLocalProjects() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchProjects = useCallback(() => {
     if (!window.electronAPI) {
       setError("Electron API not available (running in browser?)");
       setIsLoading(false);
       return;
     }
 
+    setIsLoading(true);
     window.electronAPI.projects
       .list()
       .then((data) => {
@@ -185,7 +189,11 @@ function useLocalProjects() {
       });
   }, []);
 
-  return { projects, isLoading, error };
+  useEffect(() => {
+    fetchProjects();
+  }, [fetchProjects]);
+
+  return { projects, isLoading, error, refetch: fetchProjects };
 }
 
 // ---------------------------------------------------------------------------
@@ -197,12 +205,31 @@ const editEnabled = import.meta.env.VITE_EDIT_ENABLED !== 'false';
 function DashboardPage() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { projects, isLoading, error } = useLocalProjects();
+  const { projects, isLoading, error, refetch } = useLocalProjects();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("updated_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [prefsOpen, setPrefsOpen] = useState(false);
+  const [importingFileName, setImportingFileName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!window.electronAPI) return;
+
+    const cleanupStart = window.electronAPI.projects.onImportStart(({ fileName }) => {
+      setImportingFileName(fileName);
+    });
+
+    const cleanupComplete = window.electronAPI.projects.onImportComplete(() => {
+      setImportingFileName(null);
+      refetch();
+    });
+
+    return () => {
+      cleanupStart();
+      cleanupComplete();
+    };
+  }, [refetch]);
 
   const filteredAndSorted = useMemo(() => {
     let items = projects;
@@ -273,7 +300,7 @@ function DashboardPage() {
                     query={searchQuery}
                     onClear={() => setSearchQuery("")}
                   />
-                ) : filteredAndSorted.length === 0 ? (
+                ) : filteredAndSorted.length === 0 && !importingFileName ? (
                   <div className="flex flex-col items-center justify-center py-16 text-center">
                     <div className="w-16 h-16 rounded-2xl bg-[var(--color-bg-surface)] flex items-center justify-center mb-4">
                       <FileText className="w-8 h-8 text-[var(--color-text-subtle)]" />
@@ -287,6 +314,12 @@ function DashboardPage() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {importingFileName && (
+                      <LoadingCard
+                        title={importingFileName}
+                        subtitle={t("dashboard.importing", "Importing...")}
+                      />
+                    )}
                     {filteredAndSorted.map((project) => (
                       <InstructionCard
                         key={project.id}

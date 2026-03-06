@@ -70,6 +70,16 @@ const electronAPI = {
       ipcRenderer.invoke("projects:copy-catalog-icon", folderName, catalogType, iconId, entryId),
     exportProject: (folderName: string, type: "mvis" | "mweb" | "pdf") =>
       ipcRenderer.invoke("projects:export", folderName, type),
+    onImportStart: (callback: (data: { fileName: string }) => void) => {
+      const handler = (_event: unknown, data: { fileName: string }) => callback(data);
+      ipcRenderer.on("mvis-import:start", handler);
+      return () => { ipcRenderer.removeListener("mvis-import:start", handler); };
+    },
+    onImportComplete: (callback: (data: { success: boolean; folderName?: string }) => void) => {
+      const handler = (_event: unknown, data: { success: boolean; folderName?: string }) => callback(data);
+      ipcRenderer.on("mvis-import:complete", handler);
+      return () => { ipcRenderer.removeListener("mvis-import:complete", handler); };
+    },
   },
 };
 

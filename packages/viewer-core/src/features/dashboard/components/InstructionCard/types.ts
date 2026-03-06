@@ -49,6 +49,8 @@ export interface InstructionCardProps {
   onExport?: (format: ExportFormat) => void;
   /** Called when Translate button is clicked */
   onTranslate?: () => void;
+  /** Whether the translate button should be disabled (e.g. AI disconnected) */
+  isTranslateDisabled?: boolean;
   /** Called when Process Media button is clicked */
   onProcessMedia?: () => void;
   /** Whether media is currently being processed */
@@ -57,6 +59,8 @@ export interface InstructionCardProps {
   onBlurPersons?: () => void;
   /** Whether blur is currently running */
   isBlurring?: boolean;
+  /** Whether the blur button should be disabled (e.g. AI disconnected) */
+  isBlurDisabled?: boolean;
   /** Called when Edit Translations button is clicked */
   onEditTranslations?: () => void;
   /** Whether blurred media is currently active */

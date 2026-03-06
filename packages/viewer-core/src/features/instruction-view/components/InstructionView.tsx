@@ -12,7 +12,7 @@ import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartTool
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
-import { buildMediaUrl, MediaPaths } from '@/lib/media';
+import { buildMediaUrl, MediaPaths, DEFAULT_FPS } from '@/lib/media';
 
 import { SubstepCard } from './SubstepCard';
 import type { SubstepEditCallbacks } from './SubstepCard';
@@ -34,6 +34,41 @@ import {
   CARD_GAP_REM,
 } from '../hooks/useResponsiveGridColumns';
 import { useSwipeGestures, type DrawerRefs } from '../hooks/useSwipeGestures';
+
+/** Pre-computed video playback data for a single substep. */
+interface SubstepVideoEntry {
+  videoSrc: string;
+  startFrame: number;
+  endFrame: number;
+  fps: number;
+  viewportKeyframes: ViewportKeyframeRow[];
+  videoAspectRatio: number;
+  contentAspectRatio?: number | null;
+  sections?: { startFrame: number; endFrame: number }[];
+}
+
+/** Build video data entry for standalone uploaded videos (no parent videos row). */
+function buildStandaloneVideoEntry(
+  substepId: string,
+  videoSection: { fps: number | null; startFrame: number; endFrame: number; contentAspectRatio?: number | null },
+  folderName: string | undefined,
+): SubstepVideoEntry {
+  const fps = videoSection.fps ?? DEFAULT_FPS;
+  const duration = videoSection.endFrame - videoSection.startFrame;
+  const substepMediaPath = MediaPaths.substepVideo(substepId);
+  const videoSrc = folderName
+    ? buildMediaUrl(folderName, substepMediaPath)
+    : `./${substepMediaPath}`;
+  return {
+    videoSrc,
+    startFrame: 0,
+    endFrame: duration,
+    fps,
+    viewportKeyframes: [],
+    videoAspectRatio: 1,
+    contentAspectRatio: videoSection.contentAspectRatio,
+  };
+}
 
 /** Stable empty array to avoid new-reference re-renders in SubstepCard effects */
 const EMPTY_DRAWINGS: DrawingRow[] = [];
@@ -366,9 +401,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         // Editor raw mode — preload source video
         videoUrl = resolveSourceVideoUrl(video, videoSection.localPath || '');
       } else {
-        const substepMediaPath = useBlurred
-          ? MediaPaths.substepVideoBlurred(substep.id)
-          : MediaPaths.substepVideo(substep.id);
+        const substepMediaPath = MediaPaths.substepVideo(substep.id);
         if (folderName) {
           videoUrl = buildMediaUrl(folderName, substepMediaPath);
         } else {
@@ -440,7 +473,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
   // Compute per-substep video data for inline card playback
   const substepVideoDataMap = useMemo(() => {
-    const map = new Map<string, { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number }[] }>();
+    const map = new Map<string, SubstepVideoEntry>();
     if (!data) return map;
 
     for (const substep of substeps) {
@@ -454,7 +487,13 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       if (!videoSection) continue;
 
       const video = videoSection.videoId ? data.videos[videoSection.videoId] : undefined;
-      if (!video) continue;
+
+      // Standalone uploaded video (no parent videos row) — play from substeps/ directly.
+      // Uploads only produce video.mp4 (no blurred variant), so always use substepVideo.
+      if (!video) {
+        map.set(substep.id, buildStandaloneVideoEntry(substep.id, videoSection, folderName));
+        continue;
+      }
 
       if (useRawVideo) {
         // Editor raw mode — use source video, iterate ALL sections
@@ -507,10 +546,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
           totalFrames += sec.endFrame - sec.startFrame;
         }
 
-        // Resolve merged substep video URL (blurred variant when applicable)
-        const substepMediaPath = useBlurred
-          ? MediaPaths.substepVideoBlurred(substep.id)
-          : MediaPaths.substepVideo(substep.id);
+        // Resolve merged substep video URL (single file — blurred or not, decided at merge time)
+        const substepMediaPath = MediaPaths.substepVideo(substep.id);
 
         let videoSrc: string;
         if (folderName) {
@@ -533,7 +570,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     }
 
     return map;
-  }, [data, substeps, useRawVideo, useBlurred, folderName, resolveSourceVideoUrl]);
+  }, [data, substeps, useRawVideo, folderName, resolveSourceVideoUrl]);
 
   // Pre-compute per-substep edit callbacks (stable references for React.memo)
   const substepEditCallbacksMap = useMemo(() => {
@@ -570,7 +607,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
   // Pre-compute video data for cross-step reference targets
   const activeRefVideoData = useMemo(() => {
-    const map = new Map<string, { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number }[] }>();
+    const map = new Map<string, SubstepVideoEntry>();
     if (!activeTutorial || activeTutorial.isSameStep || !data) return map;
 
     for (const targetId of activeTutorial.targetSubstepIds) {
@@ -587,7 +624,12 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       if (!videoSection) continue;
 
       const video = videoSection.videoId ? data.videos[videoSection.videoId] : undefined;
-      if (!video) continue;
+
+      // Standalone uploaded video (no parent videos row) — no blurred variant for uploads
+      if (!video) {
+        map.set(targetId, buildStandaloneVideoEntry(targetId, videoSection, folderName));
+        continue;
+      }
 
       if (useRawVideo) {
         const videoSrc = resolveSourceVideoUrl(video, videoSection.localPath || '');
@@ -630,9 +672,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
           if (!sec) continue;
           totalFrames += sec.endFrame - sec.startFrame;
         }
-        const substepMediaPath = useBlurred
-          ? MediaPaths.substepVideoBlurred(targetId)
-          : MediaPaths.substepVideo(targetId);
+        const substepMediaPath = MediaPaths.substepVideo(targetId);
         const videoSrc = folderName
           ? buildMediaUrl(folderName, substepMediaPath)
           : `./${substepMediaPath}`;
@@ -648,7 +688,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       }
     }
     return map;
-  }, [activeTutorial, data, useRawVideo, useBlurred, folderName, resolveSourceVideoUrl]);
+  }, [activeTutorial, data, useRawVideo, folderName, resolveSourceVideoUrl]);
 
   // Grid layout: always use the responsive column count so card size stays
   // consistent regardless of how many substeps a step has.

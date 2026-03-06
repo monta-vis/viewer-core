@@ -29,7 +29,24 @@ function findMvisArg(argv: string[]): string | null {
 
 /** Import a .mvis file and navigate the renderer to the project. */
 async function handleOpenMvisFile(filePath: string): Promise<void> {
+  const fileName = path.basename(filePath, ".mvis");
+
+  // Navigate to dashboard and show importing card immediately
+  if (mainWindow) {
+    mainWindow.webContents.send("navigate", "/");
+    mainWindow.webContents.send("mvis-import:start", { fileName });
+  }
+
   const result = await importMvisFromPath(filePath);
+
+  // Signal import complete
+  if (mainWindow) {
+    mainWindow.webContents.send("mvis-import:complete", {
+      success: result.success,
+      folderName: result.folderName,
+    });
+  }
+
   if (result.success && result.folderName && mainWindow) {
     mainWindow.webContents.send("navigate", `/view/${encodeURIComponent(result.folderName)}`);
   }

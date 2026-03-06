@@ -102,6 +102,7 @@ export interface VideoSectionRow {
   videoId: string | null;
   startFrame: number;
   endFrame: number;
+  fps: number | null;
   contentAspectRatio: number | null;
   localPath: string | null;
   viewportKeyframeIds: string[];  // Per-section viewport keyframes (v36+)

@@ -22,8 +22,10 @@ interface InstructionCardActionsProps {
   isProcessing?: boolean;
   onBlurPersons?: () => void;
   isBlurring?: boolean;
+  isBlurDisabled?: boolean;
   onTranslate?: () => void;
   isTranslating?: boolean;
+  isTranslateDisabled?: boolean;
   onEditTranslations?: () => void;
   onTutorial?: () => void;
   onExport?: (format: ExportFormat) => void;
@@ -39,8 +41,10 @@ export function InstructionCardActions({
   isProcessing = false,
   onBlurPersons,
   isBlurring = false,
+  isBlurDisabled = false,
   onTranslate,
   isTranslating = false,
+  isTranslateDisabled = false,
   onEditTranslations,
   onTutorial,
   onExport,
@@ -121,7 +125,7 @@ export function InstructionCardActions({
             aria-label={t('instruction.blurPersons', 'Blur Persons')}
             variant="glass"
             size="sm"
-            disabled={isBlurring}
+            disabled={isBlurring || isBlurDisabled}
             onClick={(e) => {
               e.stopPropagation();
               onBlurPersons();
@@ -137,7 +141,7 @@ export function InstructionCardActions({
             aria-label={t('instruction.translate', 'Translate')}
             variant="glass"
             size="sm"
-            disabled={isTranslating}
+            disabled={isTranslating || isTranslateDisabled}
             onClick={(e) => {
               e.stopPropagation();
               toggleDropdown('translate');

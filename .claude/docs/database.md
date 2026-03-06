@@ -75,6 +75,7 @@ SQLite database (`montavis.db`) per project folder. One instruction per DB.
 | video_id | TEXT | FK -> videos.id, nullable |
 | start_frame | INTEGER | Frame number |
 | end_frame | INTEGER | Frame number |
+| fps | REAL | Nullable — standalone uploads only (no parent video row) |
 | content_aspect_ratio | REAL | Nullable |
 
 Media files: `media/sections/{id}/video.mp4` (+ `video_blurred.mp4`)
