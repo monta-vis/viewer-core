@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import {
   Pencil, Trash2, Plus, Image, Video, Package,
   GraduationCap, Repeat, StickyNote, AlignLeft, X,
-  Undo2, Redo2,
+  Undo2, Redo2, Upload,
 } from 'lucide-react';
 import type {
   SubstepEditCallbacks,
@@ -15,13 +15,18 @@ import type {
   SafetyIconCategory,
   FrameCaptureData,
   ViewportKeyframeRow,
+  DrawingRow,
+  AreaData,
+  Rectangle,
 } from '@monta-vis/viewer-core';
 import { TextInputModal, Button, SubstepCard, Tooltip } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
 import { ImageCropDialog } from './ImageCropDialog';
+import { ImageEditDialog } from './ImageEditDialog';
 import type { NormalizedCrop } from '../persistence/types';
 import { PartToolTable, type PartToolTableItem, type PartToolTableImageCallbacks } from './PartToolTable';
 import type { PartToolImageItem } from './PartToolImagePicker';
+import { VideoTrimDialog } from './VideoTrimDialog';
 import { SectionCard } from './SectionCard';
 import { SafetyIconPicker } from './SafetyIconPicker';
 import {
@@ -77,6 +82,28 @@ export interface SubstepEditPopoverProps {
   allPartTools?: PartToolRow[];
   /** Opens the instruction-wide PartTool list editor (PartToolListPanel). */
   onOpenPartToolList?: () => void;
+  /** SubstepImage ID for drawing annotations */
+  substepImageId?: string | null;
+  /** Version ID for drawing annotations */
+  versionId?: string;
+  /** All drawings keyed by ID (for ImageEditDialog) */
+  drawings?: Record<string, DrawingRow>;
+  /** Called when a drawing is added */
+  onAddDrawing?: (drawing: DrawingRow) => void;
+  /** Called when a drawing is updated */
+  onUpdateDrawing?: (id: string, updates: Partial<DrawingRow>) => void;
+  /** Called when a drawing is deleted */
+  onDeleteDrawing?: (id: string) => void;
+  /** Area overlay for the image (crop rectangle) */
+  area?: AreaData | null;
+  /** Called when the area is resized */
+  onAreaUpdate?: (areaId: string, rect: Rectangle) => void;
+  /** Annotation bounds for constraining drawings to area */
+  areaBounds?: Rectangle | null;
+  /** Called when the user uploads a video for this substep */
+  onUploadSubstepVideo?: (file: File, sections: Array<{ startFrame: number; endFrame: number }> | null) => Promise<void>;
+  /** Substep ID (needed for video upload routing) */
+  substepId?: string;
 }
 
 /* ── Inline edit state types ── */
@@ -165,6 +192,16 @@ export function SubstepEditPopover({
   onUploadSubstepImage,
   allPartTools,
   onOpenPartToolList,
+  substepImageId,
+  versionId = '',
+  drawings = {},
+  onAddDrawing,
+  onUpdateDrawing,
+  onDeleteDrawing,
+  area,
+  onAreaUpdate,
+  areaBounds,
+  onUploadSubstepVideo,
 }: SubstepEditPopoverProps) {
   const { t, i18n } = useTranslation();
   const { canUndo, canRedo, captureSnapshot, undo, redo, reset } = useSessionHistory();
@@ -185,6 +222,7 @@ export function SubstepEditPopover({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFileRef = useRef<File | null>(null);
   const [cropDialogSrc, setCropDialogSrc] = useState<string | null>(null);
+  const [imageEditDialogOpen, setImageEditDialogOpen] = useState(false);
 
   const handleUploadClick = useCallback(() => {
     fileInputRef.current?.click();
@@ -200,7 +238,14 @@ export function SubstepEditPopover({
 
   const handleCropConfirm = useCallback((crop: NormalizedCrop) => {
     const file = pendingFileRef.current;
+    if (!file) {
+      console.warn('[SubstepEditPopover.handleCropConfirm] No pending file');
+    }
+    if (!onUploadSubstepImage) {
+      console.warn('[SubstepEditPopover.handleCropConfirm] onUploadSubstepImage callback not provided');
+    }
     if (file && onUploadSubstepImage) {
+      console.log('[SubstepEditPopover.handleCropConfirm] Uploading substep image: file=%s', file.name);
       onUploadSubstepImage(file, crop);
       captureSnapshot();
     }
@@ -214,6 +259,36 @@ export function SubstepEditPopover({
     setCropDialogSrc(null);
     pendingFileRef.current = null;
   }, [cropDialogSrc]);
+
+  // ── Video file-upload state ──
+  const videoFileInputRef = useRef<HTMLInputElement>(null);
+  const pendingVideoFileRef = useRef<File | null>(null);
+  const [videoTrimDialogOpen, setVideoTrimDialogOpen] = useState(false);
+
+  const handleVideoUploadClick = useCallback(() => {
+    videoFileInputRef.current?.click();
+  }, []);
+
+  const handleVideoFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    pendingVideoFileRef.current = file;
+    setVideoTrimDialogOpen(true);
+    e.target.value = '';
+  }, []);
+
+  const handleVideoTrimConfirm = useCallback((result: { file: File; sections: Array<{ startFrame: number; endFrame: number }> | null }) => {
+    if (onUploadSubstepVideo) {
+      onUploadSubstepVideo(result.file, result.sections);
+    }
+    setVideoTrimDialogOpen(false);
+    pendingVideoFileRef.current = null;
+  }, [onUploadSubstepVideo]);
+
+  const handleVideoTrimClose = useCallback(() => {
+    setVideoTrimDialogOpen(false);
+    pendingVideoFileRef.current = null;
+  }, []);
 
   // Build icon list and URL resolver for note editing
   const icons = useMemo(() => buildIconList(catalogs, i18n.language), [catalogs, i18n.language]);
@@ -241,6 +316,7 @@ export function SubstepEditPopover({
       setNoteTextModal(null);
       setTextModal(null);
       setRepeatModal(null);
+      setImageEditDialogOpen(false);
       reset();
     }
   }, [open, reset]);
@@ -255,8 +331,11 @@ export function SubstepEditPopover({
   textModalRef.current = textModal;
   const repeatModalRef = useRef<RepeatModalState | null>(null);
   repeatModalRef.current = repeatModal;
+  const imageEditDialogOpenRef = useRef(false);
+  imageEditDialogOpenRef.current = imageEditDialogOpen;
 
   // Escape handling: if a TextInputModal is open, let it handle Escape;
+  // if ImageEditDialog is open, let it handle Escape;
   // if note editing, cancel edit; otherwise close popover
   useEffect(() => {
     if (!open) return;
@@ -264,6 +343,8 @@ export function SubstepEditPopover({
       if (e.key === 'Escape') {
         // Let TextInputModal handle its own Escape
         if (textModalRef.current || repeatModalRef.current || noteTextModalRef.current) return;
+        // Let ImageEditDialog handle its own Escape
+        if (imageEditDialogOpenRef.current) return;
         if (editStateRef.current) {
           e.stopPropagation();
           setEditState(null);
@@ -535,12 +616,16 @@ export function SubstepEditPopover({
                       <div className={ROW_CLASS} data-testid="media-image-row">
                         <Image className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
                         <span className="flex-1 truncate">{t('editorCore.image', 'Image')}</span>
-                        <button type="button" aria-label={t('editorCore.editImage', 'Edit image')} className={EDIT_BTN_CLASS} onClick={handleUploadClick}>
-                          <Pencil className="h-3.5 w-3.5" />
+                        {imageUrl && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
+                          <button type="button" aria-label={t('editorCore.editImage', 'Edit image')} className={EDIT_BTN_CLASS} onClick={() => setImageEditDialogOpen(true)} data-testid="edit-image-btn">
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                        <button type="button" aria-label={t('editorCore.replaceImage', 'Replace image')} className={EDIT_BTN_CLASS} onClick={handleUploadClick} data-testid="replace-image-btn">
+                          <Upload className="h-3.5 w-3.5" />
                         </button>
-                        <button type="button" aria-label={t('editorCore.deleteImage', 'Delete image')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteImage)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {/* Spacer to align with video row delete button column */}
+                        {hasVideo && <div className="w-7 shrink-0" />}
                         <input
                           ref={fileInputRef}
                           type="file"
@@ -557,6 +642,22 @@ export function SubstepEditPopover({
                             onCancel={handleCropCancel}
                           />
                         )}
+                        {imageEditDialogOpen && imageUrl && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
+                          <ImageEditDialog
+                            open={imageEditDialogOpen}
+                            onClose={() => setImageEditDialogOpen(false)}
+                            imageSrc={imageUrl}
+                            substepImageId={substepImageId ?? null}
+                            versionId={versionId}
+                            drawings={drawings}
+                            onAddDrawing={onAddDrawing}
+                            onUpdateDrawing={onUpdateDrawing}
+                            onDeleteDrawing={onDeleteDrawing}
+                            area={area}
+                            onAreaUpdate={onAreaUpdate}
+                            areaBounds={areaBounds}
+                          />
+                        )}
                       </div>
                     )}
                     {/* Video row */}
@@ -564,9 +665,14 @@ export function SubstepEditPopover({
                       <div className={ROW_CLASS} data-testid="media-video-row">
                         <Video className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
                         <span className="flex-1 truncate">{t('editorCore.video', 'Video')}</span>
-                        <button type="button" aria-label={t('editorCore.editVideo', 'Edit video')} className={EDIT_BTN_CLASS} onClick={() => fire(callbacks.onEditVideo)}>
+                        <button type="button" aria-label={t('editorCore.annotateVideo', 'Annotate video')} className={EDIT_BTN_CLASS} onClick={() => fire(callbacks.onAnnotateVideo)}>
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
+                        {onUploadSubstepVideo && (
+                          <button type="button" aria-label={t('editorCore.replaceSubstepVideo', 'Replace video')} className={EDIT_BTN_CLASS} onClick={handleVideoUploadClick}>
+                            <Upload className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                         <button type="button" aria-label={t('editorCore.deleteVideo', 'Delete video')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteVideo)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -574,6 +680,42 @@ export function SubstepEditPopover({
                     )}
                   </div>
                 ) : undefined}
+                {/* Add video button when no video exists */}
+                {!hasVideo && onUploadSubstepVideo && (
+                  <div className="px-3 py-2">
+                    <button
+                      type="button"
+                      data-testid="btn-add-video"
+                      className={ADD_BTN_CLASS}
+                      aria-label={t('editorCore.addVideo', 'Add video')}
+                      onClick={handleVideoUploadClick}
+                    >
+                      <Video className="h-4 w-4" />
+                      <span className="text-sm">{t('editorCore.addVideo', 'Add video')}</span>
+                    </button>
+                  </div>
+                )}
+                {/* Hidden video file input */}
+                {onUploadSubstepVideo && (
+                  <>
+                    <input
+                      ref={videoFileInputRef}
+                      type="file"
+                      accept="video/*"
+                      className="hidden"
+                      data-testid="substep-video-file-input"
+                      onChange={handleVideoFileSelect}
+                    />
+                    {videoTrimDialogOpen && pendingVideoFileRef.current && (
+                      <VideoTrimDialog
+                        open={videoTrimDialogOpen}
+                        file={pendingVideoFileRef.current}
+                        onConfirm={handleVideoTrimConfirm}
+                        onClose={handleVideoTrimClose}
+                      />
+                    )}
+                  </>
+                )}
               </SectionCard>
             </div>
 

@@ -124,6 +124,7 @@ export function useVideoFrameAreaManager({
           width: rect.width,
           height: rect.height,
           type: area.type as VideoFrameAreaData['type'],
+          segmentationPoints: area.segmentationPoints ?? undefined,
         };
       });
   }, [videoFrameAreas, frameToAreaIds, currentFrame]);

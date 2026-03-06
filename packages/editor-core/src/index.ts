@@ -18,6 +18,7 @@ export {
   type PersistenceResult,
   type ImageUploadResult,
   type CoverImageUploadResult,
+  type SubstepImageUploadResult,
   type CatalogIconCopyResult,
   type VideoUploadResult,
   type VideoUploadArgs,
@@ -97,22 +98,56 @@ export { PartToolDetailEditor, type PartToolDetailEditorProps } from './componen
 // ImageCropDialog (image crop dialog for part/tool images)
 export { ImageCropDialog, type ImageCropDialogProps } from './components/ImageCropDialog';
 
+// MediaEditDialog (shared full-screen modal shell for media annotation editors)
+export { MediaEditDialog, type MediaEditDialogProps } from './components/MediaEditDialog';
+
+// ImageEditDialog (full-screen image editing with overlay annotations + area)
+export { ImageEditDialog, type ImageEditDialogProps } from './components/ImageEditDialog';
+
+// DrawingEditor (unified drawing editor for image annotations + video drawings)
+export { DrawingEditor, type DrawingCardData, type DrawingMode } from './components/DrawingEditor';
+
+// useImageDrawing (image-only drawing state management)
+export { useImageDrawing, type UseImageDrawingProps } from './hooks/useImageDrawing';
+
+// useVideoDrawing (video-only drawing state management)
+export { useVideoDrawing, type UseVideoDrawingProps } from './hooks/useVideoDrawing';
+
+// Drawing percent helpers (frame ↔ substep percent conversion)
+export {
+  prepareSections,
+  frameToSubstepPercent,
+  substepPercentToFrame,
+  type PreparedSections,
+} from './utils/drawingPercentHelpers';
+
 // VideoTrimDialog (video trimming dialog with timeline)
 export {
   VideoTrimDialog,
   type VideoTrimDialogProps,
 } from './components/VideoTrimDialog';
 
-// Video trim types
-export type { CutRegion, TrimData, TrimmedFile } from './types/trim.types';
+// SectionData type (section-based video editing)
+export type { SectionData } from './components/VideoEditorDialog/SectionTimeline';
 
-// Video trim utilities
+// VideoEditorDialog (section + viewport keyframe editor)
 export {
-  getKeptSegments,
-  mergeOverlappingRegions,
-  formatTimecode,
-  type KeptSegment,
-} from './utils/trimUtils';
+  VideoEditorDialog,
+  type VideoEditorDialogProps,
+  type VideoEditorResult,
+} from './components/VideoEditorDialog';
+
+// Playhead (timeline playhead with drag-to-seek, tooltip, grab handle)
+export { Playhead, type PlayheadProps } from './components/VideoEditorDialog/Playhead';
+
+// useViewportKeyframes (local keyframe state for video editor sessions)
+export {
+  useViewportKeyframes,
+  type UseViewportKeyframesReturn,
+} from './hooks/useViewportKeyframes';
+
+// Video trim utilities (formatTimecode used by TrimPlaybackControls)
+export { formatTimecode } from './utils/trimUtils';
 
 // useVideoPlayback (video element playback state management)
 export { useVideoPlayback, type UseVideoPlaybackReturn } from './hooks/useVideoPlayback';
@@ -129,6 +164,15 @@ export { SectionCard, type SectionCardProps } from './components/SectionCard';
 
 // Icon utilities (shared between viewer + creator)
 export { resolveNoteIconUrl } from './utils/iconUtils';
+
+// DraggableList (sortable vertical list with @dnd-kit)
+export { DraggableList } from './components/DraggableList';
+
+// DraggableGrid (sortable grid layout with @dnd-kit)
+export { DraggableGrid } from './components/DraggableGrid';
+
+// reorderArray (immutable array reorder utility)
+export { reorderArray } from './utils/reorderArray';
 
 // PartTool helpers
 export {

@@ -165,6 +165,9 @@ interface StoreActions {
   batchUpdateSteps(updates: Array<{ id: string; changes: Partial<Step> }>): void;
   deleteStep(id: string): void;
 
+  // Reorder assemblies
+  reorderAssembly(assemblyId: string, newIndex: number): void;
+
   // Assignment actions
   assignStepToAssembly(stepId: string, assemblyId: string | null): void;
   assignSubstepToStep(substepId: string, stepId: string | null): void;
@@ -241,7 +244,7 @@ interface StoreActions {
   updateSubstepTutorial(id: string, updates: Partial<SubstepTutorialRow>): void;
   deleteSubstepTutorial(id: string): void;
 
-  // ViewportKeyframes (per-Video, not per-Section)
+  // ViewportKeyframes (per-VideoSection with relative frames)
   addViewportKeyframe(keyframe: ViewportKeyframeRow): void;
   updateViewportKeyframe(id: string, updates: Partial<ViewportKeyframeRow>): void;
   deleteViewportKeyframe(id: string): void;
@@ -450,6 +453,23 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       delete s.data.assemblies[id];
       s.changes.assemblies.changed.delete(id);
       s.changes.assemblies.deleted.add(id);
+    }),
+
+    reorderAssembly: (assemblyId, newIndex) => set((s) => {
+      if (!s.data?.assemblies[assemblyId]) return;
+      const sorted = Object.values(s.data.assemblies).sort((a, b) => a.order - b.order);
+      const oldIndex = sorted.findIndex((a) => a.id === assemblyId);
+      if (oldIndex === -1 || oldIndex === newIndex) return;
+
+      // Splice: remove from old position, insert at new
+      const [moved] = sorted.splice(oldIndex, 1);
+      sorted.splice(newIndex, 0, moved);
+
+      // Reassign sequential order values
+      for (let i = 0; i < sorted.length; i++) {
+        s.data.assemblies[sorted[i].id].order = i;
+        s.changes.assemblies.changed.add(sorted[i].id);
+      }
     }),
 
     // Assignment actions
@@ -694,9 +714,9 @@ export const useEditorStore = create<StoreState & StoreActions>()(
               const videoSection = s.data.videoSections[svs.videoSectionId];
 
               // Remove from parent video's sectionIds
-              const video = s.data.videos[videoSection.videoId];
+              const video = videoSection.videoId ? s.data.videos[videoSection.videoId] : undefined;
               if (video) {
-                video.sectionIds = video.sectionIds.filter(sid => sid !== svs.videoSectionId);
+                video.sectionIds = video.sectionIds.filter((sid: string) => sid !== svs.videoSectionId);
               }
 
               delete s.data.videoSections[svs.videoSectionId];
@@ -1072,7 +1092,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         s.changes.videoSections.changed.add(section.id);
 
         // Add to parent video's sectionIds
-        const video = s.data.videos[section.videoId];
+        const video = section.videoId ? s.data.videos[section.videoId] : undefined;
         if (video && !video.sectionIds.includes(section.id)) {
           video.sectionIds.push(section.id);
         }
@@ -1105,7 +1125,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         const section = s.data.videoSections[id];
 
         // Remove from parent video's sectionIds
-        const video = s.data.videos[section.videoId];
+        const video = section.videoId ? s.data.videos[section.videoId] : undefined;
         if (video) {
           video.sectionIds = video.sectionIds.filter(sid => sid !== id);
         }
@@ -1162,6 +1182,8 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         s.changes.videoSections.changed.add(sectionId);
 
         // Create new section: starts 1 frame after split point
+        // Auto-create a default frame-0 viewport keyframe for the new section
+        const newKfId = uuidv4();
         const newSection: VideoSectionRow = {
           id: newSectionId,
           versionId: section.versionId,
@@ -1170,12 +1192,36 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           endFrame: originalEndFrame,
           contentAspectRatio: section.contentAspectRatio,
           localPath: section.localPath,
+          viewportKeyframeIds: [newKfId],
         };
         s.data.videoSections[newSectionId] = newSection;
         s.changes.videoSections.changed.add(newSectionId);
 
+        // Inherit viewport from the original section's last keyframe at/before the split point
+        const relSplitFrame = splitFrame - section.startFrame;
+        let inheritX = 0, inheritY = 0, inheritW = 1, inheritH = 1;
+        const sortedKfs = section.viewportKeyframeIds
+          .map(kid => s.data!.viewportKeyframes[kid])
+          .filter(Boolean)
+          .sort((a, b) => a.frameNumber - b.frameNumber);
+        for (const kf of sortedKfs) {
+          if (kf.frameNumber <= relSplitFrame) {
+            inheritX = kf.x; inheritY = kf.y; inheritW = kf.width; inheritH = kf.height;
+          }
+        }
+
+        const defaultKf: ViewportKeyframeRow = {
+          id: newKfId,
+          videoSectionId: newSectionId,
+          versionId: section.versionId,
+          frameNumber: 0,
+          x: inheritX, y: inheritY, width: inheritW, height: inheritH,
+        };
+        s.data.viewportKeyframes[newKfId] = defaultKf;
+        s.changes.viewportKeyframes.changed.add(newKfId);
+
         // Add new section to video's sectionIds
-        const video = s.data.videos[section.videoId];
+        const video = section.videoId ? s.data.videos[section.videoId] : undefined;
         if (video && !video.sectionIds.includes(newSectionId)) {
           video.sectionIds.push(newSectionId);
         }
@@ -1314,16 +1360,16 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       s.changes.drawings.deleted.add(id);
     }),
 
-    // ViewportKeyframes (per-Video, not per-Section)
+    // ViewportKeyframes (per-VideoSection with relative frames)
     addViewportKeyframe: (keyframe) => set((s) => {
       if (!s.data) return;
       s.data.viewportKeyframes[keyframe.id] = keyframe;
       s.changes.viewportKeyframes.changed.add(keyframe.id);
 
-      // Add to parent video's viewportKeyframeIds
-      const video = s.data.videos[keyframe.videoId];
-      if (video && !video.viewportKeyframeIds.includes(keyframe.id)) {
-        video.viewportKeyframeIds.push(keyframe.id);
+      // Add to parent section's viewportKeyframeIds
+      const section = s.data.videoSections[keyframe.videoSectionId];
+      if (section && !section.viewportKeyframeIds.includes(keyframe.id)) {
+        section.viewportKeyframeIds.push(keyframe.id);
       }
     }),
 
@@ -1343,10 +1389,10 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         return;
       }
 
-      // Remove from parent video's viewportKeyframeIds
-      const video = s.data.videos[keyframe.videoId];
-      if (video) {
-        video.viewportKeyframeIds = video.viewportKeyframeIds.filter(kid => kid !== id);
+      // Remove from parent section's viewportKeyframeIds
+      const section = s.data.videoSections[keyframe.videoSectionId];
+      if (section) {
+        section.viewportKeyframeIds = section.viewportKeyframeIds.filter(kid => kid !== id);
       }
 
       delete s.data.viewportKeyframes[id];

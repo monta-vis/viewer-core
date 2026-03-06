@@ -10,10 +10,11 @@
  * for the app shell to provide its own UI.
  */
 
-import { useCallback, useMemo } from 'react';
-import type { PartToolRow } from '@monta-vis/viewer-core';
+import { createElement, type ReactNode, useCallback, useMemo } from 'react';
+import type { Assembly, PartToolRow } from '@monta-vis/viewer-core';
 import { useEditorStore } from '../store';
 import { createDefaultPartTool } from '../utils/partToolHelpers';
+import { DraggableList } from '../components/DraggableList';
 
 /**
  * EditCallbacks matches the `editCallbacks` prop shape of InstructionView.
@@ -21,7 +22,6 @@ import { createDefaultPartTool } from '../utils/partToolHelpers';
  */
 export interface EditCallbacks {
   onDeleteImage?: (substepId: string) => void;
-  onEditVideo?: (substepId: string) => void;
   onDeleteVideo?: (substepId: string) => void;
   onEditDescription?: (descriptionId: string, substepId: string) => void;
   onDeleteDescription?: (descriptionId: string, substepId: string) => void;
@@ -49,6 +49,11 @@ export interface EditCallbacks {
   onDeleteAssembly?: (assemblyId: string) => void;
   onRenameAssembly?: (assemblyId: string, title: string) => void;
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
+  onReorderAssembly?: (assemblyId: string, newIndex: number) => void;
+  renderAssemblyList?: (
+    assemblies: Assembly[],
+    renderAssembly: (assembly: Assembly) => ReactNode,
+  ) => ReactNode;
 }
 
 /**
@@ -169,6 +174,24 @@ export function useEditCallbacks(): EditCallbacks {
     useEditorStore.getState().assignStepToAssembly(stepId, assemblyId);
   }, []);
 
+  const onReorderAssembly = useCallback((assemblyId: string, newIndex: number) => {
+    useEditorStore.getState().reorderAssembly(assemblyId, newIndex);
+  }, []);
+
+  const renderAssemblyList = useCallback(
+    (assemblies: Assembly[], renderAssembly: (assembly: Assembly) => ReactNode) =>
+      createElement(DraggableList<Assembly>, {
+        items: assemblies,
+        getItemId: (a: Assembly) => a.id,
+        onReorder: (id: string, newIndex: number) => {
+          useEditorStore.getState().reorderAssembly(id, newIndex);
+        },
+        renderItem: (assembly: Assembly) => renderAssembly(assembly),
+        className: 'flex flex-col gap-6',
+      }),
+    [],
+  );
+
   return useMemo(() => ({
     onDeleteDescription,
     onDeleteNote,
@@ -184,6 +207,8 @@ export function useEditCallbacks(): EditCallbacks {
     onDeleteAssembly,
     onRenameAssembly,
     onMoveStepToAssembly,
+    onReorderAssembly,
+    renderAssemblyList,
   }), [
     onDeleteDescription,
     onDeleteNote,
@@ -199,5 +224,7 @@ export function useEditCallbacks(): EditCallbacks {
     onDeleteAssembly,
     onRenameAssembly,
     onMoveStepToAssembly,
+    onReorderAssembly,
+    renderAssemblyList,
   ]);
 }

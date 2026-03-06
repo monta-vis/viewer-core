@@ -50,16 +50,16 @@ vi.mock('./ImageCropDialog', () => ({
 }));
 
 // Mock VideoTrimDialog — renders confirm/close buttons for testing
-let mockVideoTrimOnConfirm: ((result: { file: File; trimData: null }) => void) | null = null;
+let mockVideoTrimOnConfirm: ((result: { file: File; sections: Array<{ startFrame: number; endFrame: number }> | null }) => void) | null = null;
 let mockVideoTrimOnClose: (() => void) | null = null;
 vi.mock('./VideoTrimDialog', () => ({
-  VideoTrimDialog: ({ open, file, onConfirm, onClose }: { open: boolean; file: File; onConfirm: (result: { file: File; trimData: null }) => void; onClose: () => void }) => {
+  VideoTrimDialog: ({ open, file, onConfirm, onClose }: { open: boolean; file: File; onConfirm: (result: { file: File; sections: Array<{ startFrame: number; endFrame: number }> | null }) => void; onClose: () => void }) => {
     mockVideoTrimOnConfirm = onConfirm;
     mockVideoTrimOnClose = onClose;
     if (!open) return null;
     return (
       <div data-testid="video-editor-dialog">
-        <button data-testid="video-editor-save" onClick={() => onConfirm({ file, trimData: null })}>Confirm</button>
+        <button data-testid="video-editor-save" onClick={() => onConfirm({ file, sections: null })}>Confirm</button>
         <button data-testid="video-editor-cancel" onClick={() => onClose()}>Cancel</button>
       </div>
     );
@@ -133,7 +133,7 @@ afterEach(() => {
 
 const callbacks = {
   onDeleteImage: vi.fn(),
-  onEditVideo: vi.fn(),
+  onAnnotateVideo: vi.fn(),
   onDeleteVideo: vi.fn(),
   onSaveDescription: vi.fn(),
   onDeleteDescription: vi.fn(),
@@ -376,28 +376,15 @@ describe('SubstepEditPopover — media', () => {
     expect(screen.queryByTestId('crop-dialog')).not.toBeInTheDocument();
   });
 
-  it('fires onDeleteImage WITHOUT closing when image delete is clicked', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    const row = screen.getByTestId('media-image-row');
-    const deleteBtn = row.querySelector('[aria-label="Delete image"]');
-    expect(deleteBtn).toBeTruthy();
-    await user.click(deleteBtn!);
-    expect(callbacks.onDeleteImage).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
-    expect(baseProps.onClose).not.toHaveBeenCalled();
-  });
-
-  it('fires onEditVideo WITHOUT closing when video edit is clicked', async () => {
+  it('fires onAnnotateVideo WITHOUT closing when video annotate is clicked', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     const row = screen.getByTestId('media-video-row');
-    const editBtn = row.querySelector('[aria-label="Edit video"]');
+    const editBtn = row.querySelector('[aria-label="Annotate video"]');
     expect(editBtn).toBeTruthy();
     await user.click(editBtn!);
-    expect(callbacks.onEditVideo).toHaveBeenCalledOnce();
+    expect(callbacks.onAnnotateVideo).toHaveBeenCalledOnce();
     expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });

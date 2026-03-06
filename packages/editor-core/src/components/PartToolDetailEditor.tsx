@@ -191,7 +191,14 @@ export function PartToolDetailEditor({
 
   const handleCropConfirm = useCallback((crop: NormalizedCrop) => {
     const file = pendingFileRef.current;
+    if (!file) {
+      console.warn('[PartToolDetailEditor.handleCropConfirm] No pending file');
+    }
+    if (!imageCallbacks?.onUploadImage) {
+      console.warn('[PartToolDetailEditor.handleCropConfirm] onUploadImage callback not provided');
+    }
     if (file && imageCallbacks?.onUploadImage) {
+      console.log('[PartToolDetailEditor.handleCropConfirm] Uploading part tool image: partTool=%s, file=%s', partToolId, file.name);
       imageCallbacks.onUploadImage(partToolId, file, crop);
     }
     if (cropDialogSrc) URL.revokeObjectURL(cropDialogSrc);

@@ -2233,4 +2233,92 @@ describe('useEditorStore - Extended Tests', () => {
     });
   });
 
+  describe('reorderAssembly', () => {
+    function createDataWithAssemblies(): ReturnType<typeof createMockInstructionData> {
+      const data = createMockInstructionData();
+      data.assemblies = {
+        'asm-a': {
+          id: 'asm-a', versionId: 'ver-1', instructionId: 'inst-1',
+          title: 'Assembly A', description: null, order: 0, previewImageId: null, stepIds: [],
+        },
+        'asm-b': {
+          id: 'asm-b', versionId: 'ver-1', instructionId: 'inst-1',
+          title: 'Assembly B', description: null, order: 1, previewImageId: null, stepIds: [],
+        },
+        'asm-c': {
+          id: 'asm-c', versionId: 'ver-1', instructionId: 'inst-1',
+          title: 'Assembly C', description: null, order: 2, previewImageId: null, stepIds: [],
+        },
+      };
+      return data;
+    }
+
+    it('moves assembly from index 0 to index 2', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.reorderAssembly('asm-a', 2));
+
+      const assemblies = result.current.data!.assemblies;
+      expect(assemblies['asm-b'].order).toBe(0);
+      expect(assemblies['asm-c'].order).toBe(1);
+      expect(assemblies['asm-a'].order).toBe(2);
+    });
+
+    it('moves assembly from index 2 to index 0', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.reorderAssembly('asm-c', 0));
+
+      const assemblies = result.current.data!.assemblies;
+      expect(assemblies['asm-c'].order).toBe(0);
+      expect(assemblies['asm-a'].order).toBe(1);
+      expect(assemblies['asm-b'].order).toBe(2);
+    });
+
+    it('no-op for same index', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderAssembly('asm-b', 1));
+
+      const assemblies = result.current.data!.assemblies;
+      expect(assemblies['asm-a'].order).toBe(0);
+      expect(assemblies['asm-b'].order).toBe(1);
+      expect(assemblies['asm-c'].order).toBe(2);
+      // No changes tracked
+      expect(result.current.changes.assemblies.changed.size).toBe(0);
+    });
+
+    it('no-op for unknown assemblyId', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderAssembly('asm-unknown', 0));
+
+      expect(result.current.changes.assemblies.changed.size).toBe(0);
+    });
+
+    it('marks reordered assemblies as changed', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderAssembly('asm-a', 2));
+
+      const changed = result.current.changes.assemblies.changed;
+      expect(changed.has('asm-a')).toBe(true);
+      expect(changed.has('asm-b')).toBe(true);
+      expect(changed.has('asm-c')).toBe(true);
+    });
+  });
+
 });

@@ -5,7 +5,7 @@
  * for an HTML5 video element.
  */
 
-import { useState, useCallback, useEffect, type RefObject } from 'react';
+import { useState, useCallback, useEffect, useMemo, type RefObject } from 'react';
 
 const FRAME_RATE = 30; // Assume 30fps for frame stepping
 const FRAME_DURATION = 1 / FRAME_RATE;
@@ -15,6 +15,7 @@ export interface UseVideoPlaybackReturn {
   currentTime: number;
   duration: number;
   playbackSpeed: number;
+  hasError: boolean;
   togglePlay: () => Promise<void>;
   play: () => Promise<void>;
   pause: () => void;
@@ -29,28 +30,41 @@ export interface UseVideoPlaybackReturn {
 
 export function useVideoPlayback(
   videoRef: RefObject<HTMLVideoElement | null>,
+  src?: string,
 ): UseVideoPlaybackReturn {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeedState] = useState(1);
+  const [hasError, setHasError] = useState(false);
 
   // Sync state with video element events
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
 
-    const handlePlay = () => setIsPlaying(true);
+    const handlePlay = () => {
+      setIsPlaying(true);
+      setHasError(false);
+    };
     const handlePause = () => setIsPlaying(false);
     const handleTimeUpdate = () => setCurrentTime(video.currentTime);
     const handleDurationChange = () => setDuration(video.duration || 0);
-    const handleLoadedMetadata = () => setDuration(video.duration || 0);
+    const handleLoadedMetadata = () => {
+      setDuration(video.duration || 0);
+      setHasError(false);
+    };
+    const handleError = () => setHasError(true);
+
+    // Reset error state when a new video element is attached
+    setHasError(false);
 
     video.addEventListener('play', handlePlay);
     video.addEventListener('pause', handlePause);
     video.addEventListener('timeupdate', handleTimeUpdate);
     video.addEventListener('durationchange', handleDurationChange);
     video.addEventListener('loadedmetadata', handleLoadedMetadata);
+    video.addEventListener('error', handleError);
 
     // Initialize duration if already loaded
     if (video.duration) {
@@ -63,13 +77,23 @@ export function useVideoPlayback(
       video.removeEventListener('timeupdate', handleTimeUpdate);
       video.removeEventListener('durationchange', handleDurationChange);
       video.removeEventListener('loadedmetadata', handleLoadedMetadata);
+      video.removeEventListener('error', handleError);
     };
-  }, [videoRef]);
+  }, [videoRef, src]);
 
   const play = useCallback(async () => {
     const video = videoRef.current;
     if (!video) return;
-    await video.play();
+    try {
+      await video.play();
+    } catch (err) {
+      // Ignore AbortError (play interrupted by pause/src change) and
+      // NotAllowedError (autoplay blocked by browser policy)
+      if (err instanceof DOMException && (err.name === 'AbortError' || err.name === 'NotAllowedError')) {
+        return;
+      }
+      throw err;
+    }
   }, [videoRef]);
 
   const pause = useCallback(() => {
@@ -125,19 +149,23 @@ export function useVideoPlayback(
     [videoRef],
   );
 
-  return {
-    isPlaying,
-    currentTime,
-    duration,
-    playbackSpeed,
-    togglePlay,
-    play,
-    pause,
-    seek,
-    stepFrame,
-    setPlaybackSpeed,
-    setIsPlaying,
-    setCurrentTime,
-    setDuration,
-  };
+  return useMemo(
+    () => ({
+      isPlaying,
+      currentTime,
+      duration,
+      playbackSpeed,
+      hasError,
+      togglePlay,
+      play,
+      pause,
+      seek,
+      stepFrame,
+      setPlaybackSpeed,
+      setIsPlaying,
+      setCurrentTime,
+      setDuration,
+    }),
+    [isPlaying, currentTime, duration, playbackSpeed, hasError, togglePlay, play, pause, seek, stepFrame, setPlaybackSpeed],
+  );
 }

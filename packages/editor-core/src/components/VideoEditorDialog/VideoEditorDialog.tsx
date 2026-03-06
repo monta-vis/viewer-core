@@ -1,0 +1,817 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { clsx } from 'clsx';
+import { Film, Scissors, X } from 'lucide-react';
+import {
+  DialogShell,
+  Button,
+  IconButton,
+  ContextMenu,
+  ContextMenuItem,
+  DrawingLayer,
+  DrawingPreview,
+  TextInputModal,
+  useAnnotationDrawing,
+  useDrawingResize,
+  type ViewportKeyframeRow,
+  type DrawingRow,
+} from '@monta-vis/viewer-core';
+import { MediaEditDialog } from '../MediaEditDialog';
+import { useDrawingDeleteKey } from '../../hooks/useDrawingDeleteKey';
+import { useVideoPlayback } from '../../hooks/useVideoPlayback';
+import { useViewportKeyframes } from '../../hooks/useViewportKeyframes';
+import { useVideoDrawing } from '../../hooks/useVideoDrawing';
+import { TrimPlaybackControls } from '../VideoTrimDialog/TrimPlaybackControls';
+import { DrawingEditor } from '../DrawingEditor';
+import { ViewportBox } from './ViewportBox';
+import {
+  ViewportKeyframeTimeline,
+  type KeyframeContextMenuEvent,
+} from './ViewportKeyframeTimeline';
+import { SectionTimeline, type SectionData } from './SectionTimeline';
+import { Playhead } from './Playhead';
+import {
+  computeLetterboxBounds,
+  timeToFrame,
+  frameToTime,
+} from './viewportUtils';
+
+// ── Discriminated union props ──
+
+interface VideoEditorBaseProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+interface VideoEditorEditProps extends VideoEditorBaseProps {
+  mode?: 'edit';
+  onSave: (data: VideoEditorResult) => void;
+  videoData: {
+    videoSrc: string;
+    startFrame: number;
+    endFrame: number;
+    fps: number;
+    viewportKeyframes: ViewportKeyframeRow[];
+    videoAspectRatio: number;
+    contentAspectRatio?: number | null;
+    sections?: Array<{ startFrame: number; endFrame: number }>;
+  };
+}
+
+interface VideoEditorViewProps extends VideoEditorBaseProps {
+  mode: 'view';
+  videoData: { videoSrc: string; fps: number; durationSeconds: number; contentAspectRatio?: number | null };
+  substepId: string;
+  versionId: string;
+  drawings: Record<string, DrawingRow>;
+  onAddDrawing: (drawing: DrawingRow) => void;
+  onUpdateDrawing: (id: string, updates: Partial<DrawingRow>) => void;
+  onDeleteDrawing: (id: string) => void;
+}
+
+export type VideoEditorDialogProps = VideoEditorEditProps | VideoEditorViewProps;
+
+export interface VideoEditorResult {
+  sections: Array<{ startFrame: number; endFrame: number }>;
+  viewportKeyframes: ViewportKeyframeRow[];
+}
+
+export function VideoEditorDialog(props: VideoEditorDialogProps) {
+  if (props.mode === 'view') {
+    return <VideoEditorViewMode {...props} />;
+  }
+  return <VideoEditorEditMode {...props} />;
+}
+
+// ── Edit mode (original behavior) ──
+
+function VideoEditorEditMode({
+  open,
+  onClose,
+  onSave,
+  videoData,
+}: VideoEditorEditProps) {
+  const { t } = useTranslation();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const playback = useVideoPlayback(videoRef, videoData.videoSrc);
+
+  const [sections, setSections] = useState<SectionData[]>(() =>
+    videoData.sections?.length
+      ? videoData.sections
+      : [{ startFrame: videoData.startFrame, endFrame: videoData.endFrame }],
+  );
+  const [selectedSection, setSelectedSection] = useState(0);
+
+  const viewportKf = useViewportKeyframes(videoData.viewportKeyframes);
+
+  const [containerSize, setContainerSize] = useState({
+    width: 0,
+    height: 0,
+  });
+
+  const [contextMenu, setContextMenu] = useState<{
+    x: number;
+    y: number;
+    frame: number;
+    interpolation: 'hold' | 'linear';
+  } | null>(null);
+
+  const totalFrames = videoData.endFrame - videoData.startFrame;
+  const currentFrame = timeToFrame(playback.currentTime, videoData.fps);
+
+  // Letterbox bounds for viewport overlay
+  const letterbox = useMemo(
+    () =>
+      computeLetterboxBounds(
+        containerSize.width,
+        containerSize.height,
+        videoData.videoAspectRatio,
+        1,
+      ),
+    [containerSize, videoData.videoAspectRatio],
+  );
+
+  // Current viewport from keyframes
+  const currentViewport = useMemo(
+    () => viewportKf.getViewportAtFrame(currentFrame, videoData.videoAspectRatio),
+    [viewportKf, currentFrame, videoData.videoAspectRatio],
+  );
+
+  const handleContainerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      (containerRef as React.MutableRefObject<HTMLDivElement | null>).current =
+        node;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+      if (entry) {
+        setContainerSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+        });
+      }
+    });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  const handleSeek = useCallback(
+    (frame: number) => {
+      playback.seek(frameToTime(frame, videoData.fps));
+    },
+    [playback.seek, videoData.fps],
+  );
+
+  const handleViewportChange = useCallback(
+    (viewport: { x: number; y: number; width: number; height: number }) => {
+      viewportKf.upsertAtFrame(currentFrame, viewport);
+    },
+    [viewportKf, currentFrame],
+  );
+
+  const handleSectionChange = useCallback(
+    (index: number, section: SectionData) => {
+      setSections((prev) => {
+        const next = [...prev];
+        next[index] = section;
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleContextMenu = useCallback(
+    (event: KeyframeContextMenuEvent) => {
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        frame: event.frame,
+        interpolation: event.interpolation,
+      });
+    },
+    [],
+  );
+
+  const handlePlayheadDrag = useCallback(
+    (positionPercent: number) => {
+      const frame = Math.round((positionPercent / 100) * totalFrames);
+      handleSeek(Math.max(0, Math.min(frame, totalFrames)));
+    },
+    [totalFrames, handleSeek],
+  );
+
+  // Split: can split if playhead is inside a section (not at edges)
+  const canSplit = useMemo(() => {
+    const sec = sections[selectedSection];
+    if (!sec) return false;
+    return currentFrame > sec.startFrame + 1 && currentFrame < sec.endFrame - 1;
+  }, [sections, selectedSection, currentFrame]);
+
+  const handleSplit = useCallback(() => {
+    if (!canSplit) return;
+    setSections((prev) => {
+      const next = [...prev];
+      const sec = next[selectedSection];
+      if (!sec) return prev;
+      next.splice(selectedSection, 1, {
+        startFrame: sec.startFrame,
+        endFrame: currentFrame,
+      }, {
+        startFrame: currentFrame,
+        endFrame: sec.endFrame,
+      });
+      return next;
+    });
+  }, [canSplit, selectedSection, currentFrame]);
+
+  const playheadPct =
+    totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
+
+  const handleSave = useCallback(() => {
+    onSave({
+      sections,
+      viewportKeyframes: viewportKf.keyframes,
+    });
+  }, [onSave, sections, viewportKf.keyframes]);
+
+  // Normalized viewport (0-1) from the 0-100 range returned by interpolateVideoViewport
+  const normalizedViewport = useMemo(
+    () => ({
+      x: currentViewport.x / 100,
+      y: currentViewport.y / 100,
+      width: currentViewport.width / 100,
+      height: currentViewport.height / 100,
+    }),
+    [currentViewport],
+  );
+
+  return (
+    <DialogShell open={open} onClose={onClose} maxWidth="max-w-5xl" className="p-0">
+      {/* Header */}
+      <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
+        <div className="flex items-center gap-2">
+          <Film className="h-5 w-5 text-[var(--color-text-muted)]" />
+          <h2 className="text-base font-semibold text-[var(--color-text-base)]">
+            {t('editorCore.videoEditor.title', 'Edit Video')}
+          </h2>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="primary" size="sm" onClick={handleSave}>
+            {t('editorCore.save', 'Save')}
+          </Button>
+          <IconButton
+            icon={<X className="h-4 w-4" />}
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            aria-label={t('editorCore.close', 'Close')}
+          />
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex flex-col gap-3 p-4">
+        {/* Video player with viewport overlay */}
+        <div
+          ref={handleContainerRef}
+          className="relative w-full overflow-hidden rounded bg-black"
+          style={{ aspectRatio: `${videoData.videoAspectRatio}` }}
+        >
+          <video
+            ref={videoRef}
+            src={videoData.videoSrc}
+            className="absolute inset-0 h-full w-full object-contain"
+            playsInline
+            preload="auto"
+          />
+
+          {/* Video error overlay */}
+          {playback.hasError && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80"
+              data-testid="video-error-overlay"
+            >
+              <Film className="h-8 w-8 text-[var(--color-text-muted)]" />
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {t('editorCore.videoEditor.videoLoadError', 'Video could not be loaded')}
+              </p>
+            </div>
+          )}
+
+          {/* Viewport box overlay */}
+          {letterbox.width > 0 && (
+            <div
+              className="absolute"
+              style={{
+                left: `${letterbox.offsetX}px`,
+                top: `${letterbox.offsetY}px`,
+                width: `${letterbox.width}px`,
+                height: `${letterbox.height}px`,
+              }}
+            >
+              <ViewportBox
+                x={normalizedViewport.x}
+                y={normalizedViewport.y}
+                width={normalizedViewport.width}
+                height={normalizedViewport.height}
+                containerWidth={letterbox.width}
+                containerHeight={letterbox.height}
+                onChange={handleViewportChange}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Playback controls */}
+        <div className="flex items-center justify-center gap-2">
+          <TrimPlaybackControls
+            isPlaying={playback.isPlaying}
+            currentTime={playback.currentTime}
+            duration={playback.duration}
+            onTogglePlay={playback.togglePlay}
+            fps={videoData.fps}
+          />
+          <IconButton
+            icon={<Scissors className="h-4 w-4" />}
+            aria-label={t('editorCore.videoEditor.splitSection', 'Split section')}
+            variant="ghost"
+            size="sm"
+            onClick={handleSplit}
+            disabled={!canSplit}
+          />
+        </div>
+
+        {/* Timeline tracks with unified playhead */}
+        <div className="relative flex flex-col gap-3" data-timeline-track>
+          {/* Viewport keyframe timeline */}
+          <ViewportKeyframeTimeline
+            keyframes={viewportKf.keyframes}
+            totalFrames={totalFrames}
+            onSeek={handleSeek}
+            onContextMenu={handleContextMenu}
+          />
+
+          {/* Section timeline */}
+          <SectionTimeline
+            sections={sections}
+            totalFrames={totalFrames}
+            fps={videoData.fps}
+            selectedIndex={selectedSection}
+            onSelectSection={setSelectedSection}
+            onSectionChange={handleSectionChange}
+            onSeek={handleSeek}
+          />
+
+          {/* Unified Playhead spanning both timelines */}
+          <Playhead
+            position={playheadPct}
+            trackHeight={4}
+            currentTime={playback.currentTime}
+            currentFrame={currentFrame}
+            fps={videoData.fps}
+            onDrag={handlePlayheadDrag}
+          />
+        </div>
+      </div>
+
+      {/* Context menu for keyframe actions */}
+      {contextMenu && (
+        <ContextMenu
+          position={{ x: contextMenu.x, y: contextMenu.y }}
+          onClose={() => setContextMenu(null)}
+        >
+          <ContextMenuItem
+            onClick={() => {
+              viewportKf.toggleInterpolation(contextMenu.frame);
+              setContextMenu(null);
+            }}
+          >
+            {contextMenu.interpolation === 'hold'
+              ? t('editorCore.videoEditor.setLinear', 'Set to Linear')
+              : t('editorCore.videoEditor.setHold', 'Set to Hold')}
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => {
+              viewportKf.deleteAtFrame(contextMenu.frame);
+              setContextMenu(null);
+            }}
+          >
+            {t('editorCore.videoEditor.deleteKeyframe', 'Delete Keyframe')}
+          </ContextMenuItem>
+        </ContextMenu>
+      )}
+    </DialogShell>
+  );
+}
+
+// ── View mode (drawing support for processed videos) ──
+
+function VideoEditorViewMode({
+  open,
+  onClose,
+  videoData,
+  substepId,
+  versionId,
+  drawings,
+  onAddDrawing,
+  onUpdateDrawing,
+  onDeleteDrawing,
+}: VideoEditorViewProps) {
+  const { t } = useTranslation();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const svgContainerRef = useRef<HTMLDivElement>(null);
+  const drawingOverlayRef = useRef<HTMLDivElement>(null);
+  const playback = useVideoPlayback(videoRef, videoData.videoSrc);
+
+  // Bounds for coordinate space: the overlay div IS the content area,
+  // so full bounds converts container % (0-100) ↔ local space (0-1).
+  const FULL_BOUNDS = useMemo(() => ({ x: 0, y: 0, width: 100, height: 100 }), []);
+
+  // Drawing resize hook (declared early so containerRef setter is available)
+  // Mirror ImageEditDialog pattern: also update x/y for text shapes
+  const handleResizeComplete = useCallback(
+    (drawingId: string, updates: Partial<DrawingRow>) => {
+      const finalUpdates: Partial<DrawingRow> = { ...updates };
+      const drawing = drawings[drawingId];
+      if (drawing?.type === 'text' && updates.x1 != null) {
+        finalUpdates.x = updates.x1;
+        finalUpdates.y = updates.y1;
+      }
+      onUpdateDrawing(drawingId, finalUpdates);
+    },
+    [drawings, onUpdateDrawing],
+  );
+
+  const drawingResize = useDrawingResize({
+    onResizeComplete: handleResizeComplete,
+    bounds: FULL_BOUNDS,
+  });
+
+  // Combined ref: sets both drawingOverlayRef and drawingResize.containerRef
+  const setDrawingOverlayRef = useCallback(
+    (el: HTMLDivElement | null) => {
+      drawingOverlayRef.current = el;
+      drawingResize.containerRef(el);
+    },
+    [drawingResize.containerRef],
+  );
+
+  // Track container size for letterbox computation
+  const [containerSize, setContainerSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    const el = svgContainerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const { width, height } = entry.contentRect;
+      setContainerSize({ width, height });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  // Compute content area: where actual video content sits within the container
+  const contentArea = useMemo(() => {
+    if (containerSize.width <= 0 || containerSize.height <= 0) return null;
+    // Step 1: Square video (1:1) in container
+    const video = computeLetterboxBounds(containerSize.width, containerSize.height, 1, 1);
+    if (video.width <= 0) return null;
+
+    // Step 2: Content in square video (if contentAspectRatio available)
+    const car = videoData.contentAspectRatio;
+    if (!car) return video; // No letterbox within video — content IS the video
+
+    const content = computeLetterboxBounds(video.width, video.height, car, 1);
+    return {
+      offsetX: video.offsetX + content.offsetX,
+      offsetY: video.offsetY + content.offsetY,
+      width: content.width,
+      height: content.height,
+    };
+  }, [containerSize, videoData.contentAspectRatio]);
+
+  const totalFrames = videoData.durationSeconds * videoData.fps;
+  const currentFrame = timeToFrame(playback.currentTime, videoData.fps);
+  const currentPercent = totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
+
+  // Video drawing hook
+  const videoDrawing = useVideoDrawing({
+    substepId,
+    versionId,
+    drawings,
+    addDrawing: onAddDrawing,
+    updateDrawing: onUpdateDrawing,
+    deleteDrawing: onDeleteDrawing,
+    currentPercent,
+  });
+
+  // Transform text input position from container space (0-100%) to local space (0-1)
+  // to match the bounds-based coordinate system used for drawn shapes.
+  const handleTextInputLocal = useCallback(
+    (position: { x: number; y: number }) => {
+      videoDrawing.handleTextInput({ x: position.x / 100, y: position.y / 100 });
+    },
+    [videoDrawing.handleTextInput],
+  );
+
+  // Annotation drawing hook (mouse interaction for drawing on video)
+  // Pass FULL_BOUNDS so coordinates are stored in local space (0-1),
+  // matching what SubstepCard's ShapeLayer expects when rendering with bounds.
+  const annotationDrawingHook = useAnnotationDrawing({
+    tool: videoDrawing.drawingTool,
+    color: videoDrawing.drawingColor,
+    onShapeCreate: videoDrawing.handleShapeDrawn,
+    onTextInput: handleTextInputLocal,
+    bounds: FULL_BOUNDS,
+  });
+
+  // Mouse handlers on content area div (matches ImageOverlay pattern)
+  // Shapes remain clickable even when a drawing tool is active.
+  const handleOverlayMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isOnSvgElement = target.closest('svg') !== null || target.tagName === 'svg';
+
+      if (videoDrawing.drawingTool && drawingOverlayRef.current) {
+        if (!isOnSvgElement) {
+          videoDrawing.deselectDrawing();
+          annotationDrawingHook.handleMouseDown(e, drawingOverlayRef.current);
+        }
+      } else if (!isOnSvgElement) {
+        videoDrawing.deselectDrawing();
+      }
+    },
+    [videoDrawing.drawingTool, videoDrawing.deselectDrawing, annotationDrawingHook.handleMouseDown],
+  );
+
+  const handleOverlayMouseMove = useCallback(
+    (e: React.MouseEvent) => {
+      if (annotationDrawingHook.isDrawing && drawingOverlayRef.current) {
+        annotationDrawingHook.handleMouseMove(e, drawingOverlayRef.current);
+      }
+    },
+    [annotationDrawingHook.isDrawing, annotationDrawingHook.handleMouseMove],
+  );
+
+  const handleOverlayMouseUp = useCallback(() => {
+    if (annotationDrawingHook.isDrawing) {
+      annotationDrawingHook.handleMouseUp();
+    }
+  }, [annotationDrawingHook.isDrawing, annotationDrawingHook.handleMouseUp]);
+
+  // Global mouse events for drawing continuation outside overlay (matches ImageOverlay)
+  useEffect(() => {
+    if (!annotationDrawingHook.isDrawing) return;
+
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (drawingOverlayRef.current) {
+        annotationDrawingHook.handleMouseMove(e, drawingOverlayRef.current);
+      }
+    };
+    const handleGlobalMouseUp = () => {
+      annotationDrawingHook.handleMouseUp();
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [annotationDrawingHook.isDrawing, annotationDrawingHook.handleMouseMove, annotationDrawingHook.handleMouseUp]);
+
+  // Apply live coords during resize for real-time visual feedback (matches ImageOverlay)
+  const drawingsWithLiveCoords = useMemo(() => {
+    if (!drawingResize.isResizing || !drawingResize.liveCoords) {
+      return videoDrawing.visibleDrawings;
+    }
+    return videoDrawing.visibleDrawings.map((drawing) => {
+      if (drawing.id === drawingResize.resizingDrawingId) {
+        const updated = {
+          ...drawing,
+          x1: drawingResize.liveCoords!.x1,
+          y1: drawingResize.liveCoords!.y1,
+          x2: drawingResize.liveCoords!.x2,
+          y2: drawingResize.liveCoords!.y2,
+        };
+        if (drawing.type === 'text') {
+          updated.x = drawingResize.liveCoords!.x1;
+          updated.y = drawingResize.liveCoords!.y1;
+        }
+        return updated;
+      }
+      return drawing;
+    });
+  }, [videoDrawing.visibleDrawings, drawingResize.isResizing, drawingResize.liveCoords, drawingResize.resizingDrawingId]);
+
+  // Delete key handler
+  useDrawingDeleteKey(open, videoDrawing.selectedDrawingId, videoDrawing.handleDrawingDelete);
+
+  // Seek by percent
+  const handleSeekPercent = useCallback(
+    (percent: number) => {
+      const frame = Math.round((percent / 100) * totalFrames);
+      playback.seek(frameToTime(frame, videoData.fps));
+    },
+    [totalFrames, playback.seek, videoData.fps],
+  );
+
+  // Click-to-seek on timeline bar
+  const handleTimelineClick = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const pct = ((e.clientX - rect.left) / rect.width) * 100;
+      handleSeekPercent(Math.max(0, Math.min(100, pct)));
+    },
+    [handleSeekPercent],
+  );
+
+  // Handle drawing handle mouse down for resize
+  const handleDrawingHandleMouseDown = useCallback(
+    (drawingId: string, handle: string, e: React.MouseEvent) => {
+      const drawing = drawings[drawingId];
+      if (!drawing) return;
+      playback.pause();
+      drawingResize.startResize(drawing, handle as Parameters<typeof drawingResize.startResize>[1], e);
+    },
+    [drawings, playback.pause, drawingResize.startResize],
+  );
+
+  // Handle drawing click on overlay
+  const handleDrawingClick = useCallback(
+    (id: string | null) => {
+      if (id) {
+        videoDrawing.handleDrawingSelect(id);
+      } else {
+        videoDrawing.deselectDrawing();
+      }
+    },
+    [videoDrawing.handleDrawingSelect, videoDrawing.deselectDrawing],
+  );
+
+  // Handle double-click on text drawing to edit
+  const handleDrawingDoubleClick = videoDrawing.handleTextEdit;
+
+  return (
+    <MediaEditDialog
+      open={open}
+      onClose={onClose}
+      sidebar={
+        <DrawingEditor
+          activeTool={videoDrawing.drawingTool}
+          activeColor={videoDrawing.drawingColor}
+          selectedDrawingColor={videoDrawing.selectedDrawingColor}
+          onToolSelect={videoDrawing.handleDrawingToolSelect}
+          onColorSelect={videoDrawing.handleDrawingColorSelect}
+          drawings={videoDrawing.drawingCards}
+          selectedDrawingId={videoDrawing.selectedDrawingId}
+          onDrawingSelect={videoDrawing.handleDrawingSelect}
+          selectedDrawingFontSize={videoDrawing.selectedDrawingFontSize}
+          onFontSizeSelect={videoDrawing.handleDrawingFontSizeSelect}
+          onDrawingFrameUpdate={videoDrawing.handleDrawingFrameUpdate}
+          onSeekPercent={handleSeekPercent}
+          duration={videoData.durationSeconds}
+          drawingMode="video"
+          isInVideoSection
+          showModeToggle={false}
+          onDrawingModeChange={() => {}}
+          onClose={onClose}
+        />
+      }
+    >
+      {/* Video + playback area */}
+      <div className="flex-1 flex flex-col min-w-0 p-4 gap-3 h-full">
+        {/* Video player with drawing overlay */}
+        <div className="relative flex-1 min-h-0 flex items-center justify-center">
+        <div
+          ref={svgContainerRef}
+          className="relative overflow-hidden rounded bg-black"
+          style={{ aspectRatio: '1', maxHeight: '100%', maxWidth: '100%', width: '100%' }}
+        >
+          <video
+            ref={videoRef}
+            src={videoData.videoSrc}
+            className="absolute inset-0 h-full w-full object-contain"
+            playsInline
+            preload="auto"
+          />
+
+          {/* Video error overlay */}
+          {playback.hasError && (
+            <div
+              className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80"
+              data-testid="video-error-overlay"
+            >
+              <Film className="h-8 w-8 text-[var(--color-text-muted)]" />
+              <p className="text-sm text-[var(--color-text-muted)]">
+                {t('editorCore.videoEditor.videoLoadError', 'Video could not be loaded')}
+              </p>
+            </div>
+          )}
+
+          {/* Drawing overlay — positioned exactly over the video content area */}
+          {contentArea && contentArea.width > 0 && (
+            <div
+              ref={setDrawingOverlayRef}
+              className={clsx('absolute', videoDrawing.drawingTool && 'cursor-crosshair')}
+              style={{
+                left: contentArea.offsetX,
+                top: contentArea.offsetY,
+                width: contentArea.width,
+                height: contentArea.height,
+              }}
+              data-testid="drawing-overlay"
+              onMouseDown={handleOverlayMouseDown}
+              onMouseMove={handleOverlayMouseMove}
+              onMouseUp={handleOverlayMouseUp}
+            >
+              {/* Existing drawings (pointer-events-none wrapper, shapes have pointer-events: auto) */}
+              <div className="absolute inset-0 pointer-events-none">
+                <DrawingLayer
+                  drawings={drawingsWithLiveCoords}
+                  containerWidth={contentArea.width}
+                  containerHeight={contentArea.height}
+                  selectedId={videoDrawing.selectedDrawingId}
+                  onSelect={handleDrawingClick}
+                  onDeselect={videoDrawing.deselectDrawing}
+                  onHandleMouseDown={handleDrawingHandleMouseDown}
+                  onDoubleClick={handleDrawingDoubleClick}
+                  bounds={FULL_BOUNDS}
+                />
+              </div>
+
+              {/* Drawing preview (pointer-events-none so it doesn't block shape interaction) */}
+              {annotationDrawingHook.isDrawing && annotationDrawingHook.startPoint && annotationDrawingHook.currentPoint && videoDrawing.drawingTool && videoDrawing.drawingTool !== 'text' && (
+                <svg
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  data-testid="drawing-preview-svg"
+                >
+                  <DrawingPreview
+                    tool={videoDrawing.drawingTool}
+                    color={videoDrawing.drawingColor}
+                    startPoint={annotationDrawingHook.startPoint}
+                    currentPoint={annotationDrawingHook.currentPoint}
+                    containerWidth={contentArea.width}
+                    containerHeight={contentArea.height}
+                  />
+                </svg>
+              )}
+            </div>
+          )}
+
+          {/* Text editing modal */}
+          {videoDrawing.textInputState.isOpen && (
+            <TextInputModal
+              label={t('editorCore.editText', 'Edit text')}
+              value={videoDrawing.textInputState.initialText ?? ''}
+              onConfirm={(text: string) => videoDrawing.handleTextSubmit(text, videoDrawing.textInputState.initialFontSize ?? 5)}
+              onCancel={videoDrawing.handleTextCancel}
+            />
+          )}
+        </div>
+        </div>
+
+        {/* Playback controls */}
+        <div className="shrink-0">
+          <TrimPlaybackControls
+            isPlaying={playback.isPlaying}
+            currentTime={playback.currentTime}
+            duration={playback.duration}
+            onTogglePlay={playback.togglePlay}
+            fps={videoData.fps}
+          />
+        </div>
+
+        {/* Timeline with playhead */}
+        <div className="shrink-0 relative" data-timeline-track>
+          <div
+            className="relative h-6 w-full rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-base)] cursor-pointer"
+            onClick={handleTimelineClick}
+          >
+            <div
+              className="absolute top-1 bottom-1 left-0 right-0 rounded-sm"
+              style={{
+                backgroundColor: 'var(--color-element-drawing)',
+                opacity: 0.6,
+              }}
+            />
+          </div>
+          <Playhead
+            position={currentPercent}
+            trackHeight={2}
+            currentTime={playback.currentTime}
+            currentFrame={currentFrame}
+            fps={videoData.fps}
+            onDrag={handleSeekPercent}
+          />
+        </div>
+      </div>
+    </MediaEditDialog>
+  );
+}

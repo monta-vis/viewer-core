@@ -60,6 +60,12 @@ export interface VideoUploadResult extends PersistenceResult {
 
 export interface VideoUploadArgs {
   sourceVideoPath: string;
+  sections?: Array<{ startFrame: number; endFrame: number }> | null;
+}
+
+export interface SubstepImageUploadResult extends PersistenceResult {
+  vfaId?: string;
+  substepImageId?: string;
 }
 
 export interface PersistenceAdapter {
@@ -68,6 +74,7 @@ export interface PersistenceAdapter {
   saveChanges(projectId: string, changes: ProjectChanges): Promise<PersistenceResult>;
   uploadPartToolImage?(projectId: string, partToolId: string, image: ImageSource, crop?: NormalizedCrop): Promise<ImageUploadResult>;
   uploadCoverImage?(projectId: string, image: ImageSource, crop?: NormalizedCrop): Promise<CoverImageUploadResult>;
+  uploadSubstepImage?(projectId: string, substepId: string, image: ImageSource, crop?: NormalizedCrop): Promise<SubstepImageUploadResult>;
   uploadSubstepVideo?(projectId: string, substepId: string, args: VideoUploadArgs): Promise<VideoUploadResult>;
   /** Copy a catalog icon into the project's media folder and create a VFA row. */
   copyCatalogIcon?(projectId: string, catalogType: 'SafetyIcons' | 'PartToolIcons', iconId: string, entryId: string): Promise<CatalogIconCopyResult>;

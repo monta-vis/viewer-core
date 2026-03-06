@@ -5,6 +5,7 @@ export type {
   PersistenceResult,
   ImageUploadResult,
   CoverImageUploadResult,
+  SubstepImageUploadResult,
   CatalogIconCopyResult,
   VideoUploadResult,
   VideoUploadArgs,
