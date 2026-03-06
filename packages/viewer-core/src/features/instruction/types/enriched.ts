@@ -70,19 +70,19 @@ export interface VideoRow {
 /**
  * Viewport keyframe for Ken Burns effect (pan & zoom animation)
  *
- * Keyframes are per-Video (not per-VideoSection) with absolute frame numbers.
- * Each video always has at least one keyframe at frame 0 (cannot be deleted).
+ * Keyframes are per-VideoSection with relative frame numbers (0-based within section).
+ * Each section always has at least one keyframe at frame 0 (cannot be deleted).
  * All values are normalized (0.0-1.0) relative to video dimensions.
  */
 export interface ViewportKeyframeRow {
   id: string;
-  videoId: string;      // Changed from videoSectionId - keyframes are now per-Video
-  versionId: string;    // Added for version tracking
-  frameNumber: number;  // Absolute video frame (not relative to section)
-  x: number;            // 0.0-1.0 normalized (default: 0.5 = centered)
-  y: number;            // 0.0-1.0 normalized (default: 0.5 = centered)
-  width: number;        // 0.0-1.0 normalized (default: 0.5 = 50% zoom)
-  height: number;       // 0.0-1.0 normalized (default: 0.5 = 50% zoom)
+  videoSectionId: string;  // Per-VideoSection (v36+)
+  versionId: string;
+  frameNumber: number;     // Relative to section start (0-based)
+  x: number;               // 0.0-1.0 normalized (default: 0.5 = centered)
+  y: number;               // 0.0-1.0 normalized (default: 0.5 = centered)
+  width: number;           // 0.0-1.0 normalized (default: 0.5 = 50% zoom)
+  height: number;          // 0.0-1.0 normalized (default: 0.5 = 50% zoom)
   interpolation?: 'hold' | 'linear';  // How to arrive from previous KF (default: 'hold')
 }
 
@@ -99,11 +99,12 @@ export interface ViewportKeyframe {
 export interface VideoSectionRow {
   id: string;
   versionId: string;
-  videoId: string;
+  videoId: string | null;
   startFrame: number;
   endFrame: number;
   contentAspectRatio: number | null;
   localPath: string | null;
+  viewportKeyframeIds: string[];  // Per-section viewport keyframes (v36+)
 }
 
 export interface VideoFrameAreaRow {
@@ -116,6 +117,8 @@ export interface VideoFrameAreaRow {
   width: number | null;
   height: number | null;
   type: 'SubstepImage' | 'PreviewImage' | 'PartToolScan' | 'TextScan' | 'CodeScan' | 'Viewport';
+  /** JSON array of normalized contour points [{x, y}] from SAM segmentation (0-1) */
+  segmentationPoints?: string | null;
   /** Pre-exported image URL (for standalone/snapshot mode) */
   localPath?: string | null;
 }
@@ -296,12 +299,11 @@ export interface Substep extends SubstepRow {
 }
 
 /**
- * Video with Section, Area, and ViewportKeyframe IDs
+ * Video with Section and Area IDs
  */
 export interface Video extends VideoRow {
   sectionIds: string[];
   frameAreaIds: string[];         // Direct reference to VideoFrameAreas
-  viewportKeyframeIds: string[];  // Per-Video viewport keyframes for Ken Burns effect
 }
 
 // --- Enriched Junction Types (for display) ---

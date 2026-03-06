@@ -750,3 +750,61 @@ export function buildFullVideoArgs(
     outputPath,
   ];
 }
+
+// ---------------------------------------------------------------------------
+// buildSectionMergeArgs
+// ---------------------------------------------------------------------------
+
+/**
+ * Build FFmpeg args to extract multiple sections from a video, concatenate them,
+ * and scale+pad to a square output. Uses filter_complex with trim+setpts per section,
+ * concat, then scale+pad.
+ */
+export function buildSectionMergeArgs(
+  ffmpegBin: string,
+  videoPath: string,
+  outputPath: string,
+  sections: Array<{ startFrame: number; endFrame: number }>,
+  fps: number,
+  exportSize: number,
+): string[] {
+  const trimFilters = sections.map((sec, i) => {
+    const start = (sec.startFrame / fps).toFixed(6);
+    const end = (sec.endFrame / fps).toFixed(6);
+    return `[0:v]trim=start=${start}:end=${end},setpts=PTS-STARTPTS[v${i}]`;
+  });
+
+  const concatInputs = sections.map((_, i) => `[v${i}]`).join('');
+  const concatFilter = `${concatInputs}concat=n=${sections.length}:v=1:a=0[merged]`;
+
+  const scaleFilter = `scale='min(${exportSize},iw*${exportSize}/ih)':'min(${exportSize},ih*${exportSize}/iw)'`;
+  const padFilter = `pad=${exportSize}:${exportSize}:(ow-iw)/2:(oh-ih)/2`;
+  const finalFilter = `[merged]${scaleFilter},${padFilter}[out]`;
+
+  const filterComplex = [...trimFilters, concatFilter, finalFilter].join(';');
+
+  return [
+    ffmpegBin,
+    '-y',
+    '-i',
+    videoPath,
+    '-filter_complex',
+    filterComplex,
+    '-map',
+    '[out]',
+    '-c:v',
+    'libx264',
+    '-preset',
+    'fast',
+    '-crf',
+    '23',
+    '-threads',
+    '2',
+    '-pix_fmt',
+    'yuv420p',
+    '-movflags',
+    '+faststart',
+    '-an',
+    outputPath,
+  ];
+}

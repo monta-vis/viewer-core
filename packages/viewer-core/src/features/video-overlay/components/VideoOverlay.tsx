@@ -19,7 +19,6 @@ import { AreaHighlight } from './AreaHighlight';
 import { AnnotationLayer } from './AnnotationLayer';
 import { DrawingLayer } from './DrawingLayer';
 import { DrawingPreview } from './DrawingPreview';
-import { TextInputPopover } from './TextInputPopover';
 
 // Re-export for backwards compatibility
 export type DrawingMode = OverlayMode;
@@ -75,7 +74,7 @@ interface VideoOverlayProps {
   };
   /** Annotation drawing handlers */
   onAnnotationMouseDown?: (e: React.MouseEvent, container: HTMLElement) => void;
-  onAnnotationMouseMove?: (e: React.MouseEvent, container: HTMLElement) => void;
+  onAnnotationMouseMove?: (e: MouseEvent | React.MouseEvent, container: HTMLElement) => void;
   onAnnotationMouseUp?: () => void;
   /** Called when an annotation resize handle is clicked */
   onAnnotationHandleMouseDown?: (annotationId: string, handle: AnnotationHandleType, e: React.MouseEvent) => void;
@@ -93,17 +92,6 @@ interface VideoOverlayProps {
       radius: number | null;
     } | null;
   };
-  /** Text input state for text annotations */
-  textInputState?: {
-    isOpen: boolean;
-    position: { x: number; y: number } | null;
-    initialText?: string;
-    initialFontSize?: number;
-  };
-  /** Called when text annotation is submitted */
-  onTextSubmit?: (text: string, fontSize: number) => void;
-  /** Called when text input is cancelled */
-  onTextCancel?: () => void;
   /** Called when user clicks on empty background (deselects all) */
   onBackgroundClick?: () => void;
   /** Current viewport for Ken Burns effect (always visible) */
@@ -189,9 +177,6 @@ export function VideoOverlay({
   onAnnotationHandleMouseDown,
   annotationResizeContainerRef,
   annotationResizeState,
-  textInputState,
-  onTextSubmit,
-  onTextCancel,
   onBackgroundClick,
   currentViewport,
   isViewportSelected,
@@ -300,7 +285,7 @@ export function VideoOverlay({
     }
     return annotations.map((annotation) => {
       if (annotation.id === annotationResizeState.resizingAnnotationId) {
-        return {
+        const updated = {
           ...annotation,
           x1: annotationResizeState.liveCoords!.x1,
           y1: annotationResizeState.liveCoords!.y1,
@@ -308,6 +293,11 @@ export function VideoOverlay({
           y2: annotationResizeState.liveCoords!.y2,
           radius: annotationResizeState.liveCoords!.radius,
         };
+        if (annotation.type === 'text') {
+          updated.x = annotationResizeState.liveCoords!.x1;
+          updated.y = annotationResizeState.liveCoords!.y1;
+        }
+        return updated;
       }
       return annotation;
     });
@@ -320,13 +310,18 @@ export function VideoOverlay({
     }
     return drawings.map((drawing) => {
       if (drawing.id === drawingResizeState.resizingDrawingId) {
-        return {
+        const updated = {
           ...drawing,
           x1: drawingResizeState.liveCoords!.x1,
           y1: drawingResizeState.liveCoords!.y1,
           x2: drawingResizeState.liveCoords!.x2,
           y2: drawingResizeState.liveCoords!.y2,
         };
+        if (drawing.type === 'text') {
+          updated.x = drawingResizeState.liveCoords!.x1;
+          updated.y = drawingResizeState.liveCoords!.y1;
+        }
+        return updated;
       }
       return drawing;
     });
@@ -397,7 +392,7 @@ export function VideoOverlay({
       if (isDrawing) {
         updateDrawing(e);
       } else if (isAnnotationMode && annotationDrawing?.isDrawing && videoOverlayRef.current) {
-        onAnnotationMouseMove?.(e as unknown as React.MouseEvent, videoOverlayRef.current);
+        onAnnotationMouseMove?.(e, videoOverlayRef.current);
       }
     };
 
@@ -574,18 +569,6 @@ export function VideoOverlay({
             />
           )}
 
-          {/* Text input popover */}
-          {textInputState?.isOpen && textInputState.position && videoDimensions.width > 0 && (
-            <TextInputPopover
-              position={textInputState.position}
-              containerWidth={videoDimensions.width}
-              containerHeight={videoDimensions.height}
-              onSubmit={(text, fontSize) => onTextSubmit?.(text, fontSize)}
-              onCancel={() => onTextCancel?.()}
-              initialText={textInputState.initialText}
-              initialFontSize={textInputState.initialFontSize}
-            />
-          )}
         </div>
       )}
 

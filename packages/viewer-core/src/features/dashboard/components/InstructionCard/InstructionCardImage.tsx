@@ -34,13 +34,13 @@ export function InstructionCardImage({
   // Collapsed view - simple image display
   if (!isExpanded) {
     return (
-      <div className="relative aspect-square bg-[var(--color-bg-surface)] overflow-hidden rounded-t-xl">
+      <div className="relative aspect-square bg-black overflow-hidden rounded-t-xl">
         {imageUrl ? (
           <>
             <img
               src={imageUrl}
               alt={name}
-              className="w-full h-full object-cover transition-[filter] duration-300 group-hover:brightness-105"
+              className="w-full h-full object-contain transition-[filter] duration-300 group-hover:brightness-105"
             />
             {/* Gradient overlay for better readability of overlaid buttons */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/15 to-transparent pointer-events-none" />
@@ -63,7 +63,7 @@ export function InstructionCardImage({
         'transition-colors',
         isDragOver
           ? 'bg-[var(--color-primary)]/30 ring-2 ring-[var(--color-primary)] ring-inset'
-          : 'bg-[var(--color-primary)]/20'
+          : 'bg-black'
       )}
     >
       {/* Hidden file inputs */}
@@ -93,7 +93,7 @@ export function InstructionCardImage({
           <img
             src={imageUrl}
             alt={name}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
           />
           {/* Overlay with actions */}
           <div className={clsx(

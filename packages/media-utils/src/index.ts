@@ -29,6 +29,7 @@ export {
   processFrameExtract,
   readVideoMetadata,
   buildFullVideoArgs,
+  buildSectionMergeArgs,
 } from './video-processing.js';
 
 export type {

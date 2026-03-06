@@ -20,6 +20,7 @@ export { ShapeLayer } from './components/ShapeLayer';
 // ============================================
 
 export { VideoOverlay } from './components/VideoOverlay';
+export { ImageOverlay, type ImageOverlayMode } from './components/ImageOverlay';
 export { AreaHighlight } from './components/AreaHighlight';
 export { AreaContextMenu } from './components/AreaContextMenu';
 export type { AreaContextMenuProps } from './components/AreaContextMenu';
@@ -30,7 +31,6 @@ export { DrawingLayer } from './components/DrawingLayer';
 export { DrawingPreview } from './components/DrawingPreview';
 export { DrawingToolbar } from './components/DrawingToolbar';
 export { ColorPalette } from './components/ColorPalette';
-export { TextInputPopover } from './components/TextInputPopover';
 
 // ============================================
 // Core Unified Hooks (new)
@@ -50,6 +50,7 @@ export {
 export { useAreaSelection } from './hooks/useAreaSelection';
 export { useAreaResize } from './hooks/useAreaResize';
 export { useVideoBounds, type VideoBounds } from './hooks/useVideoBounds';
+export { useImageBounds } from './hooks/useImageBounds';
 export { useAnnotationDrawing } from './hooks/useAnnotationDrawing';
 export { useAnnotationResize, type AnnotationResizeState } from './hooks/useAnnotationResize';
 export { useDrawingResize, type DrawingResizeState } from './hooks/useDrawingResize';

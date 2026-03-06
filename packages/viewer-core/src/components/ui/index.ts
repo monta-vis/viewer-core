@@ -67,3 +67,7 @@ export type { TextInputModalProps, TextInputSuggestion } from './TextInputModal'
 // Tooltip
 export { Tooltip } from './Tooltip'
 export type { TooltipProps } from './Tooltip'
+
+// Video Section Bar
+export { VideoSectionBar } from './VideoSectionBar'
+export type { VideoSectionBarProps } from './VideoSectionBar'

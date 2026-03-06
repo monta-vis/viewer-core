@@ -83,7 +83,6 @@ const minimalProps = {
 
 const editCallbacks = {
   onDeleteImage: vi.fn(),
-  onEditVideo: vi.fn(),
   onDeleteVideo: vi.fn(),
   onEditDescription: vi.fn(),
   onDeleteDescription: vi.fn(),

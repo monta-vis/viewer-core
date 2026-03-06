@@ -87,7 +87,7 @@ interface InstructionViewProps {
   /** Edit callbacks per substep (substepId passed as first arg) */
   editCallbacks?: {
     onDeleteImage?: (substepId: string) => void;
-    onEditVideo?: (substepId: string) => void;
+    onAnnotateVideo?: (substepId: string) => void;
     onDeleteVideo?: (substepId: string) => void;
     onSaveDescription?: (descriptionId: string, text: string, substepId: string) => void;
     onDeleteDescription?: (descriptionId: string, substepId: string) => void;
@@ -113,6 +113,11 @@ interface InstructionViewProps {
     onDeleteAssembly?: (assemblyId: string) => void;
     onRenameAssembly?: (assemblyId: string, title: string) => void;
     onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
+    onReorderAssembly?: (assemblyId: string, newIndex: number) => void;
+    renderAssemblyList?: (
+      assemblies: import('@/features/instruction').Assembly[],
+      renderAssembly: (assembly: import('@/features/instruction').Assembly) => ReactNode,
+    ) => ReactNode;
   };
   /** Web3Forms access key for feedback submission (provided by app layer). */
   web3FormsKey?: string;
@@ -274,7 +279,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       if (!effectiveEditMode || !editCallbacks) return undefined;
       return {
         onDeleteImage: () => editCallbacks.onDeleteImage?.(substepId),
-        onEditVideo: () => editCallbacks.onEditVideo?.(substepId),
+        onAnnotateVideo: () => editCallbacks.onAnnotateVideo?.(substepId),
         onDeleteVideo: () => editCallbacks.onDeleteVideo?.(substepId),
         onSaveDescription: (descId, text) => editCallbacks.onSaveDescription?.(descId, text, substepId),
         onDeleteDescription: (descId) => editCallbacks.onDeleteDescription?.(descId, substepId),
@@ -353,7 +358,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       const videoSection = data.videoSections[sectionRow.videoSectionId];
       if (!videoSection) continue;
 
-      const video = data.videos[videoSection.videoId];
+      const video = videoSection.videoId ? data.videos[videoSection.videoId] : undefined;
       if (!video) continue;
 
       let videoUrl: string;
@@ -448,7 +453,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       const videoSection = data.videoSections[sectionRow.videoSectionId];
       if (!videoSection) continue;
 
-      const video = data.videos[videoSection.videoId];
+      const video = videoSection.videoId ? data.videos[videoSection.videoId] : undefined;
       if (!video) continue;
 
       if (useRawVideo) {
@@ -456,19 +461,28 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
         const videoSrc = resolveSourceVideoUrl(video, videoSection.localPath || '');
         if (!videoSrc) continue;
 
-        const viewportKeyframes = video.viewportKeyframeIds
-          .map(id => data.viewportKeyframes[id])
-          .filter(Boolean);
         const videoAspectRatio = (video.width && video.height) ? video.width / video.height : 16 / 9;
 
         // Collect all sections for this substep (sorted by order / start frame)
+        // and gather viewport keyframes with absolute frame numbers
         const allSections: { startFrame: number; endFrame: number }[] = [];
+        const viewportKeyframes: ViewportKeyframeRow[] = [];
         for (const rowId of substep.videoSectionRowIds) {
           const row = data.substepVideoSections[rowId];
           if (!row?.videoSectionId) continue;
           const sec = data.videoSections[row.videoSectionId];
           if (!sec) continue;
           allSections.push({ startFrame: sec.startFrame, endFrame: sec.endFrame });
+          // Convert relative keyframes to absolute for raw video playback
+          for (const kfId of sec.viewportKeyframeIds) {
+            const kf = data.viewportKeyframes[kfId];
+            if (kf) {
+              viewportKeyframes.push({
+                ...kf,
+                frameNumber: kf.frameNumber + sec.startFrame,
+              });
+            }
+          }
         }
         allSections.sort((a, b) => a.startFrame - b.startFrame);
 
@@ -572,23 +586,30 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       const videoSection = data.videoSections[sectionRow.videoSectionId];
       if (!videoSection) continue;
 
-      const video = data.videos[videoSection.videoId];
+      const video = videoSection.videoId ? data.videos[videoSection.videoId] : undefined;
       if (!video) continue;
 
       if (useRawVideo) {
         const videoSrc = resolveSourceVideoUrl(video, videoSection.localPath || '');
         if (!videoSrc) continue;
-        const viewportKeyframes = video.viewportKeyframeIds
-          .map(id => data.viewportKeyframes[id])
-          .filter(Boolean);
         const videoAspectRatio = (video.width && video.height) ? video.width / video.height : 16 / 9;
         const allSections: { startFrame: number; endFrame: number }[] = [];
+        const viewportKeyframes: ViewportKeyframeRow[] = [];
         for (const rowId of targetSubstep.videoSectionRowIds) {
           const row = data.substepVideoSections[rowId];
           if (!row?.videoSectionId) continue;
           const sec = data.videoSections[row.videoSectionId];
           if (!sec) continue;
           allSections.push({ startFrame: sec.startFrame, endFrame: sec.endFrame });
+          for (const kfId of sec.viewportKeyframeIds) {
+            const kf = data.viewportKeyframes[kfId];
+            if (kf) {
+              viewportKeyframes.push({
+                ...kf,
+                frameNumber: kf.frameNumber + sec.startFrame,
+              });
+            }
+          }
         }
         allSections.sort((a, b) => a.startFrame - b.startFrame);
         map.set(targetId, {
@@ -1185,6 +1206,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
               onDeleteAssembly: editCallbacks?.onDeleteAssembly,
               onRenameAssembly: editCallbacks?.onRenameAssembly,
               onMoveStepToAssembly: editCallbacks?.onMoveStepToAssembly,
+              onReorderAssembly: editCallbacks?.onReorderAssembly,
+              renderAssemblyList: editCallbacks?.renderAssemblyList,
             } : undefined}
           />
         </div>

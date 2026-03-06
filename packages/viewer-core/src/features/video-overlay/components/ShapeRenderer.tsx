@@ -1,4 +1,5 @@
 import type { ShapeHandleType, ShapeType, ShapeColor } from '../types';
+import { getShapeColorValue } from '../types';
 import { SelectionHandle } from './SelectionHandle';
 
 /**
@@ -303,9 +304,24 @@ export function ShapeRenderer<T extends ShapeData>({
     return null;
   }
 
-  const isLightTheme = shape.color === 'white';
-  const strokeColor = isLightTheme ? 'rgba(255, 255, 255, 0.80)' : 'rgba(30, 30, 30, 0.80)';
-  const textColor = isLightTheme ? 'black' : 'white';
+  // Color category determines stroke, text bg, and text color
+  const isLight = shape.color === 'white';
+  const isColored = shape.color === 'red' || shape.color === 'teal';
+
+  const strokeColor = isLight
+    ? 'rgba(255, 255, 255, 0.80)'
+    : isColored
+      ? getShapeColorValue(shape.color)
+      : 'rgba(30, 30, 30, 0.80)';
+
+  // Text annotations: colored uses stroke color as bg; white gets light bg + dark text; black gets dark bg
+  const textBgColor = isColored
+    ? strokeColor
+    : isLight ? 'rgba(255, 255, 255, 0.80)' : 'rgba(30, 30, 30, 0.80)';
+  const textColor = isLight ? 'black' : 'white';
+
+  // Light and colored strokes need a drop-shadow for contrast on any background
+  const needsDropShadow = isLight || isColored;
   const strokeWidth = (shape.strokeWidth ?? 2) * 2;
 
   // Convert percentage coordinates to pixels
@@ -320,8 +336,8 @@ export function ShapeRenderer<T extends ShapeData>({
     strokeWidth,
     fill: 'none',
     style: isSelected
-      ? { filter: `drop-shadow(0 0 3px rgba(0,102,204,0.8))${isLightTheme ? ' drop-shadow(0 0 1px rgba(0,0,0,0.4))' : ''}` }
-      : isLightTheme ? { filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.4))' } : undefined,
+      ? { filter: `drop-shadow(0 0 3px rgba(0,102,204,0.8))${needsDropShadow ? ' drop-shadow(0 0 1px rgba(0,0,0,0.4))' : ''}` }
+      : needsDropShadow ? { filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.4))' } : undefined,
   };
 
   // Stop mousedown from bubbling to container (prevents background click handler)
@@ -414,11 +430,11 @@ export function ShapeRenderer<T extends ShapeData>({
             <div
               style={{
                 display: 'inline-block',
-                backgroundColor: strokeColor,
+                backgroundColor: textBgColor,
                 borderRadius: `${padding}px`,
                 padding: `${padding * 0.5}px ${padding}px`,
                 cursor: isSelected ? 'move' : 'pointer',
-                ...(isLightTheme ? { border: '1px solid rgba(0, 0, 0, 0.25)' } : {}),
+                ...(isLight ? { border: '1px solid rgba(0, 0, 0, 0.25)' } : {}),
                 ...(isSelected ? { outline: '2px solid rgba(0, 102, 204, 0.8)' } : {}),
               }}
               onClick={!isSelected ? onClick : undefined}

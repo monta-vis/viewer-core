@@ -4,6 +4,7 @@ import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { IconButton, Button } from '@/components/ui';
+import { formatTimecodeWithFrames } from '@/lib/timeFormat';
 import { useVideo } from '../context/VideoContext';
 
 const PLAYBACK_SPEEDS = [0.25, 0.5, 1, 1.5, 2, 4, 8];
@@ -47,13 +48,6 @@ export function PlaybackControls({
     setPlaybackSpeed,
     seek,
   } = useVideo();
-
-  const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    const frames = Math.floor((seconds % 1) * fps);
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${frames.toString().padStart(2, '0')}`;
-  };
 
   const handleSliderChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -146,11 +140,11 @@ export function PlaybackControls({
         {/* Timecode & Frame display */}
         <div className="flex items-center gap-2 px-2">
           <span className="font-mono text-xs text-[var(--color-text-muted)]">
-            {formatTime(currentTime)}
+            {formatTimecodeWithFrames(currentTime, fps)}
           </span>
           <span className="text-[var(--color-text-muted)]">/</span>
           <span className="font-mono text-xs text-[var(--color-text-muted)]">
-            {formatTime(duration)}
+            {formatTimecodeWithFrames(duration, fps)}
           </span>
           <span className="ml-2 px-2 py-0.5 rounded bg-[var(--color-bg-elevated)] font-mono text-xs">
             F: {currentFrame} / {totalFrames}

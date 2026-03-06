@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { clsx } from 'clsx';
 import {
   type AreaData,
@@ -46,6 +47,27 @@ export function AreaHighlight({
   const isShiftPressed = useShiftKey();
   // Use color override if set, otherwise use type-based color
   const color = area.color ?? AREA_COLORS[area.type || 'SubstepImage'] ?? AREA_COLORS.SubstepImage;
+
+  // Parse segmentation contour points (normalized 0-1 → SVG path within area bbox)
+  const contourPath = useMemo(() => {
+    if (!area.segmentationPoints) return null;
+    try {
+      const points: { x: number; y: number }[] = JSON.parse(area.segmentationPoints);
+      if (!Array.isArray(points) || points.length < 3) return null;
+      // Points are normalized 0-1 relative to the full frame.
+      // Convert to percentages within the area bbox.
+      const pathData = points
+        .map((p, i) => {
+          const px = (p.x * 100);
+          const py = (p.y * 100);
+          return i === 0 ? `M ${px} ${py}` : `L ${px} ${py}`;
+        })
+        .join(' ') + ' Z';
+      return pathData;
+    } catch {
+      return null;
+    }
+  }, [area.segmentationPoints]);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -145,20 +167,41 @@ export function AreaHighlight({
         onClick={handleClick}
       />
 
-      {/* Visual border (non-interactive) */}
-      <div
-        className={clsx(
-          'absolute inset-0 border-2 pointer-events-none',
-          'transition-all duration-150'
-        )}
-        style={{
-          borderColor: color,
-          backgroundColor: selected ? `${color}15` : 'transparent',
-          boxShadow: editing
-            ? `0 0 12px 4px ${color}, inset 0 0 8px 2px ${color}40`
-            : undefined,
-        }}
-      />
+      {/* Visual border (non-interactive) — hidden when contour is present */}
+      {!contourPath && (
+        <div
+          className={clsx(
+            'absolute inset-0 border-2 pointer-events-none',
+            'transition-all duration-150'
+          )}
+          style={{
+            borderColor: color,
+            backgroundColor: selected ? `${color}15` : 'transparent',
+            boxShadow: editing
+              ? `0 0 12px 4px ${color}, inset 0 0 8px 2px ${color}40`
+              : undefined,
+          }}
+        />
+      )}
+
+      {/* Segmentation contour overlay (replaces rectangular border when present) */}
+      {contourPath && (
+        <svg
+          className="absolute inset-0 pointer-events-none overflow-visible"
+          viewBox="0 0 100 100"
+          preserveAspectRatio="none"
+          width="100%"
+          height="100%"
+        >
+          <path
+            d={contourPath}
+            fill={`${color}20`}
+            stroke={color}
+            strokeWidth={2}
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+      )}
 
       {/* PowerPoint-style 8 resize handles */}
       {selected && (

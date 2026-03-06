@@ -72,7 +72,7 @@ function getSubstepSortKey(
     if (!junction?.videoSectionId) continue;
     const section = sortData.videoSections[junction.videoSectionId];
     if (!section) continue;
-    const video = sortData.videos[section.videoId];
+    const video = section.videoId ? sortData.videos[section.videoId] : undefined;
     const vOrder = video?.order ?? Infinity;
     if (vOrder < bestVideoOrder || (vOrder === bestVideoOrder && section.startFrame < bestFrame)) {
       bestVideoOrder = vOrder;

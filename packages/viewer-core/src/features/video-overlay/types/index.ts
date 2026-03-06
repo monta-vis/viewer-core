@@ -72,6 +72,8 @@ export interface AreaData {
   label?: string;
   /** Optional color override (overrides type-based color) */
   color?: string;
+  /** JSON array of normalized contour points [{x, y}] from SAM segmentation (0-1 relative to area bbox) */
+  segmentationPoints?: string | null;
 }
 
 /**

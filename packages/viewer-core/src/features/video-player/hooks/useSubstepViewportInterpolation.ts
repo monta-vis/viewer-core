@@ -60,8 +60,8 @@ function getDefaultViewport(aspectRatio?: number): ViewportKeyframe {
 }
 
 /**
- * Interpolate viewport for a given frame using video-level keyframes.
- * Keyframes have absolute frame numbers (per-Video, not relative to section).
+ * Interpolate viewport for a given frame using keyframes.
+ * In the editor, keyframes are converted to absolute frame numbers before being passed here.
  * Returns default viewport (centered, true square) if no keyframes exist.
  */
 function interpolateVideoViewport(
@@ -125,10 +125,10 @@ function interpolateVideoViewport(
 // ============================================
 
 /**
- * Hook for video-wide viewport interpolation.
+ * Hook for viewport interpolation.
  *
- * SIMPLIFIED: Keyframes are now per-Video (not per-Section) with absolute frame numbers.
- * No inheritance logic needed - all keyframes belong to the video directly.
+ * Keyframes are per-VideoSection with relative frame numbers (v36+).
+ * The editor converts them to absolute before passing to this hook.
  *
  * Features:
  * - Linear interpolation between keyframes

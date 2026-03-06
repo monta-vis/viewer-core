@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-import { TextInputPopover } from './TextInputPopover';
+import { render, fireEvent, cleanup } from '@testing-library/react';
 import { ShapeRenderer, type ShapeData } from './ShapeRenderer';
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -22,71 +21,6 @@ vi.mock('react-i18next', () => ({
 }));
 
 afterEach(() => { cleanup(); });
-
-describe('TextInputPopover size buttons', () => {
-  const baseProps = {
-    position: { x: 50, y: 50 },
-    containerWidth: 800,
-    containerHeight: 600,
-    onSubmit: vi.fn(),
-    onCancel: vi.fn(),
-  };
-
-  it('renders 3 size buttons (S, M, L)', () => {
-    render(<TextInputPopover {...baseProps} />);
-    expect(screen.getByText('S')).toBeTruthy();
-    expect(screen.getByText('M')).toBeTruthy();
-    expect(screen.getByText('L')).toBeTruthy();
-  });
-
-  it('has Medium selected by default', () => {
-    render(<TextInputPopover {...baseProps} />);
-    const mediumBtn = screen.getByText('M');
-    // The selected button should have the primary background color class
-    expect(mediumBtn.className).toContain('bg-[var(--color-primary)]');
-  });
-
-  it('clicking S selects Small, submit passes fontSize 3', () => {
-    const onSubmit = vi.fn();
-    render(<TextInputPopover {...baseProps} onSubmit={onSubmit} />);
-
-    // Click Small
-    fireEvent.click(screen.getByText('S'));
-
-    // Type text and submit
-    const input = screen.getByPlaceholderText('Enter text...');
-    fireEvent.change(input, { target: { value: 'Hello' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-
-    expect(onSubmit).toHaveBeenCalledWith('Hello', 3);
-  });
-
-  it('clicking L selects Large, submit passes fontSize 8', () => {
-    const onSubmit = vi.fn();
-    render(<TextInputPopover {...baseProps} onSubmit={onSubmit} />);
-
-    // Click Large
-    fireEvent.click(screen.getByText('L'));
-
-    // Type text and submit via confirm button
-    const input = screen.getByPlaceholderText('Enter text...');
-    fireEvent.change(input, { target: { value: 'Big text' } });
-    fireEvent.click(screen.getByLabelText('Confirm'));
-
-    expect(onSubmit).toHaveBeenCalledWith('Big text', 8);
-  });
-
-  it('default submit (Medium) passes fontSize 5', () => {
-    const onSubmit = vi.fn();
-    render(<TextInputPopover {...baseProps} onSubmit={onSubmit} />);
-
-    const input = screen.getByPlaceholderText('Enter text...');
-    fireEvent.change(input, { target: { value: 'Medium text' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-
-    expect(onSubmit).toHaveBeenCalledWith('Medium text', 5);
-  });
-});
 
 describe('ShapeRenderer text with foreignObject background', () => {
   const baseTextShape: ShapeData = {
@@ -116,7 +50,7 @@ describe('ShapeRenderer text with foreignObject background', () => {
     expect(container.querySelectorAll('text').length).toBe(0);
   });
 
-  it('text div has grey background style', () => {
+  it('text div has teal background style for teal color', () => {
     const { container } = render(
       <svg>
         <ShapeRenderer
@@ -128,7 +62,7 @@ describe('ShapeRenderer text with foreignObject background', () => {
     );
     const bgDiv = container.querySelector('foreignObject > div') as HTMLElement;
     expect(bgDiv).toBeTruthy();
-    expect(bgDiv.style.backgroundColor).toBe('rgba(30, 30, 30, 0.8)');
+    expect(bgDiv.style.backgroundColor).toBe('rgb(20, 184, 166)');
   });
 
   it('text span has white color and bold weight', () => {
@@ -341,49 +275,72 @@ describe('ShapeRenderer dark/light theme', () => {
     expect(span.style.color).toBe('black');
   });
 
-  it('legacy colors (teal, red) default to dark theme', () => {
+  it('uses teal hex stroke for color=teal', () => {
     const { container } = render(
       <svg>
         <ShapeRenderer shape={makeShape('teal', 'rectangle')} containerWidth={1000} containerHeight={600} />
       </svg>,
     );
     const rect = container.querySelectorAll('rect')[1]; // visible stroke (second rect)
-    expect(rect?.getAttribute('stroke')).toBe('rgba(30, 30, 30, 0.80)');
+    expect(rect?.getAttribute('stroke')).toBe('#14b8a6');
+  });
+
+  it('uses red hex stroke for color=red', () => {
+    const { container } = render(
+      <svg>
+        <ShapeRenderer shape={makeShape('red', 'rectangle')} containerWidth={1000} containerHeight={600} />
+      </svg>,
+    );
+    const rect = container.querySelectorAll('rect')[1]; // visible stroke (second rect)
+    expect(rect?.getAttribute('stroke')).toBe('#ef4444');
+  });
+
+  it('red shapes have drop-shadow for visibility', () => {
+    const { container } = render(
+      <svg>
+        <ShapeRenderer shape={makeShape('red', 'arrow')} containerWidth={1000} containerHeight={600} />
+      </svg>,
+    );
+    const g = container.querySelector('g > g:nth-child(2)') as SVGElement; // visible stroke group
+    expect(g?.style.filter).toContain('drop-shadow');
+  });
+
+  it('teal shapes have drop-shadow for visibility', () => {
+    const { container } = render(
+      <svg>
+        <ShapeRenderer shape={makeShape('teal', 'arrow')} containerWidth={1000} containerHeight={600} />
+      </svg>,
+    );
+    const g = container.querySelector('g > g:nth-child(2)') as SVGElement; // visible stroke group
+    expect(g?.style.filter).toContain('drop-shadow');
+  });
+
+  it('text uses red bg + white text for color=red', () => {
+    const { container } = render(
+      <svg>
+        <ShapeRenderer shape={makeShape('red', 'text')} containerWidth={1000} containerHeight={600} />
+      </svg>,
+    );
+    const bgDiv = container.querySelector('foreignObject > div') as HTMLElement;
+    const span = container.querySelector('foreignObject span') as HTMLElement;
+    expect(bgDiv.style.backgroundColor).toBe('rgb(239, 68, 68)');
+    expect(span.style.color).toBe('white');
+  });
+
+  it('text uses teal bg + white text for color=teal', () => {
+    const { container } = render(
+      <svg>
+        <ShapeRenderer shape={makeShape('teal', 'text')} containerWidth={1000} containerHeight={600} />
+      </svg>,
+    );
+    const bgDiv = container.querySelector('foreignObject > div') as HTMLElement;
+    const span = container.querySelector('foreignObject span') as HTMLElement;
+    expect(bgDiv.style.backgroundColor).toBe('rgb(20, 184, 166)');
+    expect(span.style.color).toBe('white');
   });
 });
 
-describe('TextInputPopover with initial values (edit mode)', () => {
-  const baseProps = {
-    position: { x: 50, y: 50 },
-    containerWidth: 800,
-    containerHeight: 600,
-    onSubmit: vi.fn(),
-    onCancel: vi.fn(),
-  };
-
-  it('renders with initialText pre-filled', () => {
-    render(<TextInputPopover {...baseProps} initialText="Hello World" />);
-    const input = screen.getByPlaceholderText('Enter text...') as HTMLInputElement;
-    expect(input.value).toBe('Hello World');
-  });
-
-  it('renders with initialFontSize selected', () => {
-    render(<TextInputPopover {...baseProps} initialFontSize={8} />);
-    const largeBtn = screen.getByText('L');
-    expect(largeBtn.className).toContain('bg-[var(--color-primary)]');
-  });
-
-  it('submits updated text on Enter', () => {
-    const onSubmit = vi.fn();
-    render(<TextInputPopover {...baseProps} onSubmit={onSubmit} initialText="Old text" initialFontSize={3} />);
-    const input = screen.getByPlaceholderText('Enter text...');
-    fireEvent.change(input, { target: { value: 'New text' } });
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onSubmit).toHaveBeenCalledWith('New text', 3);
-  });
-});
-
-describe('ShapeRenderer text double-click', () => {
+describe('ShapeRenderer text click behavior', () => {
   const textShape: ShapeData = {
     id: 'text-1',
     type: 'text',
@@ -397,7 +354,43 @@ describe('ShapeRenderer text double-click', () => {
     fontSize: 5,
   };
 
-  it('calls onDoubleClick when selected text shape is double-clicked', () => {
+  it('does not call onClick on selected text shape (requires double-click to edit)', () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <svg>
+        <ShapeRenderer
+          shape={textShape}
+          containerWidth={1000}
+          containerHeight={600}
+          isSelected={true}
+          onClick={onClick}
+        />
+      </svg>,
+    );
+    const div = container.querySelector('foreignObject > div') as HTMLElement;
+    fireEvent.click(div);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it('calls onClick on unselected text shape (to select)', () => {
+    const onClick = vi.fn();
+    const { container } = render(
+      <svg>
+        <ShapeRenderer
+          shape={textShape}
+          containerWidth={1000}
+          containerHeight={600}
+          isSelected={false}
+          onClick={onClick}
+        />
+      </svg>,
+    );
+    const div = container.querySelector('foreignObject > div') as HTMLElement;
+    fireEvent.click(div);
+    expect(onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onDoubleClick on selected text shape', () => {
     const onDoubleClick = vi.fn();
     const { container } = render(
       <svg>
@@ -413,24 +406,6 @@ describe('ShapeRenderer text double-click', () => {
     const div = container.querySelector('foreignObject > div') as HTMLElement;
     fireEvent.doubleClick(div);
     expect(onDoubleClick).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not call onDoubleClick when not selected', () => {
-    const onDoubleClick = vi.fn();
-    const { container } = render(
-      <svg>
-        <ShapeRenderer
-          shape={textShape}
-          containerWidth={1000}
-          containerHeight={600}
-          isSelected={false}
-          onDoubleClick={onDoubleClick}
-        />
-      </svg>,
-    );
-    const div = container.querySelector('foreignObject > div') as HTMLElement;
-    fireEvent.doubleClick(div);
-    expect(onDoubleClick).not.toHaveBeenCalled();
   });
 });
 

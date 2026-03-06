@@ -48,9 +48,15 @@ export { viewerCoreTranslations } from './lib/translations';
 // Language persistence (localStorage helpers for i18n)
 export { getStoredLanguage, saveLanguage, LANGUAGE_STORAGE_KEY } from './lib/languagePersistence';
 
+// Sort utilities
+export { sortedValues, byOrder, byStepNumber } from './lib/sortedValues';
+
 // Color utilities (hex → CSS custom properties)
 export { hexToBrandStyle, hexToBgStyle } from './lib/colors';
 
 // Search utilities
 export { fuzzyScore, fuzzySearch } from './lib/fuzzySearch';
 export { matchTermsSearch, type MatchableEntry, type MatchResult } from './lib/matchTermsSearch';
+
+// Time formatting utilities
+export { formatTimecodeWithFrames } from './lib/timeFormat';

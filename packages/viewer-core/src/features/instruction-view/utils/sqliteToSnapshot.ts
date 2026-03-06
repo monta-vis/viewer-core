@@ -19,7 +19,6 @@ type ElectronProjectData = {
     revision: number;
     cover_image_area_id: string | null;
     source_language?: string | null;
-    use_blurred?: boolean;
     folderName: string;
     created_at: string;
     updated_at: string;
@@ -124,10 +123,9 @@ function parseTranslations(rows: Record<string, unknown>[]): { translations: Sna
   return { translations: result, languages: Array.from(languageSet) };
 }
 
-export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot {
+export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false): InstructionSnapshot {
   const { instruction } = data;
   const { folderName } = instruction;
-  const useBlurred = !!instruction.use_blurred;
 
   // Group substeps by step_id → step.substep_ids
   const substepsByStep = groupIds(data.substeps, 'step_id');
@@ -140,8 +138,8 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
   const descsBySubstep = groupIds(data.substepDescriptions, 'substep_id');
   const refsBySubstep = groupIds(data.substepTutorials ?? [], 'substep_id');
 
-  // Group viewport keyframes by video_id
-  const kfByVideo = groupIds(data.viewportKeyframes, 'video_id');
+  // Group viewport keyframes by video_section_id
+  const kfBySection = groupIds(data.viewportKeyframes, 'video_section_id');
 
   // Build steps with substep_ids
   const steps: InstructionSnapshot['steps'] = {};
@@ -180,7 +178,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
     };
   }
 
-  // Build videos with viewport_keyframe_ids
+  // Build videos
   const videos: InstructionSnapshot['videos'] = {};
   for (const row of data.videos) {
     const r = row as { id: string; fps: number; order: number; video_path?: string; width?: number | null; height?: number | null; duration?: number | null };
@@ -188,7 +186,6 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       id: r.id,
       fps: r.fps,
       order: r.order,
-      viewport_keyframe_ids: kfByVideo[r.id] || [],
       video_path: r.video_path,
       width: r.width ?? null,
       height: r.height ?? null,
@@ -200,13 +197,14 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
   const sectionFile = useBlurred ? 'video_blurred.mp4' : 'video.mp4';
   const videoSections: InstructionSnapshot['videoSections'] = {};
   for (const row of data.videoSections) {
-    const r = row as { id: string; video_id: string; start_frame: number; end_frame: number; content_aspect_ratio?: number | null };
+    const r = row as { id: string; video_id: string | null; start_frame: number; end_frame: number; content_aspect_ratio?: number | null };
     videoSections[r.id] = {
       id: r.id,
       video_id: r.video_id,
       start_frame: r.start_frame,
       end_frame: r.end_frame,
       content_aspect_ratio: r.content_aspect_ratio ?? null,
+      viewport_keyframe_ids: kfBySection[r.id] || [],
       url_720p: buildMediaUrl(folderName, `media/sections/${r.id}/${sectionFile}`),
       url_1080p: '',
       url_480p: '',
@@ -222,6 +220,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       image_id: string | null; type: string;
       x: number | null; y: number | null;
       width: number | null; height: number | null;
+      segmentation_points?: string | null;
     };
     videoFrameAreas[r.id] = {
       id: r.id,
@@ -233,6 +232,7 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       y: r.y,
       width: r.width,
       height: r.height,
+      segmentation_points: r.segmentation_points ?? null,
       url_720p: buildMediaUrl(folderName, `media/frames/${r.id}/${frameFile}`),
       url_1080p: '',
       url_480p: '',
@@ -292,7 +292,6 @@ export function sqliteToSnapshot(data: ElectronProjectData): InstructionSnapshot
       estimated_duration: instruction.estimated_duration ?? null,
       cover_image_area_id: instruction.cover_image_area_id ?? null,
       source_language: instruction.source_language ?? undefined,
-      use_blurred: useBlurred,
     },
     translations: parsed.translations,
     steps,

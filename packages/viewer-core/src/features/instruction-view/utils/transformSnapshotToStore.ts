@@ -1,6 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { InstructionSnapshot } from '@/types/snapshot';
-import type { InstructionData } from '@/features/instruction';
+import type { InstructionData, ShapeType } from '@/features/instruction';
 import { LEGACY_LEVEL_TO_ICON, LEGACY_LEVEL_TO_CATEGORY, getCategoryFromFilename, type SafetyIconCategory } from '@/features/instruction';
 
 export function transformSnapshotToStore(snapshot: InstructionSnapshot): InstructionData {
@@ -9,25 +9,25 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
   // Build video sectionIds and frameAreaIds
   const videoSectionsByVideo: Record<string, string[]> = {};
   for (const vs of Object.values(snapshot.videoSections)) {
-    (videoSectionsByVideo[vs.video_id] ??= []).push(vs.id);
+    if (vs.video_id) (videoSectionsByVideo[vs.video_id] ??= []).push(vs.id);
   }
   const frameAreasByVideo: Record<string, string[]> = {};
   for (const vfa of Object.values(snapshot.videoFrameAreas)) {
     if (vfa.video_id) (frameAreasByVideo[vfa.video_id] ??= []).push(vfa.id);
   }
 
-  // Auto-create default viewport keyframe for videos with none
+  // Auto-create default viewport keyframe for sections with none
   const autoKeyframes: Record<string, InstructionData['viewportKeyframes'][string]> = {};
-  const autoKeyframeByVideo: Record<string, string> = {};
-  for (const v of Object.values(snapshot.videos)) {
-    if (v.viewport_keyframe_ids.length === 0) {
+  const autoKeyframeBySection: Record<string, string> = {};
+  for (const vs of Object.values(snapshot.videoSections)) {
+    if (vs.viewport_keyframe_ids.length === 0) {
       const kfId = uuidv4();
       const aspectRatio = 16 / 9;
       const heightNorm = 0.5;
       const widthNorm = heightNorm / aspectRatio;
       autoKeyframes[kfId] = {
         id: kfId,
-        videoId: v.id,
+        videoSectionId: vs.id,
         versionId,
         frameNumber: 0,
         x: (1 - widthNorm) / 2,
@@ -35,7 +35,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         width: widthNorm,
         height: heightNorm,
       };
-      autoKeyframeByVideo[v.id] = kfId;
+      autoKeyframeBySection[vs.id] = kfId;
     }
   }
 
@@ -48,7 +48,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
     articleNumber: snapshot.instruction.article_number ?? null,
     estimatedDuration: snapshot.instruction.estimated_duration ?? null,
     sourceLanguage: snapshot.instruction.source_language ?? 'de',
-    useBlurred: !!snapshot.instruction.use_blurred,
+    useBlurred: false,
     currentVersionId: versionId,
     liteSubstepLimit: null,
     assemblies: Object.fromEntries(
@@ -117,9 +117,6 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         duration: v.duration ?? null,
         sectionIds: videoSectionsByVideo[v.id] || [],
         frameAreaIds: frameAreasByVideo[v.id] || [],
-        viewportKeyframeIds: autoKeyframeByVideo[v.id]
-          ? [autoKeyframeByVideo[v.id]]
-          : v.viewport_keyframe_ids,
       }])
     ),
     videoSections: Object.fromEntries(
@@ -131,6 +128,9 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         endFrame: vs.end_frame,
         contentAspectRatio: vs.content_aspect_ratio ?? null,
         localPath: vs.url_720p || null,
+        viewportKeyframeIds: autoKeyframeBySection[vs.id]
+          ? [autoKeyframeBySection[vs.id]]
+          : vs.viewport_keyframe_ids,
       }])
     ),
     videoFrameAreas: Object.fromEntries(
@@ -144,6 +144,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         width: vfa.width,
         height: vfa.height,
         type: vfa.type as 'SubstepImage',
+        segmentationPoints: vfa.segmentation_points ?? null,
         localPath: vfa.url_720p || null,
       }])
     ),
@@ -151,7 +152,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
       ...Object.fromEntries(
         Object.values(snapshot.viewportKeyframes).map(kf => [kf.id, {
           id: kf.id,
-          videoId: kf.video_id,
+          videoSectionId: kf.video_section_id,
           versionId,
           frameNumber: kf.frame_number,
           x: kf.x,
@@ -271,7 +272,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         substepId: d.substep_id,
         startFrame: d.start_frame,
         endFrame: d.end_frame,
-        type: d.type as import('@/features/instruction').ShapeType,
+        type: d.type as ShapeType,
         color: d.color,
         strokeWidth: d.stroke_width,
         x1: d.x1,

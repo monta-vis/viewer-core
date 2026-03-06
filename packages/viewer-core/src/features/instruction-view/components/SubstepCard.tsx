@@ -32,7 +32,7 @@ let lastPlayingCloseFn: (() => void) | null = null;
 /** Callbacks for edit controls. Only used when editMode=true. */
 export interface SubstepEditCallbacks {
   onDeleteImage?: () => void;
-  onEditVideo?: () => void;
+  onAnnotateVideo?: () => void;
   onDeleteVideo?: () => void;
   onSaveDescription?: (descriptionId: string, text: string) => void;
   onDeleteDescription?: (descriptionId: string) => void;

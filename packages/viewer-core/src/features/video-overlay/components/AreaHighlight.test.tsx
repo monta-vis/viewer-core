@@ -125,6 +125,67 @@ describe('AreaHighlight', () => {
     const rootDiv = container.firstElementChild as HTMLElement;
     expect(rootDiv.className).toContain('pointer-events-none');
   });
+
+  // ========================================
+  // Segmentation contour rendering
+  // ========================================
+
+  it('renders SVG contour path when segmentationPoints is present', () => {
+    const contourPoints = JSON.stringify([
+      { x: 0.1, y: 0.2 },
+      { x: 0.5, y: 0.2 },
+      { x: 0.5, y: 0.8 },
+      { x: 0.1, y: 0.8 },
+    ]);
+    const areaWithContour: AreaData = {
+      ...baseArea,
+      segmentationPoints: contourPoints,
+    };
+    const { container } = render(<AreaHighlight area={areaWithContour} />);
+
+    const svg = container.querySelector('svg');
+    expect(svg).not.toBeNull();
+    const path = svg?.querySelector('path');
+    expect(path).not.toBeNull();
+    // Path should be a closed polygon (ends with Z)
+    expect(path?.getAttribute('d')).toContain('Z');
+  });
+
+  it('does not render SVG contour when segmentationPoints is absent', () => {
+    const { container } = render(<AreaHighlight area={baseArea} />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeNull();
+  });
+
+  it('does not render SVG contour when segmentationPoints is invalid JSON', () => {
+    const areaWithBadContour: AreaData = {
+      ...baseArea,
+      segmentationPoints: 'not-json',
+    };
+    const { container } = render(<AreaHighlight area={areaWithBadContour} />);
+    const svg = container.querySelector('svg');
+    expect(svg).toBeNull();
+  });
+
+  it('contour SVG has semi-transparent fill and colored stroke', () => {
+    const contourPoints = JSON.stringify([
+      { x: 0.1, y: 0.2 },
+      { x: 0.5, y: 0.2 },
+      { x: 0.5, y: 0.8 },
+    ]);
+    const areaWithContour: AreaData = {
+      ...baseArea,
+      type: 'PartToolScan',
+      segmentationPoints: contourPoints,
+    };
+    const { container } = render(<AreaHighlight area={areaWithContour} />);
+
+    const path = container.querySelector('svg path');
+    expect(path).not.toBeNull();
+    // Should have a fill with some opacity
+    expect(path?.getAttribute('fill')).toBeTruthy();
+    expect(path?.getAttribute('stroke')).toBeTruthy();
+  });
 });
 
 // ========================================

@@ -74,7 +74,6 @@ export interface SnapshotVideo {
   id: string;
   fps: number;
   order: number;
-  viewport_keyframe_ids: string[];
   video_path?: string;
   width?: number | null;
   height?: number | null;
@@ -83,10 +82,11 @@ export interface SnapshotVideo {
 
 export interface SnapshotVideoSection {
   id: string;
-  video_id: string;
+  video_id: string | null;
   start_frame: number;
   end_frame: number;
   content_aspect_ratio?: number | null;
+  viewport_keyframe_ids: string[];  // Per-section viewport keyframes (v36+)
   url_1080p: string;
   url_720p: string;
   url_480p: string;
@@ -102,6 +102,8 @@ export interface SnapshotVideoFrameArea {
   width: number | null;
   height: number | null;
   type: string;
+  /** JSON array of normalized contour points [{x, y}] from SAM segmentation (0-1) */
+  segmentation_points: string | null;
   url_1080p: string;
   url_720p: string;
   url_480p: string;
@@ -109,8 +111,8 @@ export interface SnapshotVideoFrameArea {
 
 export interface SnapshotViewportKeyframe {
   id: string;
-  video_id: string;
-  frame_number: number;
+  video_section_id: string;  // Per-section (v36+)
+  frame_number: number;      // Relative to section start (0-based)
   x: number;
   y: number;
   width: number;

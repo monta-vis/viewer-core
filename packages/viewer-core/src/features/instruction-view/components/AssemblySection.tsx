@@ -129,7 +129,7 @@ export function AssemblySection({
     onDeleteAssembly?.(assembly.id);
   };
 
-  // DnD handlers
+  // DnD handlers (step drops only — assembly drags are handled by parent)
   const handleDragOver = (e: React.DragEvent) => {
     if (!editMode || !hasStepDrag(e)) return;
     e.preventDefault();

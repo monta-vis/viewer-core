@@ -1,9 +1,9 @@
-import { useMemo } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 
 import { usePreferredResolution } from '@/hooks';
-import { UNASSIGNED_STEP_ID, sortSubstepsByVideoFrame, buildSortData } from '@/features/instruction';
+import { UNASSIGNED_STEP_ID, sortSubstepsByVideoFrame, buildSortData, type Assembly } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byOrder, byStepNumber } from '@/lib/sortedValues';
 import { StepOverviewCard } from './StepOverviewCard';
@@ -16,6 +16,12 @@ export interface StepOverviewEditCallbacks {
   onDeleteAssembly?: (assemblyId: string) => void;
   onRenameAssembly?: (assemblyId: string, title: string) => void;
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
+  onReorderAssembly?: (assemblyId: string, newIndex: number) => void;
+  /** Wraps the assembly list with DnD reordering (injected by editor-core) */
+  renderAssemblyList?: (
+    assemblies: Assembly[],
+    renderAssembly: (assembly: Assembly) => ReactNode,
+  ) => ReactNode;
 }
 
 interface StepOverviewProps {
@@ -175,26 +181,47 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
       {useGroupedLayout ? (
         // Grouped layout: Steps organized by Assembly
         <div className="flex flex-col gap-6">
-          {/* Assembly Sections */}
-          {sortedAssemblies.map((assembly) => {
-            const steps = assemblyStepsMap.get(assembly.id) || [];
-
-            return (
-              <AssemblySection
-                key={assembly.id}
-                assembly={assembly}
-                steps={steps}
-                onStepSelect={onStepSelect}
-                useRawVideo={useRawVideo}
-                editMode={editMode}
-                allowEmpty={editMode}
-                allSteps={editMode ? stepsWithPreview : undefined}
-                onDeleteAssembly={editCallbacks?.onDeleteAssembly}
-                onRenameAssembly={editCallbacks?.onRenameAssembly}
-                onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
-              />
-            );
-          })}
+          {/* Assembly Sections — wrap with DnD if renderAssemblyList provided */}
+          {editCallbacks?.renderAssemblyList
+            ? editCallbacks.renderAssemblyList(
+                sortedAssemblies,
+                (assembly) => {
+                  const steps = assemblyStepsMap.get(assembly.id) || [];
+                  return (
+                    <AssemblySection
+                      assembly={assembly}
+                      steps={steps}
+                      onStepSelect={onStepSelect}
+                      useRawVideo={useRawVideo}
+                      editMode={editMode}
+                      allowEmpty={editMode}
+                      allSteps={editMode ? stepsWithPreview : undefined}
+                      onDeleteAssembly={editCallbacks?.onDeleteAssembly}
+                      onRenameAssembly={editCallbacks?.onRenameAssembly}
+                      onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
+                    />
+                  );
+                },
+              )
+            : sortedAssemblies.map((assembly) => {
+                const steps = assemblyStepsMap.get(assembly.id) || [];
+                return (
+                  <AssemblySection
+                    key={assembly.id}
+                    assembly={assembly}
+                    steps={steps}
+                    onStepSelect={onStepSelect}
+                    useRawVideo={useRawVideo}
+                    editMode={editMode}
+                    allowEmpty={editMode}
+                    allSteps={editMode ? stepsWithPreview : undefined}
+                    onDeleteAssembly={editCallbacks?.onDeleteAssembly}
+                    onRenameAssembly={editCallbacks?.onRenameAssembly}
+                    onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
+                  />
+                );
+              })
+          }
 
           {/* Add Assembly button (edit mode only) — before Unassigned */}
           {editMode && (
