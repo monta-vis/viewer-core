@@ -15,25 +15,27 @@ export type GestureIntent =
   | 'pending-left-edge'
   | 'pending-right-edge'
   | 'pending-bottom-edge'
+  | 'pending-top-edge'
   | 'pending-close-left'
   | 'pending-close-right'
   | 'pending-close-bottom'
+  | 'pending-close-top'
   | 'dragging-open-left'
   | 'dragging-open-right'
   | 'dragging-open-bottom'
+  | 'dragging-open-top'
   | 'dragging-close-left'
   | 'dragging-close-right'
   | 'dragging-close-bottom'
+  | 'dragging-close-top'
   | 'cancelled';
 
 interface OpenDrawers {
-  partsDrawer: boolean;
   feedbackWidget: boolean;
   speedDrawer: boolean;
 }
 
 interface PanelRefs {
-  partsPanel: HTMLElement | null;
   feedbackPanel: HTMLElement | null;
   speedPanel: HTMLElement | null;
 }
@@ -51,12 +53,13 @@ interface GestureState {
 
 // Refs for DOM manipulation during drag
 export interface DrawerRefs {
-  partsPanelRef: React.RefObject<HTMLDivElement | null>;
-  partsBackdropRef: React.RefObject<HTMLDivElement | null>;
   feedbackPanelRef: React.RefObject<HTMLDivElement | null>;
   feedbackBackdropRef: React.RefObject<HTMLDivElement | null>;
   speedPanelRef: React.RefObject<HTMLDivElement | null>;
   speedBackdropRef: React.RefObject<HTMLDivElement | null>;
+  overviewPanelRef: React.RefObject<HTMLDivElement | null>;
+  overviewBackdropRef: React.RefObject<HTMLDivElement | null>;
+  partsPanelRef: React.RefObject<HTMLDivElement | null>;
 }
 
 interface SwipeGesturesConfig {
@@ -77,9 +80,6 @@ interface SwipeGesturesConfig {
 
   /** Drawer DOM refs for progressive drag */
   drawerRefs: DrawerRefs;
-
-  /** StepOverview panel ref — swipe-to-close only activates near its bottom edge */
-  overviewPanelRef: React.RefObject<HTMLDivElement | null>;
 }
 
 // ─── Pure Helper Functions (exported for testing) ──────────
@@ -95,18 +95,32 @@ export function classifyTouchStart(
   screenH: number,
   openDrawers: OpenDrawers,
   panelRefs: PanelRefs,
-  /** Whether StepOverview is currently shown — blocks all edge gestures */
+  /** Whether StepOverview is currently shown (left sidebar) */
   showOverview: boolean,
   /** Pass e.target for contains() checks */
   target?: EventTarget | null,
+  /** StepOverview panel element for contains() checks when overview is open */
+  overviewPanel?: HTMLElement | null,
+  /** Whether the parts drawer (inline collapsible) is currently open */
+  isPartsDrawerOpen?: boolean,
+  /** Parts panel element for contains() checks when parts drawer is open */
+  partsPanel?: HTMLElement | null,
 ): GestureIntent | null {
   // If a drawer is open: outside panel → immediate close-drag, inside panel → pending (directional lock decides)
-  if (openDrawers.partsDrawer) {
-    if (!panelRefs.partsPanel?.contains(target as Node)) {
+
+  // PartsDrawer is an inline collapsible panel — swipe up inside it to close
+  if (isPartsDrawerOpen && partsPanel?.contains(target as Node)) {
+    return 'pending-close-top';
+  }
+
+  // StepOverview is now a left sidebar
+  if (showOverview) {
+    if (!overviewPanel?.contains(target as Node)) {
       return 'dragging-close-left';
     }
     return 'pending-close-left';
   }
+
   if (openDrawers.feedbackWidget) {
     if (!panelRefs.feedbackPanel?.contains(target as Node)) {
       return 'dragging-close-right';
@@ -120,10 +134,9 @@ export function classifyTouchStart(
     return 'pending-close-bottom';
   }
 
-  // StepOverview open: block edge gestures (touchEnd fallback handles closing)
-  if (showOverview) return null;
-
   // No drawer open: check edge zones
+  // Top-edge before left-edge so top-left corner opens parts (top) not overview (left)
+  if (y <= EDGE_ZONE_PX) return 'pending-top-edge';
   if (x <= EDGE_ZONE_PX) return 'pending-left-edge';
   if (x >= screenW - EDGE_ZONE_PX) return 'pending-right-edge';
   if (y >= screenH - BOTTOM_ZONE_PX) return 'pending-bottom-edge';
@@ -178,6 +191,16 @@ export function resolveDirectionLock(
       if (absY >= absX && deltaY > 0) return 'commit';
       return 'cancel';
 
+    case 'pending-top-edge':
+      // Must move DOWN to open top drawer
+      if (absY >= absX && deltaY > 0) return 'commit';
+      return 'cancel';
+
+    case 'pending-close-top':
+      // Must move UP to close top drawer
+      if (absY >= absX && deltaY < 0) return 'commit';
+      return 'cancel';
+
     default:
       return 'cancel';
   }
@@ -209,13 +232,13 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
   const {
     isPartsDrawerOpen, isFeedbackOpen, isSpeedDrawerOpen, showOverview,
     setIsPartsDrawerOpen, setIsFeedbackOpen, setIsSpeedDrawerOpen, setShowOverview,
-    navbarRef, drawerRefs, overviewPanelRef,
+    navbarRef, drawerRefs,
   } = config;
 
   // ── Helpers for DOM manipulation during drag ──
 
   const applyOpenDrag = useCallback((
-    intent: 'dragging-open-left' | 'dragging-open-right' | 'dragging-open-bottom',
+    intent: 'dragging-open-left' | 'dragging-open-right' | 'dragging-open-bottom' | 'dragging-open-top',
     offset: number,
   ) => {
     let panel: HTMLDivElement | null = null;
@@ -223,9 +246,14 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
     let panelSize = 0;
 
     if (intent === 'dragging-open-left') {
-      panel = drawerRefs.partsPanelRef.current;
-      backdrop = drawerRefs.partsBackdropRef.current;
+      // Left edge opens overview sidebar
+      panel = drawerRefs.overviewPanelRef.current;
+      backdrop = drawerRefs.overviewBackdropRef.current;
       panelSize = panel?.getBoundingClientRect().width ?? 320;
+    } else if (intent === 'dragging-open-top') {
+      // Top edge opens parts panel — inline collapsible, no progressive drag
+      // State toggle is handled in onTouchEnd
+      return;
     } else if (intent === 'dragging-open-right') {
       panel = drawerRefs.feedbackPanelRef.current;
       backdrop = drawerRefs.feedbackBackdropRef.current;
@@ -245,6 +273,7 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
       } else if (intent === 'dragging-open-right') {
         panel.style.transform = `translateX(${panelSize - clamped}px)`;
       } else {
+        // Bottom drawer slides up from below: panelSize → 0
         panel.style.transform = `translateY(${panelSize - clamped}px)`;
       }
     }
@@ -256,7 +285,7 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
   }, [drawerRefs]);
 
   const applyCloseDrag = useCallback((
-    intent: 'dragging-close-left' | 'dragging-close-right' | 'dragging-close-bottom',
+    intent: 'dragging-close-left' | 'dragging-close-right' | 'dragging-close-bottom' | 'dragging-close-top',
     offset: number,
   ) => {
     let panel: HTMLDivElement | null = null;
@@ -264,9 +293,13 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
     let panelSize = 0;
 
     if (intent === 'dragging-close-left') {
-      panel = drawerRefs.partsPanelRef.current;
-      backdrop = drawerRefs.partsBackdropRef.current;
+      // Left sidebar = overview
+      panel = drawerRefs.overviewPanelRef.current;
+      backdrop = drawerRefs.overviewBackdropRef.current;
       panelSize = panel?.getBoundingClientRect().width ?? 320;
+    } else if (intent === 'dragging-close-top') {
+      // Parts panel is inline collapsible — no progressive drag
+      return;
     } else if (intent === 'dragging-close-right') {
       panel = drawerRefs.feedbackPanelRef.current;
       backdrop = drawerRefs.feedbackBackdropRef.current;
@@ -283,7 +316,7 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
     if (panel) {
       panel.style.transition = 'none';
       if (intent === 'dragging-close-left') {
-        // PartsDrawer: translate left as user drags left
+        // Overview sidebar: translate left as user drags left
         panel.style.transform = `translateX(${-(panelSize - remaining)}px)`;
       } else if (intent === 'dragging-close-right') {
         // FeedbackWidget: translate right as user drags right
@@ -305,7 +338,10 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
     const refs: Array<React.RefObject<HTMLDivElement | null>> = [];
 
     if (intent.includes('left')) {
-      refs.push(drawerRefs.partsPanelRef, drawerRefs.partsBackdropRef);
+      // Left = overview sidebar
+      refs.push(drawerRefs.overviewPanelRef, drawerRefs.overviewBackdropRef);
+    } else if (intent.includes('top')) {
+      // Parts panel is inline collapsible — no inline styles to clear
     } else if (intent.includes('right')) {
       refs.push(drawerRefs.feedbackPanelRef, drawerRefs.feedbackBackdropRef);
     } else if (intent.includes('bottom')) {
@@ -331,12 +367,10 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
     const fromNavbar = navbarRef.current?.contains(e.target as Node) ?? false;
 
     const openDrawers: OpenDrawers = {
-      partsDrawer: isPartsDrawerOpen,
       feedbackWidget: isFeedbackOpen,
       speedDrawer: isSpeedDrawerOpen,
     };
     const panelRefs: PanelRefs = {
-      partsPanel: drawerRefs.partsPanelRef.current,
       feedbackPanel: drawerRefs.feedbackPanelRef.current,
       speedPanel: drawerRefs.speedPanelRef.current,
     };
@@ -350,6 +384,9 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
       panelRefs,
       showOverview,
       e.target,
+      drawerRefs.overviewPanelRef.current,
+      isPartsDrawerOpen,
+      drawerRefs.partsPanelRef.current,
     );
 
     gestureRef.current = {
@@ -384,11 +421,12 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
     const intent = gesture.intent;
 
     // ── Resolve pending intents ──
-    if (intent === 'pending-left-edge' || intent === 'pending-right-edge' || intent === 'pending-bottom-edge') {
+    if (intent === 'pending-left-edge' || intent === 'pending-right-edge' || intent === 'pending-bottom-edge' || intent === 'pending-top-edge') {
       const lock = resolveDirectionLock(intent, deltaX, deltaY);
       if (lock === 'commit') {
         if (intent === 'pending-left-edge') gesture.intent = 'dragging-open-left';
         else if (intent === 'pending-right-edge') gesture.intent = 'dragging-open-right';
+        else if (intent === 'pending-top-edge') gesture.intent = 'dragging-open-top';
         else gesture.intent = 'dragging-open-bottom';
       } else if (lock === 'cancel') {
         gesture.intent = 'cancelled';
@@ -396,11 +434,12 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
       return;
     }
 
-    if (intent === 'pending-close-left' || intent === 'pending-close-right' || intent === 'pending-close-bottom') {
+    if (intent === 'pending-close-left' || intent === 'pending-close-right' || intent === 'pending-close-bottom' || intent === 'pending-close-top') {
       const lock = resolveDirectionLock(intent, deltaX, deltaY);
       if (lock === 'commit') {
         if (intent === 'pending-close-left') gesture.intent = 'dragging-close-left';
         else if (intent === 'pending-close-right') gesture.intent = 'dragging-close-right';
+        else if (intent === 'pending-close-top') gesture.intent = 'dragging-close-top';
         else gesture.intent = 'dragging-close-bottom';
       } else if (lock === 'cancel') {
         gesture.intent = 'cancelled';
@@ -413,12 +452,16 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
       applyOpenDrag('dragging-open-left', Math.max(0, deltaX));
     } else if (intent === 'dragging-open-right') {
       applyOpenDrag('dragging-open-right', Math.max(0, -deltaX));
+    } else if (intent === 'dragging-open-top') {
+      applyOpenDrag('dragging-open-top', Math.max(0, deltaY));
     } else if (intent === 'dragging-open-bottom') {
       applyOpenDrag('dragging-open-bottom', Math.max(0, -deltaY));
     } else if (intent === 'dragging-close-left') {
       applyCloseDrag('dragging-close-left', Math.max(0, -deltaX));
     } else if (intent === 'dragging-close-right') {
       applyCloseDrag('dragging-close-right', Math.max(0, deltaX));
+    } else if (intent === 'dragging-close-top') {
+      applyCloseDrag('dragging-close-top', Math.max(0, -deltaY));
     } else if (intent === 'dragging-close-bottom') {
       applyCloseDrag('dragging-close-bottom', Math.max(0, deltaY));
     }
@@ -438,14 +481,25 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
     // ── Handle dragging intents (open/close) ──
 
     if (intent?.startsWith('dragging-open-') || intent?.startsWith('dragging-close-')) {
+      // Parts panel is inline collapsible — toggle directly without snap calculation
+      if (intent === 'dragging-open-top') {
+        setIsPartsDrawerOpen(true);
+        return;
+      }
+      if (intent === 'dragging-close-top') {
+        setIsPartsDrawerOpen(false);
+        return;
+      }
+
       // Calculate offset and velocity for snap decision
       let offset = 0;
       let panelSize = 0;
       let velocity = 0;
 
       if (intent === 'dragging-open-left') {
+        // Left edge opens overview sidebar
         offset = Math.max(0, deltaX);
-        panelSize = drawerRefs.partsPanelRef.current?.getBoundingClientRect().width ?? 320;
+        panelSize = drawerRefs.overviewPanelRef.current?.getBoundingClientRect().width ?? 320;
         velocity = Math.abs(deltaX) / elapsed;
       } else if (intent === 'dragging-open-right') {
         offset = Math.max(0, -deltaX);
@@ -456,8 +510,9 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
         panelSize = drawerRefs.speedPanelRef.current?.getBoundingClientRect().height ?? 200;
         velocity = Math.abs(deltaY) / elapsed;
       } else if (intent === 'dragging-close-left') {
+        // Left sidebar = overview
         offset = Math.max(0, -deltaX);
-        panelSize = drawerRefs.partsPanelRef.current?.getBoundingClientRect().width ?? 320;
+        panelSize = drawerRefs.overviewPanelRef.current?.getBoundingClientRect().width ?? 320;
         velocity = Math.abs(deltaX) / elapsed;
       } else if (intent === 'dragging-close-right') {
         offset = Math.max(0, deltaX);
@@ -476,13 +531,13 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
 
       // Apply final state
       if (intent === 'dragging-open-left') {
-        setIsPartsDrawerOpen(snap);
+        setShowOverview(snap);
       } else if (intent === 'dragging-open-right') {
         setIsFeedbackOpen(snap);
       } else if (intent === 'dragging-open-bottom') {
         setIsSpeedDrawerOpen(snap);
       } else if (intent === 'dragging-close-left') {
-        setIsPartsDrawerOpen(!snap);
+        setShowOverview(!snap);
       } else if (intent === 'dragging-close-right') {
         setIsFeedbackOpen(!snap);
       } else if (intent === 'dragging-close-bottom') {
@@ -500,26 +555,12 @@ export function useSwipeGestures(config: SwipeGesturesConfig) {
 
     if (absX < SWIPE_THRESHOLD_PX && absY < SWIPE_THRESHOLD_PX) return;
 
-    // StepOverview open + swipe up → close, but only near the bottom edge of the panel
-    if (showOverview && absY > absX && deltaY < -SWIPE_THRESHOLD_PX) {
-      const panel = overviewPanelRef.current;
-      if (panel) {
-        const rect = panel.getBoundingClientRect();
-        // Only close if the touch started within EDGE_ZONE_PX of the panel's bottom edge (or below it)
-        if (gesture.startY < rect.bottom - EDGE_ZONE_PX) return;
-      }
-      setShowOverview(false);
-      return;
-    }
-
     // Don't navigate when overlays are open
     if (isPartsDrawerOpen || isFeedbackOpen || isSpeedDrawerOpen || showOverview) return;
 
     if (gesture.fromNavbar && deltaY > SWIPE_THRESHOLD_PX) {
-      // Swipe down from navbar → toggle overview
-      const opening = !showOverview;
-      setShowOverview(opening);
-      if (opening) setIsPartsDrawerOpen(false);
+      // Swipe down from navbar → open parts drawer (top)
+      setIsPartsDrawerOpen(true);
     }
   }, [
     isPartsDrawerOpen, isFeedbackOpen, isSpeedDrawerOpen, showOverview,

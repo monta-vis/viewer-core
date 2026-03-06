@@ -925,7 +925,6 @@ export function ViewPage() {
               <InstructionViewContainer>
                 <InstructionView
                   selectedStepId={selectedStepId}
-                  onStepChange={setSelectedStepId}
                   onBreak={() => navigate("/")}
                   folderName={decodedFolderName}
                   editModeActive={editEnabled && editModeActive}

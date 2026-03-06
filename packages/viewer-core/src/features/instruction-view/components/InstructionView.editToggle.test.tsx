@@ -86,7 +86,16 @@ vi.mock('../utils/tutorialSteps', () => ({
 }));
 vi.mock('@/lib/media', () => ({
   buildMediaUrl: () => '',
-  MediaPaths: {},
+  MediaPaths: { substepVideo: () => '' },
+}));
+vi.mock('../hooks/useVisibleStep', () => ({
+  useVisibleStep: () => null,
+}));
+vi.mock('../utils/buildVideoEntry', () => ({
+  buildVideoEntry: () => null,
+}));
+vi.mock('./StepSeparator', () => ({
+  StepSeparator: () => null,
 }));
 
 beforeEach(() => {
@@ -95,7 +104,13 @@ beforeEach(() => {
     unobserve: vi.fn(),
     disconnect: vi.fn(),
   }));
+  global.IntersectionObserver = vi.fn().mockImplementation(() => ({
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  }));
   Element.prototype.scrollTo = vi.fn();
+  Element.prototype.scrollIntoView = vi.fn();
 });
 
 afterEach(() => {

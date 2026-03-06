@@ -21,6 +21,7 @@ export {
 
 // Components
 export { InstructionView } from './components/InstructionView';
+export { StepSeparator } from './components/StepSeparator';
 export { SubstepCard, type SubstepEditCallbacks } from './components/SubstepCard';
 export { StepOverview } from './components/StepOverview';
 export type { StepOverviewEditCallbacks } from './components/StepOverview';
@@ -33,6 +34,7 @@ export { PartToolDetailModal } from './components/PartToolDetailModal';
 export { NoteCard } from './components/NoteCard';
 
 // Utils
+export { buildVideoEntry, buildStandaloneVideoEntry, type SubstepVideoEntry } from './utils/buildVideoEntry';
 export { sqliteToSnapshot } from './utils/sqliteToSnapshot';
 export { transformSnapshotToStore } from './utils/transformSnapshotToStore';
 export { resolveRawFrameCapture, resolvePartToolFrameCapture, type FrameCaptureData } from './utils/resolveRawFrameCapture';
@@ -54,6 +56,7 @@ export { getImageDrawings, getVideoDrawings } from './utils/filterSubstepDrawing
 export { resolvePartToolImageUrl } from './utils/resolvePartToolImageUrl';
 
 // Hooks
+export { useVisibleStep } from './hooks/useVisibleStep';
 export {
   useFilteredPartsTools,
   useAllPartsTools,

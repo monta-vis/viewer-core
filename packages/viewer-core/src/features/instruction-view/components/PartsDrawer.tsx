@@ -4,9 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { X, Package, Wrench, ChevronDown, Pencil, Filter, Box, Ruler } from 'lucide-react';
 import { clsx } from 'clsx';
 
-import type { LucideIcon } from 'lucide-react';
-
-import { Drawer, TutorialClickIcon, IconButton } from '@/components/ui';
+import { CollapsiblePanel, TutorialClickIcon, IconButton } from '@/components/ui';
 import { useClickOutside } from '@/hooks';
 import type { VideoFrameAreaRow, VideoRow } from '@/features/instruction';
 import { useViewerData } from '../context';
@@ -51,12 +49,6 @@ interface PartsDrawerProps {
   totalSteps: number;
   /** ID of the substep that opened the drawer (for amount highlighting) */
   highlightedSubstepId?: string;
-  /** Display mode: fullpage (covers entire screen) or narrow (side drawer). Default: narrow */
-  variant?: 'fullpage' | 'narrow';
-  /** Ref for the slide-over panel element (for swipe gesture DOM manipulation) */
-  panelRef?: React.Ref<HTMLDivElement>;
-  /** Ref for the backdrop element (for swipe gesture DOM manipulation) */
-  backdropRef?: React.Ref<HTMLDivElement>;
   /** Project folder name for mvis-media:// area image URLs */
   folderName?: string;
   /** Whether to use blurred media variants */
@@ -372,9 +364,6 @@ export function PartsDrawer({
   currentStepNumber,
   totalSteps,
   highlightedSubstepId,
-  variant = 'narrow',
-  panelRef,
-  backdropRef,
   folderName,
   useBlurred,
   useRawVideo = false,
@@ -384,8 +373,6 @@ export function PartsDrawer({
 }: PartsDrawerProps) {
   const { t } = useTranslation();
   const data = useViewerData();
-  const maxSteps = totalSteps;
-  const isFullpage = variant === 'fullpage';
 
   // Selected item for read-only detail modal
   const [selectedItem, setSelectedItem] = useState<AggregatedPartTool | null>(null);
@@ -397,7 +384,7 @@ export function PartsDrawer({
 
   // Step range state
   const [startStep, setStartStep] = useState(1);
-  const [endStep, setEndStep] = useState(maxSteps);
+  const [endStep, setEndStep] = useState(totalSteps);
 
   // Filter panel collapsed/expanded
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -411,18 +398,11 @@ export function PartsDrawer({
   // When setState is called during render, React immediately re-renders before commit.
   if (isOpen && !prevIsOpen) {
     setPrevIsOpen(true);
-    if (isFullpage) {
-      setStartStep(1);
-      setEndStep(maxSteps);
-      // Auto-expand filter if not "All"
-      setIsFilterOpen(false);
-    } else {
-      // Narrow mode: reset to current step only
-      const step = Math.min(currentStepNumber, maxSteps);
-      setStartStep(step);
-      setEndStep(step);
-      setIsFilterOpen(false);
-    }
+    // Reset to current step only
+    const step = Math.min(currentStepNumber, totalSteps);
+    setStartStep(step);
+    setEndStep(step);
+    setIsFilterOpen(false);
   }
   if (!isOpen && prevIsOpen) {
     setPrevIsOpen(false);
@@ -432,30 +412,26 @@ export function PartsDrawer({
 
   // Get filtered parts/tools using the hook
   const stepRange = useMemo<[number, number]>(
-    () => [startStep, Math.min(endStep, maxSteps)],
-    [startStep, endStep, maxSteps],
+    () => [startStep, Math.min(endStep, totalSteps)],
+    [startStep, endStep, totalSteps],
   );
   const { parts, tools } = useFilteredPartsTools(stepRange, totalSteps);
 
-  const hasNoTools = tools.length === 0;
-  const hasNoParts = parts.length === 0;
-  const hasNoItems = hasNoParts && hasNoTools;
+  const allItems = useMemo(() => [...tools, ...parts], [tools, parts]);
+  const hasNoItems = allItems.length === 0;
 
   // Current step count for dropdown
   const currentStepCount = endStep - startStep + 1;
 
   // Check if "All" mode is active (showing all steps from 1 to max)
-  const isAllMode = startStep === 1 && endStep === maxSteps;
-
-  // Use wide layout when fullpage variant OR when "All" is selected
-  const useWideLayout = isFullpage || isAllMode;
+  const isAllMode = startStep === 1 && endStep === totalSteps;
 
   // Max selectable step count from current position (remaining steps)
-  const maxSelectableSteps = maxSteps - startStep + 1;
+  const maxSelectableSteps = totalSteps - startStep + 1;
 
   // Handle start step change
   const handleStartChange = (value: number) => {
-    const clamped = Math.max(1, Math.min(value, maxSteps));
+    const clamped = Math.max(1, Math.min(value, totalSteps));
     setStartStep(clamped);
     saveStartStepPreference(clamped);
     if (endStep < clamped) {
@@ -465,7 +441,7 @@ export function PartsDrawer({
 
   // Handle end step change
   const handleEndChange = (value: number) => {
-    const clamped = Math.max(startStep, Math.min(value, maxSteps));
+    const clamped = Math.max(startStep, Math.min(value, totalSteps));
     setEndStep(clamped);
     saveStepCountPreference(clamped - startStep + 1);
   };
@@ -473,38 +449,25 @@ export function PartsDrawer({
   // Handle step count change (dropdown)
   const handleStepCountChange = (count: number) => {
     // When changing step count, keep the current startStep
-    const newEnd = Math.min(startStep + count - 1, maxSteps);
+    const newEnd = Math.min(startStep + count - 1, totalSteps);
     setEndStep(newEnd);
     saveStepCountPreference(count);
   };
 
-  // Handle "All" selection - show all steps from 1 to maxSteps
+  // Handle "All" selection
   const handleSelectAll = () => {
     setStartStep(1);
-    setEndStep(maxSteps);
+    setEndStep(totalSteps);
   };
 
-  // Render drawer (fullpage or narrow based on variant)
   return (
-    <Drawer
+    <CollapsiblePanel
       isOpen={isOpen}
-      onClose={onClose}
-      anchor="left"
-      panelRef={panelRef}
-      backdropRef={backdropRef}
-      className={clsx(
-        'flex flex-col',
-        'shadow-[0_0_60px_-15px_rgba(0,0,0,0.5)]',
-        useWideLayout
-          ? 'w-[90vw] max-w-5xl'
-          : 'w-80 sm:w-[26rem]',
-      )}
+      maxHeight="50vh"
+      className="bg-[var(--color-bg-surface)] shadow-md border-b border-[var(--color-border-muted)]"
     >
         {/* Header */}
-        <div className={clsx(
-          'flex items-center justify-between shadow-sm bg-gradient-to-r from-[var(--color-bg-elevated)] to-[var(--color-bg-surface)]',
-          useWideLayout ? 'px-2 sm:px-4' : 'px-2'
-        )}>
+        <div className="flex items-center justify-between shadow-sm bg-gradient-to-r from-[var(--color-bg-elevated)] to-[var(--color-bg-surface)] px-2">
           {/* Left: Title + Filter toggle */}
           <div className="flex items-center gap-1 sm:gap-2">
             <h2 className="font-semibold text-lg text-[var(--color-text-base)] pl-3">
@@ -531,7 +494,7 @@ export function PartsDrawer({
             onClick={onClose}
             className={clsx(
               'relative flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-lg text-[var(--color-text-muted)] hover:text-[var(--color-text-base)] hover:bg-[var(--color-bg-elevated)] transition-colors',
-              tutorialHighlight && 'shadow-[inset_0_0_0_3px_var(--color-tutorial)]'
+              tutorialHighlight && 'shadow-[inset_0_0_0_0.1875rem_var(--color-tutorial)]'
             )}
             aria-label={t('common.close', 'Close')}
           >
@@ -542,24 +505,16 @@ export function PartsDrawer({
 
         {/* Step Range Filter (collapsible) */}
         {isFilterOpen && (
-          <div className={clsx(
-            'shadow-sm bg-[var(--color-bg-base)]/50',
-            useWideLayout
-              ? 'flex justify-center py-4'
-              : 'flex items-center justify-center gap-2 px-2 py-2'
-          )}>
-            <div className={clsx(
-              'inline-flex items-center',
-              useWideLayout ? 'gap-4 flex-wrap justify-center' : 'gap-2'
-            )}>
+          <div className="flex items-center justify-center gap-2 px-2 py-2 shadow-sm bg-[var(--color-bg-base)]/50">
+            <div className="inline-flex items-center gap-2">
               <StepRangeSelector
                 startStep={startStep}
-                endStep={Math.min(endStep, maxSteps)}
-                maxSteps={maxSteps}
+                endStep={Math.min(endStep, totalSteps)}
+                maxSteps={totalSteps}
                 onStartChange={handleStartChange}
                 onEndChange={handleEndChange}
                 label={t('instructionView.steps', 'Steps')}
-                compact={!useWideLayout}
+                compact
               />
               <StepCountCombo
                 value={currentStepCount}
@@ -568,33 +523,26 @@ export function PartsDrawer({
                 isAllMode={isAllMode}
                 onSelectAll={handleSelectAll}
                 label={t('instructionView.showNextSteps', 'Step count')}
-                compact={!useWideLayout}
+                compact
               />
             </div>
           </div>
         )}
 
         {/* Content - scrollable */}
-        <div className={clsx(
-          'flex-1 overflow-y-auto scrollbar-subtle',
-          useWideLayout ? 'p-4 sm:p-6' : 'p-4'
-        )}>
+        <div className="overflow-y-auto scrollbar-subtle p-3">
           {hasNoItems ? (
             <div className="h-full flex items-center justify-center text-[var(--color-text-muted)]">
               <p>{t('instructionView.noPartsTools', 'No parts or tools')}</p>
             </div>
           ) : (
-            <div className={useWideLayout ? 'space-y-8' : 'space-y-6'}>
-              {/* Tools Section */}
-              {!hasNoTools && (
-                <PartToolSection
-                  items={tools}
-                  icon={Wrench}
-                  colorVar="var(--color-element-tool)"
-                  label={t('instructionView.tools', 'Tools')}
-                  useWideLayout={useWideLayout}
+            <div className="flex flex-wrap gap-2 content-start">
+              {allItems.map((item) => (
+                <PartToolCard
+                  key={item.partTool.id}
+                  item={item}
+                  onClick={() => setSelectedItem(item)}
                   highlightedSubstepId={highlightedSubstepId}
-                  onItemClick={setSelectedItem}
                   folderName={folderName}
                   partToolVideoFrameAreas={data?.partToolVideoFrameAreas}
                   useBlurred={useBlurred}
@@ -602,30 +550,9 @@ export function PartsDrawer({
                   videoFrameAreas={data?.videoFrameAreas}
                   videos={data?.videos}
                   editMode={editMode}
-                  onEditClick={renderPartToolEditor ? (item) => setEditingItemId(item.partTool.id) : undefined}
+                  onEditClick={renderPartToolEditor ? () => setEditingItemId(item.partTool.id) : undefined}
                 />
-              )}
-
-              {/* Parts Section */}
-              {!hasNoParts && (
-                <PartToolSection
-                  items={parts}
-                  icon={Package}
-                  colorVar="var(--color-element-part)"
-                  label={t('instructionView.parts', 'Parts')}
-                  useWideLayout={useWideLayout}
-                  highlightedSubstepId={highlightedSubstepId}
-                  onItemClick={setSelectedItem}
-                  folderName={folderName}
-                  partToolVideoFrameAreas={data?.partToolVideoFrameAreas}
-                  useBlurred={useBlurred}
-                  useRawVideo={useRawVideo}
-                  videoFrameAreas={data?.videoFrameAreas}
-                  videos={data?.videos}
-                  editMode={editMode}
-                  onEditClick={renderPartToolEditor ? (item) => setEditingItemId(item.partTool.id) : undefined}
-                />
-              )}
+              ))}
             </div>
           )}
         </div>
@@ -652,106 +579,25 @@ export function PartsDrawer({
 
       {/* Editor render prop (provided by app shell via editor-core) */}
       {editingItemId && (() => {
-        const editingItem = [...parts, ...tools].find((i) => i.partTool.id === editingItemId);
+        const editingItem = allItems.find((i) => i.partTool.id === editingItemId);
         if (!editingItem) return null;
         return renderPartToolEditor?.({
           item: editingItem,
           onClose: () => setEditingItemId(null),
         });
       })()}
-    </Drawer>
-  );
-}
-
-/** Reusable section for a group of parts or tools */
-interface PartToolSectionProps {
-  items: AggregatedPartTool[];
-  icon: LucideIcon;
-  colorVar: string;
-  label: string;
-  useWideLayout: boolean;
-  highlightedSubstepId?: string;
-  onItemClick: (item: AggregatedPartTool) => void;
-  folderName?: string;
-  partToolVideoFrameAreas?: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>;
-  useBlurred?: boolean;
-  useRawVideo?: boolean;
-  videoFrameAreas?: Record<string, VideoFrameAreaRow>;
-  videos?: Record<string, VideoRow>;
-  /** Show edit controls on cards */
-  editMode?: boolean;
-  /** Callback when edit icon is clicked on a card */
-  onEditClick?: (item: AggregatedPartTool) => void;
-}
-
-function PartToolSection({
-  items,
-  icon: Icon,
-  colorVar,
-  label,
-  useWideLayout,
-  highlightedSubstepId,
-  onItemClick,
-  folderName,
-  partToolVideoFrameAreas,
-  useBlurred,
-  useRawVideo,
-  videoFrameAreas,
-  videos,
-  editMode,
-  onEditClick,
-}: PartToolSectionProps) {
-  return (
-    <section>
-      <header className="flex items-center gap-2 mb-3">
-        <Icon
-          className={useWideLayout ? 'w-5 h-5' : 'w-4 h-4'}
-          style={{ color: colorVar }}
-        />
-        <h3 className={useWideLayout
-          ? 'font-semibold text-lg text-[var(--color-text-base)]'
-          : 'font-medium text-sm text-[var(--color-text-base)]'
-        }>
-          {label}{!useWideLayout && ` (${items.length})`}
-        </h3>
-      </header>
-
-      <div className={useWideLayout
-        ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4'
-        : 'grid grid-cols-2 gap-3'
-      }>
-        {items.map((item) => (
-          <PartToolCard
-            key={item.partTool.id}
-            item={item}
-            size={useWideLayout ? 'large' : 'small'}
-            onClick={() => onItemClick(item)}
-            highlightedSubstepId={highlightedSubstepId}
-            folderName={folderName}
-            partToolVideoFrameAreas={partToolVideoFrameAreas}
-            useBlurred={useBlurred}
-            useRawVideo={useRawVideo}
-            videoFrameAreas={videoFrameAreas}
-            videos={videos}
-            editMode={editMode}
-            onEditClick={onEditClick ? () => onEditClick(item) : undefined}
-          />
-        ))}
-      </div>
-    </section>
+    </CollapsiblePanel>
   );
 }
 
 /**
  * Unified card component for parts/tools display
- * - size="large": Fullpage mode (bigger icons, padding, quantity badge)
- * - size="small": Drawer mode (compact)
+ * - Fixed 288px width, wraps naturally in flex container
  * - Colored left border (yellow for parts, orange for tools)
  * - Shows substep-specific amount when highlighted
  */
 export function PartToolCard({
   item,
-  size,
   onClick,
   highlightedSubstepId,
   folderName,
@@ -764,7 +610,6 @@ export function PartToolCard({
   onEditClick,
 }: {
   item: AggregatedPartTool;
-  size: 'small' | 'large';
   onClick: () => void;
   highlightedSubstepId?: string;
   folderName?: string;
@@ -806,8 +651,6 @@ export function PartToolCard({
       )
     : null;
 
-  const isLarge = size === 'large';
-
   // Calculate substep-specific amount display
   // If highlighted substep uses this item and multiple substeps in the same step use it,
   // show "N/Mx" format (substep amount / step total)
@@ -832,25 +675,11 @@ export function PartToolCard({
     : '';
 
   return (
-    <div className="relative">
-      {/* Edit pencil icon (top-right corner of card) */}
-      {editMode && onEditClick && (
-        <div className="absolute top-1.5 right-1.5 z-10" onClick={(e) => e.stopPropagation()}>
-          <IconButton
-            variant="overlay"
-            size="md"
-            icon={<Pencil />}
-            data-testid={`edit-parttool-${item.partTool.id}`}
-            aria-label={t('common.edit', 'Edit')}
-            onClick={onEditClick}
-          />
-        </div>
-      )}
     <button
       type="button"
       onClick={onClick}
       className={clsx(
-        'flex flex-col rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer w-full',
+        'flex flex-row items-stretch h-22 rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer',
         'shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]',
         'bg-[var(--color-bg-elevated)]',
         borderColorClass,
@@ -858,11 +687,8 @@ export function PartToolCard({
         isDimmed && 'opacity-30',
       )}
     >
-      {/* Square image area */}
-      <div className={clsx(
-        'aspect-square flex items-center justify-center overflow-hidden flex-shrink-0',
-        'bg-black'
-      )}>
+      {/* Image — fills card height */}
+      <div className="w-22 flex-shrink-0 flex items-center justify-center overflow-hidden bg-black">
         {frameCaptureData ? (
           <VideoFrameCapture
             videoId={frameCaptureData.videoId}
@@ -880,83 +706,63 @@ export function PartToolCard({
             className="w-full h-full object-contain"
           />
         ) : (
-          <Icon className={clsx(
-            iconColorClass,
-            'opacity-60',
-            isLarge ? 'w-12 h-12' : 'w-10 h-10'
-          )} />
+          <Icon className={clsx(iconColorClass, 'opacity-60 w-10 h-10')} />
         )}
       </div>
 
-      {/* Content area */}
-      <div className={clsx(
-        'flex flex-col items-center text-center',
-        isLarge ? 'p-3 gap-1' : 'p-2 gap-0.5'
-      )}>
-        {/* Name */}
-        <span className={clsx(
-          'font-medium text-[var(--color-text-base)] truncate w-full',
-          isLarge ? 'text-sm' : 'text-xs'
-        )}>
+      {/* Content — name top, optional detail middle, quantity bottom */}
+      <div className="flex flex-col justify-between p-1.5 flex-1 min-w-0 overflow-hidden">
+        {/* Row 1: Name */}
+        <span className="block text-xs font-medium text-[var(--color-text-base)] truncate">
           {item.partTool.name}
         </span>
 
-        {/* Part number (optional) */}
-        {item.partTool.partNumber && (
-          <span className={clsx(
-            'text-[var(--color-text-muted)] truncate w-full font-mono',
-            isLarge ? 'text-xs' : 'text-[0.65rem]'
-          )}>
-            #{item.partTool.partNumber}
-          </span>
-        )}
-
-        {/* Material / Dimension */}
-        {(item.partTool.material || item.partTool.dimension) && (
-          <div className={clsx(
-            'flex flex-wrap justify-center gap-x-2 gap-y-0.5 text-[var(--color-text-muted)] w-full',
-            isLarge ? 'text-xs' : 'text-[0.65rem]'
-          )}>
-            {item.partTool.material && (
-              <span className="flex items-center gap-0.5 truncate">
-                <Box className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
-                <span className="truncate">{item.partTool.material}</span>
-              </span>
-            )}
-            {item.partTool.dimension && (
-              <span className="flex items-center gap-0.5 truncate">
-                <Ruler className="w-3 h-3 flex-shrink-0" aria-hidden="true" />
-                <span className="truncate">{item.partTool.dimension}</span>
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Quantity badge - IKEA style */}
-        {showFractionalAmount ? (
-          // Show fractional: highlighted substep amount / total
-          <span className={clsx(
-            'rounded-full bg-[var(--color-bg-base)] border border-[var(--color-border-base)] font-bold',
-            isLarge ? 'mt-2 px-4 py-1.5 text-lg' : 'mt-1 px-2 py-0.5 text-sm'
-          )}>
-            <span className={item.partTool.type === 'Part' ? 'text-[var(--color-element-part)]' : 'text-[var(--color-element-tool)]'}>
-              {substepAmount}
+        {/* Row 2: Optional detail — first available: partNumber, material, dimension */}
+        <span className="block text-[0.65rem] leading-tight text-[var(--color-text-muted)] truncate">
+          {item.partTool.partNumber ? (
+            <span className="font-mono">#{item.partTool.partNumber}</span>
+          ) : item.partTool.material ? (
+            <span className="inline-flex items-center gap-0.5">
+              <Box className="w-3 h-3 flex-shrink-0 inline" aria-hidden="true" />
+              {item.partTool.material}
             </span>
-            <span className="text-[var(--color-text-muted)]">/{stepTotalAmount}x</span>
-            {item.partTool.unit && <span className="text-[var(--color-text-muted)] ml-0.5 text-[0.75em]">{item.partTool.unit}</span>}
-          </span>
-        ) : (
-          // Show total amount
-          <span className={clsx(
-            'rounded-full bg-[var(--color-bg-base)] border border-[var(--color-border-base)] font-bold text-[var(--color-text-base)]',
-            isLarge ? 'mt-2 px-4 py-1.5 text-lg' : 'mt-1 px-2 py-0.5 text-sm'
-          )}>
-            {item.totalAmount}x
-            {item.partTool.unit && <span className="text-[var(--color-text-muted)] ml-0.5 text-[0.75em] font-normal">{item.partTool.unit}</span>}
-          </span>
-        )}
+          ) : item.partTool.dimension ? (
+            <span className="inline-flex items-center gap-0.5">
+              <Ruler className="w-3 h-3 flex-shrink-0 inline" aria-hidden="true" />
+              {item.partTool.dimension}
+            </span>
+          ) : '\u00A0'}
+        </span>
+
+        {/* Bottom: quantity badge + edit */}
+        <div className="flex items-center gap-1">
+          {showFractionalAmount ? (
+            <span className="rounded-full bg-[var(--color-bg-base)] border border-[var(--color-border-base)] font-bold px-2 py-0.5 text-sm">
+              <span className={item.partTool.type === 'Part' ? 'text-[var(--color-element-part)]' : 'text-[var(--color-element-tool)]'}>
+                {substepAmount}
+              </span>
+              <span className="text-[var(--color-text-muted)]">/{stepTotalAmount}x</span>
+              {item.partTool.unit && <span className="text-[var(--color-text-muted)] ml-0.5 text-[0.75em]">{item.partTool.unit}</span>}
+            </span>
+          ) : (
+            <span className="rounded-full bg-[var(--color-bg-base)] border border-[var(--color-border-base)] font-bold text-[var(--color-text-base)] px-2 py-0.5 text-sm">
+              {item.totalAmount}x
+              {item.partTool.unit && <span className="text-[var(--color-text-muted)] ml-0.5 text-[0.75em] font-normal">{item.partTool.unit}</span>}
+            </span>
+          )}
+
+          {editMode && onEditClick && (
+            <IconButton
+              variant="ghost"
+              size="sm"
+              icon={<Pencil />}
+              data-testid={`edit-parttool-${item.partTool.id}`}
+              aria-label={t('common.edit', 'Edit')}
+              onClick={(e) => { e.stopPropagation(); onEditClick(); }}
+            />
+          )}
+        </div>
       </div>
     </button>
-    </div>
   );
 }

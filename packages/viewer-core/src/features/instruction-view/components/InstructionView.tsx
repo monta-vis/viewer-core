@@ -1,18 +1,18 @@
 import type { ReactNode } from 'react';
 import { Fragment, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronLeft, ChevronRight, ChevronDown, Gauge, Package, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Gauge, LayoutGrid, Package, Plus, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
-import { Button, TutorialClickIcon } from '@/components/ui';
+import { Button, Drawer, TutorialClickIcon } from '@/components/ui';
 import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
-import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, ViewportKeyframeRow, SubstepRow, RichTutorialDisplay, SafetyIconCategory } from '@/features/instruction';
+import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, SubstepRow, RichTutorialDisplay, SafetyIconCategory } from '@/features/instruction';
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
-import { buildMediaUrl, MediaPaths, DEFAULT_FPS } from '@/lib/media';
+import { buildMediaUrl, MediaPaths } from '@/lib/media';
 
 import { SubstepCard } from './SubstepCard';
 import type { SubstepEditCallbacks } from './SubstepCard';
@@ -34,41 +34,9 @@ import {
   CARD_GAP_REM,
 } from '../hooks/useResponsiveGridColumns';
 import { useSwipeGestures, type DrawerRefs } from '../hooks/useSwipeGestures';
-
-/** Pre-computed video playback data for a single substep. */
-interface SubstepVideoEntry {
-  videoSrc: string;
-  startFrame: number;
-  endFrame: number;
-  fps: number;
-  viewportKeyframes: ViewportKeyframeRow[];
-  videoAspectRatio: number;
-  contentAspectRatio?: number | null;
-  sections?: { startFrame: number; endFrame: number }[];
-}
-
-/** Build video data entry for standalone uploaded videos (no parent videos row). */
-function buildStandaloneVideoEntry(
-  substepId: string,
-  videoSection: { fps: number | null; startFrame: number; endFrame: number; contentAspectRatio?: number | null },
-  folderName: string | undefined,
-): SubstepVideoEntry {
-  const fps = videoSection.fps ?? DEFAULT_FPS;
-  const duration = videoSection.endFrame - videoSection.startFrame;
-  const substepMediaPath = MediaPaths.substepVideo(substepId);
-  const videoSrc = folderName
-    ? buildMediaUrl(folderName, substepMediaPath)
-    : `./${substepMediaPath}`;
-  return {
-    videoSrc,
-    startFrame: 0,
-    endFrame: duration,
-    fps,
-    viewportKeyframes: [],
-    videoAspectRatio: 1,
-    contentAspectRatio: videoSection.contentAspectRatio,
-  };
-}
+import { useVisibleStep } from '../hooks/useVisibleStep';
+import { buildVideoEntry, type SubstepVideoEntry } from '../utils/buildVideoEntry';
+import { StepSeparator } from './StepSeparator';
 
 /** Stable empty array to avoid new-reference re-renders in SubstepCard effects */
 const EMPTY_DRAWINGS: DrawingRow[] = [];
@@ -182,7 +150,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, onStepChange, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, web3FormsKey, noteIconLabels, renderEditPopover, renderPartToolEditor }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, web3FormsKey, noteIconLabels, renderEditPopover, renderPartToolEditor }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -204,30 +172,6 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   // Track step entry time for duration calculation
   const stepEnteredAt = useRef<number>(Date.now());
   const previousStepId = useRef<string | null>(null);
-
-  // Log step_entered when step changes
-  useEffect(() => {
-    if (!selectedStepId || !activityLogger) return;
-
-    // Log exit from previous step
-    if (previousStepId.current && previousStepId.current !== selectedStepId) {
-      const duration = Date.now() - stepEnteredAt.current;
-      activityLogger.logStepExited(previousStepId.current, {
-        exit_reason: 'navigation',
-        duration_ms: duration,
-      });
-    }
-
-    // Log entry to new step
-    activityLogger.logStepEntered(selectedStepId);
-    stepEnteredAt.current = Date.now();
-    previousStepId.current = selectedStepId;
-  }, [selectedStepId, activityLogger]);
-
-  // Scroll grid container to top when step changes
-  useEffect(() => {
-    gridContainerRef.current?.scrollTo(0, 0);
-  }, [selectedStepId]);
 
   // Get sorted steps for navigation (with optional virtual "Unassigned" step appended in editor)
   const sortedSteps = useMemo(() => {
@@ -256,28 +200,71 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     return steps;
   }, [data?.steps, data?.substeps, useRawVideo]);
 
-  // Get step (virtual Step 0 lives in sortedSteps, not data.steps)
-  // Falls back to first step when selectedStepId doesn't resolve (e.g. UNASSIGNED with no unassigned substeps)
-  const step = useMemo(() => {
-    if (!data) return null;
-    if (!selectedStepId) return sortedSteps[0] ?? null;
-    if (selectedStepId === UNASSIGNED_STEP_ID) {
-      return sortedSteps.find((s) => s.id === UNASSIGNED_STEP_ID) ?? sortedSteps[0] ?? null;
-    }
-    return data.steps[selectedStepId] ?? sortedSteps[0] ?? null;
-  }, [selectedStepId, data, sortedSteps]);
+  // Pre-compute steps with their substeps for the scrollable layout
+  const stepsWithSubsteps = useMemo(() => {
+    if (!data) return [];
+    return sortedSteps.map((s) => ({
+      step: s,
+      substeps: s.id === UNASSIGNED_STEP_ID
+        ? getUnassignedSubsteps(data)
+        : sortSubstepsByVideoFrame(
+            s.substepIds.map(id => data.substeps[id]).filter(Boolean),
+            buildSortData(data),
+          ),
+    }));
+  }, [sortedSteps, data]);
 
-  // Find current step index and prev/next (uses step.id so fallback is reflected)
-  const { prevStep, nextStep, currentIndex, totalSteps } = useMemo(() => {
-    const effectiveId = step?.id ?? selectedStepId;
-    const idx = sortedSteps.findIndex((s) => s.id === effectiveId);
-    return {
-      prevStep: idx > 0 ? sortedSteps[idx - 1] : null,
-      nextStep: idx < sortedSteps.length - 1 ? sortedSteps[idx + 1] : null,
-      currentIndex: idx,
-      totalSteps: sortedSteps.length,
-    };
-  }, [sortedSteps, step, selectedStepId]);
+  // Flat list of all substeps across all steps (for pre-computing maps)
+  const allSubsteps = useMemo(() =>
+    stepsWithSubsteps.flatMap(({ substeps }) => substeps),
+    [stepsWithSubsteps],
+  );
+
+  const totalSteps = sortedSteps.length;
+
+  // Refs for step sections (scroll-to-step + useVisibleStep)
+  const stepSectionRefs = useRef(new Map<string, HTMLDivElement>());
+
+  // Step IDs array for useVisibleStep
+  const stepIds = useMemo(() => sortedSteps.map((s) => s.id), [sortedSteps]);
+
+  // Track which step is currently visible at the top of the scroll container
+  const visibleStepId = useVisibleStep(stepSectionRefs, gridContainerRef, stepIds);
+
+  // Derive currentIndex from visibleStepId
+  const currentIndex = useMemo(() => {
+    if (!visibleStepId) return 0;
+    const idx = sortedSteps.findIndex((s) => s.id === visibleStepId);
+    return idx >= 0 ? idx : 0;
+  }, [visibleStepId, sortedSteps]);
+
+  // Log step_entered/exited based on scroll-tracked visible step
+  useEffect(() => {
+    if (!visibleStepId || !activityLogger) return;
+
+    if (previousStepId.current && previousStepId.current !== visibleStepId) {
+      const duration = Date.now() - stepEnteredAt.current;
+      activityLogger.logStepExited(previousStepId.current, {
+        exit_reason: 'scroll',
+        duration_ms: duration,
+      });
+    }
+
+    activityLogger.logStepEntered(visibleStepId);
+    stepEnteredAt.current = Date.now();
+    previousStepId.current = visibleStepId;
+  }, [visibleStepId, activityLogger]);
+
+  // Scroll to selectedStepId on initial mount
+  const hasScrolledToInitial = useRef(false);
+  useEffect(() => {
+    if (hasScrolledToInitial.current || !selectedStepId) return;
+    const el = stepSectionRefs.current.get(selectedStepId);
+    if (el) {
+      el.scrollIntoView({ block: 'start' });
+      hasScrolledToInitial.current = true;
+    }
+  }, [selectedStepId, stepsWithSubsteps]);
 
   // State for showing step overview
   const [showOverview, setShowOverview] = useState(false);
@@ -343,10 +330,6 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   // State for viewed substeps (eye icons)
   const [viewedSubstepIds, setViewedSubstepIds] = useState<Set<string>>(new Set());
 
-  // Scroll-down hint: shows bouncing arrow when substeps overflow
-  const [showScrollHint, setShowScrollHint] = useState(false);
-  const lastCardRef = useRef<HTMLDivElement | null>(null);
-
   // Set initial substep from URL param (for "Continue" feature)
   // Note: We only close the parts drawer, but do NOT auto-play the video.
   // The user should see the substep cards and manually click to play.
@@ -363,27 +346,17 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     }
   }, [initialSubstepId, data?.substeps]);
 
-  const substeps = useMemo(() => {
-    if (!step || !data?.substeps) return [];
-
-    // For virtual Step 0, collect unassigned substeps directly
-    if (step.id === UNASSIGNED_STEP_ID) {
-      return getUnassignedSubsteps(data);
-    }
-
-    const raw = step.substepIds
-      .map((id) => data.substeps[id])
-      .filter(Boolean);
-    return sortSubstepsByVideoFrame(raw, buildSortData(data));
-  }, [step, data]);
-
-  // Preload all substep videos for instant playback
+  // Preload videos for visible step + next step only (lazy approach)
   useEffect(() => {
-    if (!data || substeps.length === 0) return;
+    if (!data || stepsWithSubsteps.length === 0) return;
+
+    const visibleIdx = visibleStepId ? sortedSteps.findIndex((s) => s.id === visibleStepId) : 0;
+    const indicesToPreload = [visibleIdx, visibleIdx + 1].filter((i) => i >= 0 && i < stepsWithSubsteps.length);
+    const subsToPreload = indicesToPreload.flatMap((i) => stepsWithSubsteps[i].substeps);
 
     const links: HTMLLinkElement[] = [];
 
-    for (const substep of substeps) {
+    for (const substep of subsToPreload) {
       const firstSectionRowId = substep.videoSectionRowIds[0];
       if (!firstSectionRowId) continue;
 
@@ -398,15 +371,10 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
       let videoUrl: string;
       if (useRawVideo) {
-        // Editor raw mode — preload source video
         videoUrl = resolveSourceVideoUrl(video, videoSection.localPath || '');
       } else {
         const substepMediaPath = MediaPaths.substepVideo(substep.id);
-        if (folderName) {
-          videoUrl = buildMediaUrl(folderName, substepMediaPath);
-        } else {
-          videoUrl = `./${substepMediaPath}`;
-        }
+        videoUrl = folderName ? buildMediaUrl(folderName, substepMediaPath) : `./${substepMediaPath}`;
       }
 
       if (!videoUrl) continue;
@@ -422,7 +390,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     return () => {
       links.forEach(link => link.remove());
     };
-  }, [substeps, data?.substepVideoSections, data?.videoSections, data?.videos, useRawVideo, folderName, resolveSourceVideoUrl]);
+  }, [visibleStepId, stepsWithSubsteps, sortedSteps, data, useRawVideo, folderName, resolveSourceVideoUrl]);
 
   // Pre-compute drawing maps indexed by substep image / substep id
   // so we avoid O(n*m) filtering inside the render loop.
@@ -446,7 +414,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
   const tutorialDisplayMap = useMemo(() => {
     const map = new Map<string, RichTutorialDisplay[]>();
     if (!data) return map;
-    for (const substep of substeps) {
+    for (const substep of allSubsteps) {
       const refs = substep.tutorialRowIds
         .map((id) => data.substepTutorials[id])
         .filter(Boolean)
@@ -455,13 +423,13 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       if (refs.length > 0) map.set(substep.id, refs);
     }
     return map;
-  }, [data, substeps]);
+  }, [data, allSubsteps]);
 
   // Pre-compute tutorialDisplay props per substep (for reference-mode cards)
   const substepTutorialDisplayMap = useMemo(() => {
     const map = new Map<string, { kind: 'see' | 'tutorial'; tutorialLabel: string }>();
     if (!data) return map;
-    for (const substep of substeps) {
+    for (const substep of allSubsteps) {
       if (substep.displayMode !== 'tutorial') continue;
       const refs = tutorialDisplayMap.get(substep.id);
       if (!refs || refs.length === 0) continue;
@@ -469,226 +437,37 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       map.set(substep.id, { kind: firstRef.kind, tutorialLabel: firstRef.label });
     }
     return map;
-  }, [data, substeps, tutorialDisplayMap]);
+  }, [data, allSubsteps, tutorialDisplayMap]);
 
-  // Compute per-substep video data for inline card playback
+  // Stable options for buildVideoEntry (avoids recreating object per substep)
+  const videoEntryOptions = useMemo(() => ({
+    useRawVideo,
+    folderName,
+    resolveSourceVideoUrl,
+  }), [useRawVideo, folderName, resolveSourceVideoUrl]);
+
+  // Compute per-substep video data for inline card playback (all steps)
   const substepVideoDataMap = useMemo(() => {
     const map = new Map<string, SubstepVideoEntry>();
     if (!data) return map;
-
-    for (const substep of substeps) {
-      const firstSectionRowId = substep.videoSectionRowIds[0];
-      if (!firstSectionRowId) continue;
-
-      const sectionRow = data.substepVideoSections[firstSectionRowId];
-      if (!sectionRow?.videoSectionId) continue;
-
-      const videoSection = data.videoSections[sectionRow.videoSectionId];
-      if (!videoSection) continue;
-
-      const video = videoSection.videoId ? data.videos[videoSection.videoId] : undefined;
-
-      // Standalone uploaded video (no parent videos row) — play from substeps/ directly.
-      // Uploads only produce video.mp4 (no blurred variant), so always use substepVideo.
-      if (!video) {
-        map.set(substep.id, buildStandaloneVideoEntry(substep.id, videoSection, folderName));
-        continue;
-      }
-
-      if (useRawVideo) {
-        // Editor raw mode — use source video, iterate ALL sections
-        const videoSrc = resolveSourceVideoUrl(video, videoSection.localPath || '');
-        if (!videoSrc) continue;
-
-        const videoAspectRatio = (video.width && video.height) ? video.width / video.height : 16 / 9;
-
-        // Collect all sections for this substep (sorted by order / start frame)
-        // and gather viewport keyframes with absolute frame numbers
-        const allSections: { startFrame: number; endFrame: number }[] = [];
-        const viewportKeyframes: ViewportKeyframeRow[] = [];
-        for (const rowId of substep.videoSectionRowIds) {
-          const row = data.substepVideoSections[rowId];
-          if (!row?.videoSectionId) continue;
-          const sec = data.videoSections[row.videoSectionId];
-          if (!sec) continue;
-          allSections.push({ startFrame: sec.startFrame, endFrame: sec.endFrame });
-          // Convert relative keyframes to absolute for raw video playback
-          for (const kfId of sec.viewportKeyframeIds) {
-            const kf = data.viewportKeyframes[kfId];
-            if (kf) {
-              viewportKeyframes.push({
-                ...kf,
-                frameNumber: kf.frameNumber + sec.startFrame,
-              });
-            }
-          }
-        }
-        allSections.sort((a, b) => a.startFrame - b.startFrame);
-
-        map.set(substep.id, {
-          videoSrc,
-          startFrame: allSections[0]?.startFrame ?? videoSection.startFrame,
-          endFrame: allSections[allSections.length - 1]?.endFrame ?? videoSection.endFrame,
-          fps: video.fps,
-          viewportKeyframes,
-          videoAspectRatio,
-          sections: allSections.length > 1 ? allSections : undefined,
-        });
-      } else {
-        // Processed mode — use merged substep video (all sections concatenated)
-        // Sum up total frame count across ALL sections of this substep
-        let totalFrames = 0;
-        for (const rowId of substep.videoSectionRowIds) {
-          const row = data.substepVideoSections[rowId];
-          if (!row?.videoSectionId) continue;
-          const sec = data.videoSections[row.videoSectionId];
-          if (!sec) continue;
-          totalFrames += sec.endFrame - sec.startFrame;
-        }
-
-        // Resolve merged substep video URL (single file — blurred or not, decided at merge time)
-        const substepMediaPath = MediaPaths.substepVideo(substep.id);
-
-        let videoSrc: string;
-        if (folderName) {
-          videoSrc = buildMediaUrl(folderName, substepMediaPath);
-        } else {
-          // mweb / published mode — relative URL from data directory
-          videoSrc = `./${substepMediaPath}`;
-        }
-
-        map.set(substep.id, {
-          videoSrc,
-          startFrame: 0,
-          endFrame: totalFrames,
-          fps: video.fps,
-          viewportKeyframes: [], // viewport already baked into processed clips
-          videoAspectRatio: 1, // processed clips are square
-          contentAspectRatio: videoSection.contentAspectRatio, // actual content AR within letterboxed square
-        });
-      }
+    for (const substep of allSubsteps) {
+      const entry = buildVideoEntry(substep, data, videoEntryOptions);
+      if (entry) map.set(substep.id, entry);
     }
-
     return map;
-  }, [data, substeps, useRawVideo, folderName, resolveSourceVideoUrl]);
+  }, [data, allSubsteps, videoEntryOptions]);
 
   // Pre-compute per-substep edit callbacks (stable references for React.memo)
   const substepEditCallbacksMap = useMemo(() => {
     const map = new Map<string, SubstepEditCallbacks | undefined>();
-    for (const substep of substeps) {
+    for (const substep of allSubsteps) {
       map.set(substep.id, makeSubstepEditCallbacks(substep.id));
     }
     return map;
-  }, [substeps, makeSubstepEditCallbacks]);
+  }, [allSubsteps, makeSubstepEditCallbacks]);
 
   // Unified reference toggle: clicking a reference badge toggles persistent highlight / inline cards
   const [activeTutorial, setActiveTutorial] = useState<ActiveTutorial | null>(null);
-
-  // Clear active reference when step changes
-  useEffect(() => {
-    setActiveTutorial(null);
-  }, [selectedStepId]);
-
-  // Observe last substep card to show/hide scroll hint
-  useEffect(() => {
-    const el = lastCardRef.current;
-    const root = gridContainerRef.current;
-    if (!el || !root || substeps.length <= 1) {
-      setShowScrollHint(false);
-      return;
-    }
-    const obs = new IntersectionObserver(
-      ([entry]) => setShowScrollHint(!entry.isIntersecting),
-      { root, threshold: 0.3 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [step?.id, substeps.length]);
-
-  // Pre-compute video data for cross-step reference targets
-  const activeRefVideoData = useMemo(() => {
-    const map = new Map<string, SubstepVideoEntry>();
-    if (!activeTutorial || activeTutorial.isSameStep || !data) return map;
-
-    for (const targetId of activeTutorial.targetSubstepIds) {
-      const targetSubstep = data.substeps[targetId];
-      if (!targetSubstep) continue;
-
-      const firstSectionRowId = targetSubstep.videoSectionRowIds[0];
-      if (!firstSectionRowId) continue;
-
-      const sectionRow = data.substepVideoSections[firstSectionRowId];
-      if (!sectionRow?.videoSectionId) continue;
-
-      const videoSection = data.videoSections[sectionRow.videoSectionId];
-      if (!videoSection) continue;
-
-      const video = videoSection.videoId ? data.videos[videoSection.videoId] : undefined;
-
-      // Standalone uploaded video (no parent videos row) — no blurred variant for uploads
-      if (!video) {
-        map.set(targetId, buildStandaloneVideoEntry(targetId, videoSection, folderName));
-        continue;
-      }
-
-      if (useRawVideo) {
-        const videoSrc = resolveSourceVideoUrl(video, videoSection.localPath || '');
-        if (!videoSrc) continue;
-        const videoAspectRatio = (video.width && video.height) ? video.width / video.height : 16 / 9;
-        const allSections: { startFrame: number; endFrame: number }[] = [];
-        const viewportKeyframes: ViewportKeyframeRow[] = [];
-        for (const rowId of targetSubstep.videoSectionRowIds) {
-          const row = data.substepVideoSections[rowId];
-          if (!row?.videoSectionId) continue;
-          const sec = data.videoSections[row.videoSectionId];
-          if (!sec) continue;
-          allSections.push({ startFrame: sec.startFrame, endFrame: sec.endFrame });
-          for (const kfId of sec.viewportKeyframeIds) {
-            const kf = data.viewportKeyframes[kfId];
-            if (kf) {
-              viewportKeyframes.push({
-                ...kf,
-                frameNumber: kf.frameNumber + sec.startFrame,
-              });
-            }
-          }
-        }
-        allSections.sort((a, b) => a.startFrame - b.startFrame);
-        map.set(targetId, {
-          videoSrc,
-          startFrame: allSections[0]?.startFrame ?? videoSection.startFrame,
-          endFrame: allSections[allSections.length - 1]?.endFrame ?? videoSection.endFrame,
-          fps: video.fps,
-          viewportKeyframes,
-          videoAspectRatio,
-          sections: allSections.length > 1 ? allSections : undefined,
-        });
-      } else {
-        let totalFrames = 0;
-        for (const rowId of targetSubstep.videoSectionRowIds) {
-          const row = data.substepVideoSections[rowId];
-          if (!row?.videoSectionId) continue;
-          const sec = data.videoSections[row.videoSectionId];
-          if (!sec) continue;
-          totalFrames += sec.endFrame - sec.startFrame;
-        }
-        const substepMediaPath = MediaPaths.substepVideo(targetId);
-        const videoSrc = folderName
-          ? buildMediaUrl(folderName, substepMediaPath)
-          : `./${substepMediaPath}`;
-        map.set(targetId, {
-          videoSrc,
-          startFrame: 0,
-          endFrame: totalFrames,
-          fps: video.fps,
-          viewportKeyframes: [],
-          videoAspectRatio: 1,
-          contentAspectRatio: videoSection.contentAspectRatio,
-        });
-      }
-    }
-    return map;
-  }, [activeTutorial, data, useRawVideo, folderName, resolveSourceVideoUrl]);
 
   // Grid layout: always use the responsive column count so card size stays
   // consistent regardless of how many substeps a step has.
@@ -710,23 +489,23 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     // Resolve ALL tutorials for this substep and merge targets
     const refs = tutorialDisplayMap.get(sourceSubstepId) ?? [];
     const substepIdSet = new Set<string>();
-    let allSameStep = true;
 
     for (const ref of refs) {
-      const resolved = resolveTutorialTargets(ref.targetType, ref.targetId, step?.id ?? null, data.steps, data.substeps as Record<string, SubstepRow>);
+      // All steps are on the page, so treat all references as same-page
+      const resolved = resolveTutorialTargets(ref.targetType, ref.targetId, null, data.steps, data.substeps as Record<string, SubstepRow>);
       for (const id of resolved.substepIds) substepIdSet.add(id);
-      if (!resolved.isSameStep) allSameStep = false;
     }
 
-    const allSubstepIds = [...substepIdSet];
-    if (allSubstepIds.length === 0) return;
+    const allTargetIds = [...substepIdSet];
+    if (allTargetIds.length === 0) return;
 
-    const mergedResult: TutorialTargetResult = { substepIds: allSubstepIds, isSameStep: allSameStep };
+    // All steps visible on page — always isSameStep=true for scroll behavior
+    const mergedResult: TutorialTargetResult = { substepIds: allTargetIds, isSameStep: true };
 
     setActiveTutorial((current) => {
       const next = computeTutorialToggle(current, sourceSubstepId, mergedResult);
 
-      // Scroll to first same-step target on toggle-on only
+      // Scroll to first target on toggle-on
       if (next?.isSameStep) {
         requestAnimationFrame(() => {
           const firstEl = next.targetSubstepIds
@@ -738,14 +517,25 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
       return next;
     });
-  }, [data, step?.id, tutorialDisplayMap]);
+  }, [data, tutorialDisplayMap]);
+
+  // Build a lookup: substepId → stepNumber (for parts drawer highlighting)
+  const substepStepNumberMap = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const { step: s, substeps: subs } of stepsWithSubsteps) {
+      for (const sub of subs) {
+        map.set(sub.id, s.stepNumber);
+      }
+    }
+    return map;
+  }, [stepsWithSubsteps]);
 
   // Pre-compute per-substep handler maps (stable references for React.memo)
   const substepHandlersMap = useMemo(() => {
     const map = new Map<string, { onClick: () => void; onTutorialClick: () => void; onPartToolClick: () => void }>();
-    const stepNumber = step?.stepNumber ?? 0;
-    for (const substep of substeps) {
+    for (const substep of allSubsteps) {
       const id = substep.id;
+      const stepNumber = substepStepNumberMap.get(id) ?? 0;
       map.set(id, {
         onClick: () => handleInlinePlay(id),
         onTutorialClick: () => handleTutorialClick(id),
@@ -756,15 +546,15 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       });
     }
     return map;
-  }, [substeps, step?.stepNumber, handleInlinePlay, handleTutorialClick]);
+  }, [allSubsteps, substepStepNumberMap, handleInlinePlay, handleTutorialClick]);
 
-  // Handle step selection from overview
+  // Handle step selection from overview — scroll to the step section
   const handleOverviewStepSelect = useCallback((stepId: string) => {
-    onStepChange?.(stepId);
+    stepSectionRefs.current.get(stepId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     setShowOverview(false);
     setIsPartsDrawerOpen(false);
     setHasStarted(true);
-  }, [onStepChange]);
+  }, []);
 
   // Handle closing parts drawer and starting
   const handlePartsDrawerClose = useCallback(() => {
@@ -778,21 +568,22 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
   // Drawer refs for progressive swipe gestures
   const navbarRef = useRef<HTMLDivElement>(null);
-  const partsPanelRef = useRef<HTMLDivElement>(null);
-  const partsBackdropRef = useRef<HTMLDivElement>(null);
   const feedbackPanelRef = useRef<HTMLDivElement>(null);
   const feedbackBackdropRef = useRef<HTMLDivElement>(null);
   const speedPanelRef = useRef<HTMLDivElement>(null);
   const speedBackdropRef = useRef<HTMLDivElement>(null);
   const overviewPanelRef = useRef<HTMLDivElement>(null);
+  const overviewBackdropRef = useRef<HTMLDivElement>(null);
+  const partsPanelRef = useRef<HTMLDivElement>(null);
 
   const drawerRefs: DrawerRefs = useMemo(() => ({
-    partsPanelRef,
-    partsBackdropRef,
     feedbackPanelRef,
     feedbackBackdropRef,
     speedPanelRef,
     speedBackdropRef,
+    overviewPanelRef,
+    overviewBackdropRef,
+    partsPanelRef,
   }), []);
 
   // Swipe gesture hook — attached as passive listeners below to avoid blocking mobile scroll
@@ -807,7 +598,6 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     setShowOverview,
     navbarRef,
     drawerRefs,
-    overviewPanelRef,
   });
 
   // Attach swipe gesture listeners as passive so they don't block native scroll on mobile
@@ -835,8 +625,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
     };
   }, []);
 
-  // Early return if no step data available yet (loading state)
-  if (!step || !data) {
+  // Early return if no data available yet (loading state)
+  if (!data) {
     return null;
   }
 
@@ -848,7 +638,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
       {/* Navigation & Controls Bar - Touch-optimized for factory workers */}
       <nav ref={navbarRef} className="flex flex-col bg-[var(--color-bg-surface)] shadow-sm">
         {/* Row 1: Progress Bar */}
-        {onStepChange && totalSteps > 0 && (
+        {totalSteps > 0 && (
           <div className="w-full px-4 pt-1 pb-1">
             <div className="w-full h-2 bg-[var(--color-border-base)] rounded-full overflow-hidden" role="progressbar" aria-valuenow={currentIndex} aria-valuemin={0} aria-valuemax={totalSteps}>
               <div
@@ -861,46 +651,9 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
         {/* Row 2: All buttons aligned on same row - smaller on tiny screens */}
         <div className={clsx('flex items-center justify-between px-0 gap-1 sm:gap-2', tutorialStep === 0 ? 'overflow-visible' : 'overflow-hidden')}>
-          {/* Left: Parts/Tools drawer button - milk-glass orange style (matches SubstepCard badge) */}
-          <div className="flex items-center shrink-0">
-            <button
-              type="button"
-              className={clsx(
-                'relative group flex items-center justify-center rounded-lg transition-all duration-200',
-                'h-12 w-12 sm:h-14 sm:w-14 m-0 bg-[var(--color-element-tool)]/10 hover:bg-[var(--color-element-tool)]/20',
-                'border border-[var(--color-element-tool)]/30 hover:border-[var(--color-element-tool)]/50',
-                'text-[var(--color-element-tool)]',
-                tutorialStep === 0 && 'shadow-[inset_0_0_0_3px_var(--color-tutorial)]',
-              )}
-              onClick={() => {
-                const opening = !isPartsDrawerOpen;
-                setIsPartsDrawerOpen(opening);
-                if (opening) setTutorialStep((s) => advanceOnDrawerOpen(s));
-              }}
-              aria-label={t('instructionView.partsToolsOverview', 'Parts & Tools')}
-            >
-              <Package className="h-5 w-5 sm:h-6 sm:w-6 transition-transform duration-200 group-hover:scale-110" />
-              {tutorialStep === 0 && <TutorialClickIcon iconPosition="bottom-right" label={t('instructionView.tutorial.openParts')} labelPosition="bottom-right" labelWidth="10rem" />}
-            </button>
-          </div>
-
-          {/* Center: Step Navigation with integrated Overview */}
-          {onStepChange && totalSteps > 0 && (
-            <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-1 justify-center">
-              {/* Previous button - icon only on small, with text on larger screens */}
-              <Button
-                variant="secondary"
-                size="sm"
-                className="h-12 w-12 sm:h-14 sm:w-14 rounded-lg lg:w-auto lg:px-4"
-                onClick={() => prevStep && onStepChange(prevStep.id)}
-                disabled={!prevStep}
-                aria-label={t('instructionView.previous', 'Previous')}
-              >
-                <ChevronLeft className="h-5 w-5 sm:h-6 sm:w-6" />
-                <span className="hidden lg:inline ml-1 text-base font-medium">{t('instructionView.previousStep', 'Previous')}</span>
-              </Button>
-
-              {/* Step indicator with dropdown - clickable to open overview */}
+          {/* Left: Step indicator with overview sidebar */}
+          {totalSteps > 0 && (
+            <div className="flex items-center shrink-0">
               <button
                 type="button"
                 onClick={() => {
@@ -915,6 +668,7 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                 }`}
                 aria-label={t('instructionView.overview', 'Step Overview')}
               >
+                <LayoutGrid className={`h-5 w-5 sm:h-6 sm:w-6 mr-0.5 sm:mr-1 ${showOverview ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`} />
                 {isPartsDrawerOpen && !hasStarted ? (
                   <span className="text-lg sm:text-xl font-medium text-current leading-none flex items-center">–</span>
                 ) : (
@@ -922,24 +676,32 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
                 )}
                 <span className={`text-lg sm:text-xl font-medium ${showOverview ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`}>/</span>
                 <span className={`text-lg sm:text-xl font-medium tabular-nums ${showOverview ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`}>{totalSteps}</span>
-                <ChevronDown className={`h-4 w-4 sm:h-5 sm:w-5 ml-0.5 sm:ml-1 transition-transform ${showOverview ? 'rotate-180 text-white/70' : 'text-[var(--color-text-muted)]'}`} />
               </button>
-
-              {/* Next button - hidden on last step */}
-              {nextStep && (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  className="h-12 w-12 sm:h-14 sm:w-14 rounded-lg sm:w-auto sm:px-4"
-                  onClick={() => onStepChange?.(nextStep.id)}
-                  aria-label={t('instructionView.next', 'Next')}
-                >
-                  <span className="hidden sm:inline mr-1 text-base font-medium">{t('instructionView.nextStep', 'Next')}</span>
-                  <ChevronRight className="h-5 w-5 sm:h-6 sm:w-6" />
-                </Button>
-              )}
             </div>
           )}
+
+          {/* Center: Parts/Tools drawer button - milk-glass orange style (matches SubstepCard badge) */}
+          <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-1 justify-center">
+            <button
+              type="button"
+              className={clsx(
+                'relative group flex items-center justify-center rounded-lg transition-all duration-200',
+                'h-12 w-12 sm:h-14 sm:w-14 m-0 bg-[var(--color-element-tool)]/10 hover:bg-[var(--color-element-tool)]/20',
+                'border border-[var(--color-element-tool)]/30 hover:border-[var(--color-element-tool)]/50',
+                'text-[var(--color-element-tool)]',
+                tutorialStep === 0 && 'shadow-[inset_0_0_0_0.1875rem_var(--color-tutorial)]',
+              )}
+              onClick={() => {
+                const opening = !isPartsDrawerOpen;
+                setIsPartsDrawerOpen(opening);
+                if (opening) setTutorialStep((s) => advanceOnDrawerOpen(s));
+              }}
+              aria-label={t('instructionView.partsToolsOverview', 'Parts & Tools')}
+            >
+              <Package className="h-5 w-5 sm:h-6 sm:w-6 transition-transform duration-200 group-hover:scale-110" />
+              {tutorialStep === 0 && <TutorialClickIcon iconPosition="bottom-right" label={t('instructionView.tutorial.openParts')} labelPosition="bottom-right" labelWidth="10rem" />}
+            </button>
+          </div>
 
           {/* Right: Feedback + Close */}
           <div className="flex items-center gap-1 sm:gap-3 shrink-0">
@@ -984,225 +746,171 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
 
       </nav>
 
+      {/* Parts panel — inline below navbar */}
+      <div ref={partsPanelRef}>
+        <PartsDrawer
+          isOpen={isPartsDrawerOpen}
+          onClose={handlePartsDrawerClose}
+          currentStepNumber={currentIndex + 1}
+          totalSteps={totalSteps}
+          highlightedSubstepId={highlightedSubstep?.substepId}
+          folderName={folderName}
+          useBlurred={useBlurred}
+          tutorialHighlight={tutorialStep === 1}
+          useRawVideo={useRawVideo}
+          editMode={effectiveEditMode}
+          renderPartToolEditor={effectiveEditMode ? renderPartToolEditor : undefined}
+        />
+      </div>
+
       {/* Content area wrapper - relative for overlay positioning */}
       <div className="flex-1 relative overflow-hidden isolate">
-          {/* Substep Cards - responsive grid */}
-          <div ref={gridContainerRef} className="h-full overflow-y-auto overscroll-y-contain scrollbar-subtle pt-3 px-1 sm:px-2" style={isSingleColumn ? { scrollSnapType: 'y proximity' } : undefined}>
-              {substeps.length === 0 ? (
-                <div className="h-full flex items-center justify-center text-[var(--color-text-muted)]">
-                  <p>{t('instructionView.noSubsteps', 'No substeps in this step')}</p>
-                </div>
-              ) : (
-                <div
-                  className="grid justify-center"
-                  style={{
-                    gridTemplateColumns: `repeat(${effectiveColumns}, minmax(${CARD_MIN_WIDTH_REM}rem, ${CARD_MAX_WIDTH_REM}rem))`,
-                    gap: `${CARD_GAP_REM}rem`,
-                  }}
-                >
-                  {substeps.map((substep, index) => {
-                  // Simple: every card except the first gets an arrow
-                  const showArrow = index > 0;
+          {/* All steps - scrollable single-page layout */}
+          <div ref={gridContainerRef} className="h-full overflow-y-auto overscroll-y-contain scrollbar-subtle pt-3 px-1 sm:px-2">
+            {stepsWithSubsteps.map(({ step: currentStep, substeps: stepSubsteps }, stepIdx) => (
+              <div key={currentStep.id} ref={(el) => { if (el) stepSectionRefs.current.set(currentStep.id, el); }}>
+                {stepIdx > 0 && <StepSeparator stepNumber={currentStep.stepNumber} title={currentStep.title} />}
 
-                  const firstImageRowId = substep.imageRowIds[0];
-                  const imageRow = firstImageRowId
-                    ? data.substepImages[firstImageRowId]
-                    : null;
-                  const area = imageRow
-                    ? data.videoFrameAreas[imageRow.videoFrameAreaId]
-                    : null;
+                {stepSubsteps.length === 0 ? (
+                  <div className="py-8 flex items-center justify-center text-[var(--color-text-muted)]">
+                    <p>{t('instructionView.noSubsteps', 'No substeps in this step')}</p>
+                  </div>
+                ) : (
+                  <div
+                    className="grid justify-center"
+                    style={{
+                      gridTemplateColumns: `repeat(${effectiveColumns}, minmax(${CARD_MIN_WIDTH_REM}rem, ${CARD_MAX_WIDTH_REM}rem))`,
+                      gap: `${CARD_GAP_REM}rem`,
+                    }}
+                  >
+                    {stepSubsteps.map((substep, index) => {
+                      const showArrow = index > 0;
 
-                  // Compute frame capture data for raw video mode
-                  const frameCaptureData = useRawVideo && folderName
-                    ? resolveRawFrameCapture(area, data.videos, folderName)
-                    : null;
+                      const firstImageRowId = substep.imageRowIds[0];
+                      const imageRow = firstImageRowId
+                        ? data.substepImages[firstImageRowId]
+                        : null;
+                      const area = imageRow
+                        ? data.videoFrameAreas[imageRow.videoFrameAreaId]
+                        : null;
 
-                  // Get image URL - use localPath (required in local mode)
-                  const imageUrl = !useRawVideo && area?.localPath
-                    ? area.localPath
-                    : null;
+                      const frameCaptureData = useRawVideo && folderName
+                        ? resolveRawFrameCapture(area, data.videos, folderName)
+                        : null;
 
-                  const descriptions = substep.descriptionRowIds
-                    .map((id) => data.substepDescriptions[id])
-                    .filter(Boolean)
-                    .sort((a, b) => a.order - b.order);
+                      const imageUrl = !useRawVideo && area?.localPath
+                        ? area.localPath
+                        : null;
 
-                  const notes = substep.noteRowIds
-                    .map((id) => {
-                      const row = data.substepNotes[id];
-                      if (!row) return null;
-                      const note = data.notes[row.noteId];
-                      if (!note) return null;
-                      return { ...row, note } as EnrichedSubstepNote;
-                    })
-                    .filter((n): n is EnrichedSubstepNote => n !== null)
-                    .sort((a, b) => a.order - b.order);
+                      const descriptions = substep.descriptionRowIds
+                        .map((id) => data.substepDescriptions[id])
+                        .filter(Boolean)
+                        .sort((a, b) => a.order - b.order);
 
-                  // Get parts and tools for this substep (for inline badges)
-                  const partTools = substep.partToolRowIds
-                    .map((id) => {
-                      const row = data.substepPartTools[id];
-                      if (!row) return null;
-                      const partTool = data.partTools[row.partToolId];
-                      if (!partTool) return null;
-                      return { ...row, partTool } as EnrichedSubstepPartTool;
-                    })
-                    .filter((p): p is EnrichedSubstepPartTool => p !== null);
+                      const notes = substep.noteRowIds
+                        .map((id) => {
+                          const row = data.substepNotes[id];
+                          if (!row) return null;
+                          const note = data.notes[row.noteId];
+                          if (!note) return null;
+                          return { ...row, note } as EnrichedSubstepNote;
+                        })
+                        .filter((n): n is EnrichedSubstepNote => n !== null)
+                        .sort((a, b) => a.order - b.order);
 
-                  // Get pre-computed tutorials for this substep
-                  const tutorials = tutorialDisplayMap.get(substep.id) ?? [];
+                      const partTools = substep.partToolRowIds
+                        .map((id) => {
+                          const row = data.substepPartTools[id];
+                          if (!row) return null;
+                          const partTool = data.partTools[row.partToolId];
+                          if (!partTool) return null;
+                          return { ...row, partTool } as EnrichedSubstepPartTool;
+                        })
+                        .filter((p): p is EnrichedSubstepPartTool => p !== null);
 
-                  // Look up pre-computed drawings for this substep
-                  const substepImageId = imageRow?.id ?? null;
-                  const imgDrawings = substepImageId ? (drawingMaps.image.get(substepImageId) ?? EMPTY_DRAWINGS) : EMPTY_DRAWINGS;
-                  const vidDrawings = drawingMaps.video.get(substep.id) ?? EMPTY_DRAWINGS;
+                      const tutorials = tutorialDisplayMap.get(substep.id) ?? [];
 
-                  return (
-                    <Fragment key={substep.id}>
-                    <div className="relative" ref={index === substeps.length - 1 ? lastCardRef : undefined} style={isSingleColumn ? { scrollSnapAlign: 'start' } : undefined}>
-                        <div
-                          className={`rounded-xl transition-shadow duration-300 ${activeTutorial?.targetSubstepIds.includes(substep.id) ? 'ring-3 ring-[var(--color-element-tutorial)] shadow-lg' : ''}`}
-                          ref={(el) => { if (el) substepRefsMap.current.set(substep.id, el); }}
-                        >
-                          <SubstepCard
-                            title={substep.title}
-                            stepOrder={index + 1}
-                            totalSubsteps={substeps.length}
-                            imageUrl={imageUrl}
-                            frameCaptureData={frameCaptureData}
-                            descriptions={descriptions}
-                            notes={notes}
-                            partTools={partTools}
-                            imageDrawings={imgDrawings}
-                            videoDrawings={vidDrawings}
-                            tutorials={tutorials}
-                            onTutorialClick={substepHandlersMap.get(substep.id)?.onTutorialClick}
-                            onClick={substepHandlersMap.get(substep.id)?.onClick}
-                            videoData={substepVideoDataMap.get(substep.id)}
-                            isViewed={viewedSubstepIds.has(substep.id)}
-                            tutorialHighlight={tutorialStep === 2 && index === 0}
-                            repeatCount={substep.repeatCount}
-                            repeatLabel={substep.repeatLabel}
-                            onPartToolClick={substepHandlersMap.get(substep.id)?.onPartToolClick}
-                            tutorialDisplay={substepTutorialDisplayMap.get(substep.id)}
-                            folderName={folderName}
-                            videoFrameAreas={data.videoFrameAreas}
-                            noteIconLabels={noteIconLabels}
-                            editMode={effectiveEditMode}
-                            editCallbacks={substepEditCallbacksMap.get(substep.id)}
-                            substepId={substep.id}
-                            renderEditPopover={renderEditPopover}
-                          />
-                        </div>
+                      const substepImageId = imageRow?.id ?? null;
+                      const imgDrawings = substepImageId ? (drawingMaps.image.get(substepImageId) ?? EMPTY_DRAWINGS) : EMPTY_DRAWINGS;
+                      const vidDrawings = drawingMaps.video.get(substep.id) ?? EMPTY_DRAWINGS;
 
-                      {/* Flow arrow: left side (multi-col) or top center (single-col) */}
-                      {showArrow && (
-                        isSingleColumn ? (
-                          <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10" aria-hidden="true">
-                            <ArrowCircle direction="down" size="sm" />
+                      return (
+                        <Fragment key={substep.id}>
+                          <div className="relative">
+                            <div
+                              className={`rounded-xl transition-shadow duration-300 ${activeTutorial?.targetSubstepIds.includes(substep.id) ? 'ring-3 ring-[var(--color-element-tutorial)] shadow-lg' : ''}`}
+                              ref={(el) => { if (el) substepRefsMap.current.set(substep.id, el); }}
+                            >
+                              <SubstepCard
+                                title={substep.title}
+                                stepOrder={index + 1}
+                                totalSubsteps={stepSubsteps.length}
+                                imageUrl={imageUrl}
+                                frameCaptureData={frameCaptureData}
+                                descriptions={descriptions}
+                                notes={notes}
+                                partTools={partTools}
+                                imageDrawings={imgDrawings}
+                                videoDrawings={vidDrawings}
+                                tutorials={tutorials}
+                                onTutorialClick={substepHandlersMap.get(substep.id)?.onTutorialClick}
+                                onClick={substepHandlersMap.get(substep.id)?.onClick}
+                                videoData={substepVideoDataMap.get(substep.id)}
+                                isViewed={viewedSubstepIds.has(substep.id)}
+                                tutorialHighlight={tutorialStep === 2 && stepIdx === 0 && index === 0}
+                                repeatCount={substep.repeatCount}
+                                repeatLabel={substep.repeatLabel}
+                                onPartToolClick={substepHandlersMap.get(substep.id)?.onPartToolClick}
+                                tutorialDisplay={substepTutorialDisplayMap.get(substep.id)}
+                                folderName={folderName}
+                                videoFrameAreas={data.videoFrameAreas}
+                                noteIconLabels={noteIconLabels}
+                                editMode={effectiveEditMode}
+                                editCallbacks={substepEditCallbacksMap.get(substep.id)}
+                                substepId={substep.id}
+                                renderEditPopover={renderEditPopover}
+                              />
+                            </div>
+
+                            {/* Flow arrow: left side (multi-col) or top center (single-col) */}
+                            {showArrow && (
+                              isSingleColumn ? (
+                                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10" aria-hidden="true">
+                                  <ArrowCircle direction="down" size="sm" />
+                                </div>
+                              ) : (
+                                <div className="absolute top-1/2 -left-3 -translate-y-1/2 z-10" aria-hidden="true">
+                                  <ArrowCircle direction="right" size="sm" />
+                                </div>
+                              )
+                            )}
                           </div>
-                        ) : (
-                          <div className="absolute top-1/2 -left-3 -translate-y-1/2 z-10" aria-hidden="true">
-                            <ArrowCircle direction="right" size="sm" />
-                          </div>
-                        )
-                      )}
-                    </div>
 
-                    {/* Cross-step reference: inline target cards after source card */}
-                    {activeTutorial?.sourceSubstepId === substep.id && !activeTutorial.isSameStep &&
-                      activeTutorial.targetSubstepIds.map((targetId, targetIdx) => {
-                        const targetSubstep = data.substeps[targetId];
-                        if (!targetSubstep) return null;
+                        </Fragment>
+                      );
+                    })}
+                  </div>
+                )}
 
-                        const targetFirstImageRowId = targetSubstep.imageRowIds[0];
-                        const targetImageRow = targetFirstImageRowId ? data.substepImages[targetFirstImageRowId] : null;
-                        const targetArea = targetImageRow ? data.videoFrameAreas[targetImageRow.videoFrameAreaId] : null;
-
-                        const targetFrameCapture = useRawVideo && folderName
-                          ? resolveRawFrameCapture(targetArea, data.videos, folderName)
-                          : null;
-                        const targetImageUrl = !useRawVideo && targetArea?.localPath ? targetArea.localPath : null;
-
-                        const targetDescriptions = targetSubstep.descriptionRowIds
-                          .map((id) => data.substepDescriptions[id])
-                          .filter(Boolean)
-                          .sort((a, b) => a.order - b.order);
-
-                        const targetNotes = targetSubstep.noteRowIds
-                          .map((id) => {
-                            const row = data.substepNotes[id];
-                            if (!row) return null;
-                            const note = data.notes[row.noteId];
-                            if (!note) return null;
-                            return { ...row, note } as EnrichedSubstepNote;
-                          })
-                          .filter((n): n is EnrichedSubstepNote => n !== null)
-                          .sort((a, b) => a.order - b.order);
-
-                        const targetImageId = targetImageRow?.id ?? null;
-                        const targetImgDrawings = targetImageId ? (drawingMaps.image.get(targetImageId) ?? EMPTY_DRAWINGS) : EMPTY_DRAWINGS;
-                        const targetVidDrawings = drawingMaps.video.get(targetId) ?? EMPTY_DRAWINGS;
-
-                        return (
-                          <div key={targetId} className="ring-3 ring-[var(--color-element-tutorial)] shadow-lg rounded-xl">
-                            <SubstepCard
-                              title={targetSubstep.title}
-                              stepOrder={targetIdx + 1}
-                              totalSubsteps={activeTutorial.targetSubstepIds.length}
-                              imageUrl={targetImageUrl}
-                              frameCaptureData={targetFrameCapture}
-                              descriptions={targetDescriptions}
-                              notes={targetNotes}
-                              folderName={folderName}
-                              videoFrameAreas={data.videoFrameAreas}
-                              imageDrawings={targetImgDrawings}
-                              videoDrawings={targetVidDrawings}
-                              videoData={activeRefVideoData.get(targetId)}
-                            />
-                          </div>
-                        );
-                      })
-                    }
-                    </Fragment>
-                  );
-                  })}
-                </div>
-              )}
-
-            {/* Edit mode: Add substep button */}
-            {effectiveEditMode && editCallbacks?.onAddSubstep && step && (
-              <div className="pt-4 px-2">
-                <button
-                  type="button"
-                  aria-label={t('editorCore.addSubstep', 'Add substep')}
-                  className="w-full h-24 rounded-xl border-2 border-dashed border-[var(--color-border-base)] hover:border-[var(--color-secondary)] flex items-center justify-center gap-2 text-[var(--color-text-muted)] hover:text-[var(--color-secondary)] transition-colors cursor-pointer"
-                  onClick={() => editCallbacks.onAddSubstep?.(step.id)}
-                >
-                  <Plus className="h-5 w-5" />
-                  <span className="text-base font-medium">{t('editorCore.addSubstep', 'Add substep')}</span>
-                </button>
+                {/* Edit mode: Add substep button per step */}
+                {effectiveEditMode && editCallbacks?.onAddSubstep && (
+                  <div className="pt-4 px-2">
+                    <button
+                      type="button"
+                      aria-label={t('editorCore.addSubstep', 'Add substep')}
+                      className="w-full h-24 rounded-xl border-2 border-dashed border-[var(--color-border-base)] hover:border-[var(--color-secondary)] flex items-center justify-center gap-2 text-[var(--color-text-muted)] hover:text-[var(--color-secondary)] transition-colors cursor-pointer"
+                      onClick={() => editCallbacks.onAddSubstep?.(currentStep.id)}
+                    >
+                      <Plus className="h-5 w-5" />
+                      <span className="text-base font-medium">{t('editorCore.addSubstep', 'Add substep')}</span>
+                    </button>
+                  </div>
+                )}
               </div>
-            )}
+            ))}
 
-            {/* Next Step button at bottom of scrollable area (single-column / mobile only) */}
-            {nextStep && onStepChange && gridColumns === 1 && (
-              <div className="pt-4 px-2">
-                <Button
-                  variant="primary"
-                  size="lg"
-                  className="w-full h-12 rounded-xl text-base font-medium"
-                  onClick={() => onStepChange(nextStep.id)}
-                  aria-label={t('instructionView.nextStepFull', 'Next Step')}
-                >
-                  {t('instructionView.nextStepFull', 'Next Step')}
-                  <ChevronRight className="h-5 w-5 ml-1" />
-                </Button>
-              </div>
-            )}
-
-            {/* Completion banner - last step only */}
-            {!nextStep && instructionId && (
+            {/* Completion banner after all steps */}
+            {instructionId && (
               <div className="py-8 px-4 flex flex-col items-center gap-4">
                 <div className="flex items-center gap-2 text-[var(--color-status-success)]">
                   <Check className="h-6 w-6" />
@@ -1215,27 +923,15 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
             )}
           </div>
 
-        {/* Scroll-down hint: fade gradient + chevron when substeps overflow */}
-        {showScrollHint && (
-          <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-none" aria-hidden="true">
-            <div className="h-16 bg-gradient-to-t from-[var(--color-bg-base)] to-transparent" />
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 animate-bounce-subtle">
-              <div className="bg-[var(--color-secondary)] backdrop-blur-sm rounded-full p-2 shadow-lg border border-[var(--color-bg-surface)]/20">
-                <ChevronDown className="h-6 w-6 text-[var(--color-bg-surface)]" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* StepOverview - backdrop + slide-down overlay */}
-        <div
-          className={clsx(
-            'absolute inset-0 z-25 bg-black/40 transition-opacity duration-300 will-change-[opacity]',
-            showOverview ? 'opacity-100' : 'opacity-0 pointer-events-none'
-          )}
-          onClick={() => setShowOverview(false)}
-        />
-        <div ref={overviewPanelRef} className={`absolute top-0 left-0 right-0 h-[90%] z-30 bg-[var(--color-bg-surface)] transition-transform duration-300 ease-out rounded-b-2xl shadow-2xl ${showOverview ? 'translate-y-0' : '-translate-y-[calc(100%+1rem)]'}`}>
+        {/* StepOverview - left sidebar drawer */}
+        <Drawer
+          isOpen={showOverview}
+          onClose={() => setShowOverview(false)}
+          anchor="left"
+          panelRef={overviewPanelRef}
+          backdropRef={overviewBackdropRef}
+          className="w-[85vw] max-w-md h-full flex flex-col"
+        >
           <StepOverview
             onStepSelect={handleOverviewStepSelect}
             useRawVideo={useRawVideo}
@@ -1250,26 +946,8 @@ export function InstructionView({ selectedStepId, onStepChange, instructionId, o
               renderAssemblyList: editCallbacks?.renderAssemblyList,
             } : undefined}
           />
-        </div>
+        </Drawer>
       </div>
-
-      {/* Parts Drawer - fullpage before starting, narrow after */}
-      <PartsDrawer
-        isOpen={isPartsDrawerOpen}
-        onClose={handlePartsDrawerClose}
-        currentStepNumber={currentIndex + 1}
-        totalSteps={totalSteps}
-        highlightedSubstepId={highlightedSubstep?.substepId}
-        variant={hasStarted ? 'narrow' : 'fullpage'}
-        panelRef={partsPanelRef}
-        backdropRef={partsBackdropRef}
-        folderName={folderName}
-        useBlurred={useBlurred}
-        tutorialHighlight={tutorialStep === 1}
-        useRawVideo={useRawVideo}
-        editMode={effectiveEditMode}
-        renderPartToolEditor={effectiveEditMode ? renderPartToolEditor : undefined}
-      />
 
       <SpeedDrawer
         isOpen={isSpeedDrawerOpen}

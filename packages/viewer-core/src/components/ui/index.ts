@@ -71,3 +71,7 @@ export type { TooltipProps } from './Tooltip'
 // Video Section Bar
 export { VideoSectionBar } from './VideoSectionBar'
 export type { VideoSectionBarProps } from './VideoSectionBar'
+
+// Collapsible Panel
+export { CollapsiblePanel } from './CollapsiblePanel'
+export type { CollapsiblePanelProps } from './CollapsiblePanel'

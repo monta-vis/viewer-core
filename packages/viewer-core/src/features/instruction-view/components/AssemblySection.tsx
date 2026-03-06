@@ -263,7 +263,7 @@ export function AssemblySection({
 
       {/* Content - Step Grid */}
       {isExpanded && (
-        <div className="p-4 max-h-[30rem] overflow-y-auto scrollbar-subtle">
+        <div className="p-4">
           {steps.length > 0 ? (
             <div
               className="grid gap-4"
@@ -413,7 +413,7 @@ export function UnassignedSection({
 
       {/* Content - Step Grid */}
       {isExpanded && (
-        <div className="p-4 max-h-[30rem] overflow-y-auto scrollbar-subtle">
+        <div className="p-4">
           <div
             className="grid gap-4"
             style={{

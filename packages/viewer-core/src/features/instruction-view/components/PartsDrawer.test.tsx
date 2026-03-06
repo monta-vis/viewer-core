@@ -25,9 +25,9 @@ vi.mock('./VideoFrameCapture', () => ({
   VideoFrameCapture: () => null,
 }));
 
-// Mock Drawer to always render children (bypass animation/portal)
+// Mock CollapsiblePanel to always render children (bypass animation)
 vi.mock('@/components/ui', () => ({
-  Drawer: ({ children }: { children: React.ReactNode }) => <div data-testid="drawer">{children}</div>,
+  CollapsiblePanel: ({ children }: { children: React.ReactNode }) => <div data-testid="collapsible-panel">{children}</div>,
   TutorialClickIcon: () => null,
   IconButton: (props: Record<string, unknown>) => <button {...props} />,
 }));
@@ -106,8 +106,7 @@ describe('PartToolCard', () => {
   it('renders material when present', () => {
     render(
       <PartToolCard
-        item={makeItem({ material: 'Stainless Steel' })}
-        size="large"
+        item={makeItem({ partNumber: null, material: 'Stainless Steel' })}
         onClick={() => {}}
       />,
     );
@@ -117,8 +116,7 @@ describe('PartToolCard', () => {
   it('renders dimension when present', () => {
     render(
       <PartToolCard
-        item={makeItem({ dimension: 'M8x40' })}
-        size="large"
+        item={makeItem({ partNumber: null, dimension: 'M8x40' })}
         onClick={() => {}}
       />,
     );
@@ -129,7 +127,6 @@ describe('PartToolCard', () => {
     render(
       <PartToolCard
         item={makeItem({ material: null, dimension: null })}
-        size="large"
         onClick={() => {}}
       />,
     );
@@ -142,7 +139,6 @@ describe('PartToolCard', () => {
     render(
       <PartToolCard
         item={makeItem()}
-        size="large"
         onClick={() => {}}
         editMode
         onEditClick={onEdit}
@@ -155,7 +151,6 @@ describe('PartToolCard', () => {
     render(
       <PartToolCard
         item={makeItem()}
-        size="large"
         onClick={() => {}}
         editMode={false}
       />,
@@ -169,7 +164,6 @@ describe('PartToolCard', () => {
     render(
       <PartToolCard
         item={makeItem()}
-        size="large"
         onClick={onClick}
         editMode
         onEditClick={onEdit}
