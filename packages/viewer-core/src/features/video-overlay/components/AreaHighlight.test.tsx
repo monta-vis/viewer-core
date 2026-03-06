@@ -186,6 +186,73 @@ describe('AreaHighlight', () => {
     expect(path?.getAttribute('fill')).toBeTruthy();
     expect(path?.getAttribute('stroke')).toBeTruthy();
   });
+
+  // ========================================
+  // Multi-contour rendering
+  // ========================================
+
+  it('renders multi-contour SVG path when segmentationPoints is nested array', () => {
+    const multiContour = JSON.stringify([
+      [{ x: 0.1, y: 0.1 }, { x: 0.3, y: 0.1 }, { x: 0.3, y: 0.3 }, { x: 0.1, y: 0.3 }],
+      [{ x: 0.5, y: 0.5 }, { x: 0.7, y: 0.5 }, { x: 0.7, y: 0.7 }, { x: 0.5, y: 0.7 }],
+    ]);
+    const area: AreaData = { ...baseArea, segmentationPoints: multiContour };
+    const { container } = render(<AreaHighlight area={area} />);
+
+    const path = container.querySelector('svg path');
+    expect(path).not.toBeNull();
+    const d = path?.getAttribute('d') ?? '';
+    // Should contain two sub-paths (two M commands and two Z closings)
+    const mCount = (d.match(/M /g) ?? []).length;
+    const zCount = (d.match(/Z/g) ?? []).length;
+    expect(mCount).toBe(2);
+    expect(zCount).toBe(2);
+  });
+
+  it('legacy single-contour format still renders correctly', () => {
+    const singleContour = JSON.stringify([
+      { x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.8, y: 0.8 }, { x: 0.2, y: 0.8 },
+    ]);
+    const area: AreaData = { ...baseArea, segmentationPoints: singleContour };
+    const { container } = render(<AreaHighlight area={area} />);
+
+    const path = container.querySelector('svg path');
+    expect(path).not.toBeNull();
+    const d = path?.getAttribute('d') ?? '';
+    // Single contour = one M, one Z
+    const mCount = (d.match(/M /g) ?? []).length;
+    expect(mCount).toBe(1);
+    expect(d).toContain('Z');
+  });
+
+  it('filters out contours with fewer than 3 points in multi-contour', () => {
+    const mixedContour = JSON.stringify([
+      [{ x: 0.1, y: 0.1 }, { x: 0.3, y: 0.1 }], // too few points — filtered
+      [{ x: 0.5, y: 0.5 }, { x: 0.7, y: 0.5 }, { x: 0.7, y: 0.7 }, { x: 0.5, y: 0.7 }],
+    ]);
+    const area: AreaData = { ...baseArea, segmentationPoints: mixedContour };
+    const { container } = render(<AreaHighlight area={area} />);
+
+    const path = container.querySelector('svg path');
+    expect(path).not.toBeNull();
+    const d = path?.getAttribute('d') ?? '';
+    // Only one valid contour
+    const mCount = (d.match(/M /g) ?? []).length;
+    expect(mCount).toBe(1);
+  });
+
+  it('returns null contour when all multi-contours have fewer than 3 points', () => {
+    const invalidContour = JSON.stringify([
+      [{ x: 0.1, y: 0.1 }, { x: 0.3, y: 0.1 }],
+      [{ x: 0.5, y: 0.5 }],
+    ]);
+    const area: AreaData = { ...baseArea, segmentationPoints: invalidContour };
+    const { container } = render(<AreaHighlight area={area} />);
+
+    // No SVG rendered when all contours are invalid
+    const svg = container.querySelector('svg');
+    expect(svg).toBeNull();
+  });
 });
 
 // ========================================

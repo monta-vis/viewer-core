@@ -28,8 +28,6 @@ interface AreaHighlightProps {
   onContextMenu?: (areaId: string, e: React.MouseEvent) => void;
 }
 
-// Use constants from types (already imported)
-
 /**
  * AreaHighlight Component
  *
@@ -49,21 +47,37 @@ export function AreaHighlight({
   const color = area.color ?? AREA_COLORS[area.type || 'SubstepImage'] ?? AREA_COLORS.SubstepImage;
 
   // Parse segmentation contour points (normalized 0-1 → SVG path within area bbox)
+  // Supports both legacy single-contour [{x,y}...] and multi-contour [[{x,y}...], ...]
   const contourPath = useMemo(() => {
     if (!area.segmentationPoints) return null;
     try {
-      const points: { x: number; y: number }[] = JSON.parse(area.segmentationPoints);
-      if (!Array.isArray(points) || points.length < 3) return null;
-      // Points are normalized 0-1 relative to the full frame.
-      // Convert to percentages within the area bbox.
-      const pathData = points
-        .map((p, i) => {
-          const px = (p.x * 100);
-          const py = (p.y * 100);
-          return i === 0 ? `M ${px} ${py}` : `L ${px} ${py}`;
-        })
-        .join(' ') + ' Z';
-      return pathData;
+      const parsed: unknown = JSON.parse(area.segmentationPoints);
+      if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+      // Detect format: if first element is an array → multi-contour, else legacy flat
+      const raw: unknown[] = Array.isArray(parsed[0]) ? parsed : [parsed];
+
+      const pathData = raw
+        .filter((c): c is Array<{ x: number; y: number }> =>
+          Array.isArray(c) && c.length >= 3 &&
+          c.every((p) =>
+            typeof p === 'object' && p !== null &&
+            typeof (p as Record<string, unknown>).x === 'number' &&
+            typeof (p as Record<string, unknown>).y === 'number',
+          ),
+        )
+        .map((contour) =>
+          contour
+            .map((p, i) => {
+              const px = p.x * 100;
+              const py = p.y * 100;
+              return i === 0 ? `M ${px} ${py}` : `L ${px} ${py}`;
+            })
+            .join(' ') + ' Z',
+        )
+        .join(' ');
+
+      return pathData || null;
     } catch {
       return null;
     }
@@ -178,7 +192,7 @@ export function AreaHighlight({
             borderColor: color,
             backgroundColor: selected ? `${color}15` : 'transparent',
             boxShadow: editing
-              ? `0 0 12px 4px ${color}, inset 0 0 8px 2px ${color}40`
+              ? `0 0 0.75rem 0.25rem ${color}, inset 0 0 0.5rem 0.125rem ${color}40`
               : undefined,
           }}
         />
