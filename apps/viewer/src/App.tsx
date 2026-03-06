@@ -43,6 +43,7 @@ interface ProjectListItem {
 declare global {
   interface Window {
     electronAPI?: {
+      getFilePath: (file: File) => string;
       onNavigate: (callback: (path: string) => void) => (() => void);
       catalogs: {
         getSafetyIcons: () => Promise<Array<{
@@ -79,6 +80,12 @@ declare global {
           imagePath: string,
           crop?: { x: number; y: number; width: number; height: number },
         ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
+        uploadSubstepImage: (
+          folderName: string,
+          substepId: string,
+          imagePath: string,
+          crop?: { x: number; y: number; width: number; height: number },
+        ) => Promise<{ success: boolean; vfaId?: string; substepImageId?: string; error?: string }>;
         uploadSubstepVideo: (
           folderName: string,
           substepId: string,

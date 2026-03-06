@@ -1,4 +1,3 @@
-import { app } from "electron";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -7,11 +6,13 @@ import {
   resolveFFmpegBinary,
   readVideoMetadata,
   buildFullVideoArgs,
+  buildSectionMergeArgs,
   spawnFFmpeg,
   EXPORT_SIZE,
 } from "@monta-vis/media-utils";
 import { getProjectsBasePath, isInsideBasePath } from "./projects.js";
 import { isInsidePath } from "./pathUtils.js";
+import { getElectronPaths } from "./electronPaths.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -19,11 +20,11 @@ import { isInsidePath } from "./pathUtils.js";
 
 export interface VideoUploadArgs {
   sourceVideoPath: string;
+  sections?: Array<{ startFrame: number; endFrame: number }> | null;
 }
 
 export interface VideoUploadResult {
   success: boolean;
-  videoId?: string;
   sectionId?: string;
   substepVideoSectionId?: string;
   frameCount?: number;
@@ -41,7 +42,7 @@ const ALLOWED_VIDEO_EXTENSIONS = new Set([
 ]);
 
 function isInsideUserHome(filePath: string): boolean {
-  return isInsidePath(filePath, app.getPath("home"));
+  return isInsidePath(filePath, getElectronPaths().homePath);
 }
 
 function validateVideoSource(
@@ -84,7 +85,6 @@ export async function uploadSubstepVideo(
   const resolvedSource = sourceCheck.resolved;
 
   // Generate IDs
-  const videoId = crypto.randomUUID();
   const sectionId = crypto.randomUUID();
   const substepVideoSectionId = crypto.randomUUID();
 
@@ -94,18 +94,42 @@ export async function uploadSubstepVideo(
 
   try {
     // Resolve binaries
-    const binBase = app.isPackaged ? process.resourcesPath : app.getAppPath();
-    const ffmpegBin = resolveFFmpegBinary(binBase, app.isPackaged);
-    const ffprobeBin = resolveFFmpegBinary(binBase, app.isPackaged, "ffprobe");
+    const elPaths = getElectronPaths();
+    const binBase = elPaths.isPackaged ? elPaths.resourcesPath : elPaths.appPath;
+    const ffmpegBin = resolveFFmpegBinary(binBase, elPaths.isPackaged);
+    const ffprobeBin = resolveFFmpegBinary(binBase, elPaths.isPackaged, "ffprobe");
 
     // Probe source video
     const meta = await readVideoMetadata(ffprobeBin, resolvedSource);
-    const frameCount = Math.round(meta.fps * meta.duration);
 
-    // Process video: scale+pad to EXPORT_SIZE x EXPORT_SIZE
+    // Determine if we need section merging
+    const hasSections = args.sections && args.sections.length > 0;
+    const totalSourceFrames = Math.round(meta.fps * meta.duration);
+    const isFullVideo = !hasSections ||
+      (args.sections!.length === 1 &&
+       args.sections![0].startFrame === 0 &&
+       args.sections![0].endFrame === totalSourceFrames);
+
+    // Process video
     fs.mkdirSync(outputDir, { recursive: true });
-    const allArgs = buildFullVideoArgs(ffmpegBin, resolvedSource, outputPath, EXPORT_SIZE);
-    await spawnFFmpeg(allArgs[0], allArgs.slice(1));
+
+    let frameCount: number;
+    if (isFullVideo) {
+      // No sections or single full-video section → scale+pad only
+      frameCount = totalSourceFrames;
+      const allArgs = buildFullVideoArgs(ffmpegBin, resolvedSource, outputPath, EXPORT_SIZE);
+      await spawnFFmpeg(allArgs[0], allArgs.slice(1));
+    } else {
+      // Multiple sections → trim+concat+scale+pad
+      const allArgs = buildSectionMergeArgs(
+        ffmpegBin, resolvedSource, outputPath, args.sections!, meta.fps, EXPORT_SIZE,
+      );
+      await spawnFFmpeg(allArgs[0], allArgs.slice(1));
+
+      // Probe merged output for accurate frame count
+      const mergedMeta = await readVideoMetadata(ffprobeBin, outputPath);
+      frameCount = Math.round(mergedMeta.fps * mergedMeta.duration);
+    }
 
     // DB transaction
     const db = new Database(dbPath);
@@ -113,8 +137,6 @@ export async function uploadSubstepVideo(
       db.pragma("foreign_keys = ON");
 
       const result = db.transaction(() => {
-        const now = new Date().toISOString();
-
         // Find and delete old substep_video_sections for this substep
         const oldSvsRows = db
           .prepare("SELECT id, video_section_id FROM substep_video_sections WHERE substep_id = ?")
@@ -125,9 +147,9 @@ export async function uploadSubstepVideo(
           db.prepare("DELETE FROM substep_video_sections WHERE id = ?").run(row.id);
           const oldSection = db
             .prepare("SELECT video_id FROM video_sections WHERE id = ?")
-            .get(row.video_section_id) as { video_id: string } | undefined;
+            .get(row.video_section_id) as { video_id: string | null } | undefined;
           db.prepare("DELETE FROM video_sections WHERE id = ?").run(row.video_section_id);
-          if (oldSection) {
+          if (oldSection?.video_id) {
             const otherSections = db
               .prepare("SELECT COUNT(*) as cnt FROM video_sections WHERE video_id = ?")
               .get(oldSection.video_id) as { cnt: number };
@@ -137,25 +159,19 @@ export async function uploadSubstepVideo(
           }
         }
 
-        // Insert new video row
+        // Insert new video_section (video_id = NULL — standalone uploaded video)
         db.prepare(
-          `INSERT INTO videos (id, source_path, created_at, updated_at)
-           VALUES (?, ?, ?, ?)`,
-        ).run(videoId, path.basename(resolvedSource), now, now);
-
-        // Insert new video_section with probed frameCount and fps
-        db.prepare(
-          `INSERT INTO video_sections (id, video_id, start_frame, end_frame, fps, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        ).run(sectionId, videoId, 0, frameCount, meta.fps, now, now);
+          `INSERT INTO video_sections (id, video_id, start_frame, end_frame)
+           VALUES (?, NULL, ?, ?)`,
+        ).run(sectionId, 0, frameCount);
 
         // Insert junction: substep_video_sections
         db.prepare(
-          `INSERT INTO substep_video_sections (id, substep_id, video_section_id, "order", created_at, updated_at)
-           VALUES (?, ?, ?, 0, ?, ?)`,
-        ).run(substepVideoSectionId, substepId, sectionId, now, now);
+          `INSERT INTO substep_video_sections (id, substep_id, video_section_id, "order")
+           VALUES (?, ?, ?, 0)`,
+        ).run(substepVideoSectionId, substepId, sectionId);
 
-        return { success: true, videoId, sectionId, substepVideoSectionId, frameCount, fps: meta.fps, videoPath: resolvedSource };
+        return { success: true as const, sectionId, substepVideoSectionId, frameCount, fps: meta.fps, videoPath: resolvedSource };
       })();
 
       return result;

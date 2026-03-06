@@ -49,6 +49,7 @@ npm run typecheck    # Typecheck all packages
 - Export new public API from feature `index.ts` barrels
 - Reusable components when used 2+ times
 - Single responsibility per component
+- Clean code and using best practices
 - All user-facing text through i18n
 
 ## MCP Tools

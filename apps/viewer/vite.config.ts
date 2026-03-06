@@ -1,7 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import electron from "vite-plugin-electron/simple";
+import electronSimple from "vite-plugin-electron/simple";
+import electron from "vite-plugin-electron";
 
 export default defineConfig(({ mode }) => {
   const isElectron = mode === "electron";
@@ -12,7 +13,7 @@ export default defineConfig(({ mode }) => {
       tailwindcss(),
       ...(isElectron
         ? [
-            electron({
+            electronSimple({
               main: {
                 entry: "electron/main/index.ts",
                 vite: {
@@ -28,6 +29,18 @@ export default defineConfig(({ mode }) => {
               },
               renderer: {},
             }),
+            ...electron([
+              {
+                entry: "electron/main/dbWorkerThread.ts",
+                vite: {
+                  build: {
+                    rollupOptions: {
+                      external: ["better-sqlite3"],
+                    },
+                  },
+                },
+              },
+            ]),
           ]
         : []),
     ],

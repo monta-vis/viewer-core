@@ -13,6 +13,7 @@ import type {
   PersistenceResult,
   ImageUploadResult,
   CoverImageUploadResult,
+  SubstepImageUploadResult,
   CatalogIconCopyResult,
   VideoUploadResult,
   VideoUploadArgs,
@@ -83,6 +84,23 @@ export function createElectronAdapter(): PersistenceAdapter {
     ): Promise<CatalogIconCopyResult> {
       const api = getAPI();
       return api.projects.copyCatalogIcon(projectId, catalogType, iconId, entryId);
+    },
+
+    async uploadSubstepImage(
+      projectId: string,
+      substepId: string,
+      image: ImageSource,
+      crop?: NormalizedCrop,
+    ): Promise<SubstepImageUploadResult> {
+      const api = getAPI();
+      if (image.type !== 'path') {
+        console.warn('[electronAdapter.uploadSubstepImage] Only path-based images supported, got:', image.type);
+        return { success: false, error: 'Electron adapter only supports path-based images' };
+      }
+      console.log('[electronAdapter.uploadSubstepImage] Calling IPC: project=%s, substep=%s', projectId, substepId);
+      const result = await api.projects.uploadSubstepImage(projectId, substepId, image.path, crop);
+      console.log('[electronAdapter.uploadSubstepImage] IPC result:', result);
+      return result;
     },
 
     async uploadSubstepVideo(

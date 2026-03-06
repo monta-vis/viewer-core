@@ -17,7 +17,7 @@ import {
   Navbar,
   useTheme,
 } from "@monta-vis/viewer-core";
-import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, AggregatedPartTool } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, AggregatedPartTool, DrawingRow } from "@monta-vis/viewer-core";
 import { buildMediaUrl } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
@@ -26,10 +26,12 @@ import {
   SubstepEditPopover,
   PartToolListPanel,
   PartToolDetailEditor,
+  VideoEditorDialog,
   createDefaultPartTool,
   type SafetyIconCatalog,
   type NormalizedCrop,
   type PartToolImageItem,
+  type VideoEditorResult,
 } from "@monta-vis/editor-core";
 import { createElectronAdapter } from "../persistence/electronAdapter";
 
@@ -353,7 +355,165 @@ export function ViewPage() {
     onDeleteAssembly,
     onRenameAssembly,
     onMoveStepToAssembly,
+    onReorderAssembly,
+    renderAssemblyList,
   } = useEditCallbacks();
+
+  // ── Video upload callback factory ──
+  const createUploadSubstepVideo = useCallback((substepId: string) => {
+    return async (file: File, sections: Array<{ startFrame: number; endFrame: number }> | null) => {
+      if (!decodedFolderName || !adapter.uploadSubstepVideo) return;
+      const filePath = window.electronAPI?.getFilePath(file);
+      if (!filePath) return;
+
+      try {
+        await adapter.uploadSubstepVideo(decodedFolderName, substepId, { sourceVideoPath: filePath, sections });
+
+        // Reload project data from SQLite
+        if (window.electronAPI && folderName) {
+          const projectData = await window.electronAPI.projects.getData(decodeURIComponent(folderName));
+          if (projectData && typeof projectData === 'object') {
+            const snap = sqliteToSnapshot(projectData as Parameters<typeof sqliteToSnapshot>[0]);
+            const base = transformSnapshotToStore(snap);
+            snapshotRef.current = snap;
+            baseDataRef.current = base;
+            const translated = translateData(snap, base, i18n.language);
+            useEditorStore.getState().setData(translated);
+            setData(translated);
+
+            // Auto-open timeline editor for the newly uploaded video
+            setEditingVideoSubstepId(substepId);
+          }
+        }
+      } catch (err) {
+        console.error('[ViewPage] Video upload failed:', err);
+      }
+    };
+  }, [decodedFolderName, adapter, folderName, i18n.language]);
+
+  // ── Video editor dialog state ──
+  const [editingVideoSubstepId, setEditingVideoSubstepId] = useState<string | null>(null);
+
+  const videoEditorData = useMemo(() => {
+    if (!editingVideoSubstepId || !viewerData) return null;
+    const substep = viewerData.substeps[editingVideoSubstepId];
+    if (!substep) return null;
+    const firstJunctionId = substep.videoSectionRowIds[0];
+    if (!firstJunctionId) return null;
+    const junction = viewerData.substepVideoSections[firstJunctionId];
+    if (!junction?.videoSectionId) return null;
+    const section = viewerData.videoSections[junction.videoSectionId];
+    if (!section) return null;
+    const video = section.videoId ? viewerData.videos[section.videoId] : undefined;
+    if (!video) return null;
+
+    const kfRows = section.viewportKeyframeIds
+      .map((id) => viewerData.viewportKeyframes[id])
+      .filter(Boolean);
+
+    const sectionDuration = section.endFrame - section.startFrame;
+    return {
+      videoSrc: section.localPath ?? '',
+      startFrame: 0,
+      endFrame: sectionDuration,
+      fps: video.fps,
+      viewportKeyframes: kfRows,
+      videoAspectRatio: (video.width ?? 16) / (video.height ?? 9),
+      contentAspectRatio: section.contentAspectRatio,
+      sections: [{ startFrame: 0, endFrame: sectionDuration }],
+    };
+  }, [editingVideoSubstepId, viewerData]);
+
+  // ── Video annotations dialog state (mode='view') ──
+  const [annotatingVideoSubstepId, setAnnotatingVideoSubstepId] = useState<string | null>(null);
+
+  // Stable ref to avoid creating new videoAnnotationData objects when viewerData
+  // changes due to drawing updates (which would reset the video element).
+  const videoAnnotationDataRef = useRef<{ videoSrc: string; fps: number; durationSeconds: number; contentAspectRatio?: number | null } | null>(null);
+
+  const videoAnnotationData = useMemo(() => {
+    if (!annotatingVideoSubstepId || !viewerData) {
+      videoAnnotationDataRef.current = null;
+      return null;
+    }
+    const substep = viewerData.substeps[annotatingVideoSubstepId];
+    if (!substep) return null;
+    const firstJunctionId = substep.videoSectionRowIds[0];
+    if (!firstJunctionId) return null;
+    const junction = viewerData.substepVideoSections[firstJunctionId];
+    if (!junction?.videoSectionId) return null;
+    const section = viewerData.videoSections[junction.videoSectionId];
+    if (!section) return null;
+    const video = section.videoId ? viewerData.videos[section.videoId] : undefined;
+
+    const fps = video?.fps ?? 30;
+    const durationFrames = section.endFrame - section.startFrame;
+    const videoSrc = section.localPath ?? '';
+    const durationSeconds = durationFrames / fps;
+    const contentAspectRatio = section.contentAspectRatio;
+
+    // Return the cached object if values haven't changed
+    const prev = videoAnnotationDataRef.current;
+    if (prev && prev.videoSrc === videoSrc && prev.fps === fps && prev.durationSeconds === durationSeconds && prev.contentAspectRatio === contentAspectRatio) {
+      return prev;
+    }
+
+    const next = { videoSrc, fps, durationSeconds, contentAspectRatio };
+    videoAnnotationDataRef.current = next;
+    return next;
+  }, [annotatingVideoSubstepId, viewerData]);
+
+  const onAnnotateVideo = useCallback((substepId: string) => {
+    setAnnotatingVideoSubstepId(substepId);
+  }, []);
+
+  // ── Stable drawing callbacks for VideoEditorDialog (avoid inline arrows) ──
+  const onAddVideoDrawing = useCallback((d: DrawingRow) => useEditorStore.getState().addDrawing(d), []);
+  const onUpdateVideoDrawing = useCallback((id: string, u: Partial<DrawingRow>) => useEditorStore.getState().updateDrawing(id, u), []);
+  const onDeleteVideoDrawing = useCallback((id: string) => useEditorStore.getState().deleteDrawing(id), []);
+
+  // ── Stable close callbacks for dialogs ──
+  const closeVideoEditor = useCallback(() => setEditingVideoSubstepId(null), []);
+  const closeAnnotationEditor = useCallback(() => setAnnotatingVideoSubstepId(null), []);
+  const closePartToolList = useCallback(() => setPartToolListOpen(false), []);
+
+  const onSaveVideoEdits = useCallback((result: VideoEditorResult) => {
+    const store = useEditorStore.getState();
+    const data = store.data;
+    if (!data || !editingVideoSubstepId) return;
+
+    const substep = data.substeps[editingVideoSubstepId];
+    if (!substep) return;
+    const firstJunctionId = substep.videoSectionRowIds[0];
+    if (!firstJunctionId) return;
+    const junction = data.substepVideoSections[firstJunctionId];
+    if (!junction?.videoSectionId) return;
+    const section = data.videoSections[junction.videoSectionId];
+    if (!section) return;
+
+    // Update section boundaries
+    const firstSection = result.sections[0];
+    if (firstSection) {
+      store.updateVideoSection(section.id, {
+        startFrame: section.startFrame + firstSection.startFrame,
+        endFrame: section.startFrame + firstSection.endFrame,
+      });
+    }
+
+    // Update viewport keyframes
+    for (const kfId of section.viewportKeyframeIds) {
+      store.deleteViewportKeyframe(kfId);
+    }
+    for (const kf of result.viewportKeyframes) {
+      store.addViewportKeyframe({
+        ...kf,
+        videoSectionId: section.id,
+        versionId: getVersionId(),
+      });
+    }
+
+    setEditingVideoSubstepId(null);
+  }, [editingVideoSubstepId, getVersionId]);
 
   // ── PartToolListPanel state & callbacks ──
   const [partToolListOpen, setPartToolListOpen] = useState(false);
@@ -391,10 +551,15 @@ export function ViewPage() {
   }, []);
 
   const onUploadPartToolImage = useCallback(async (partToolId: string, image: File, crop: NormalizedCrop) => {
-    if (!decodedFolderName || !adapter.uploadPartToolImage) return;
-    // Electron File objects have a `path` property with the native file path
-    const filePath = (image as File & { path?: string }).path;
-    if (!filePath) return;
+    if (!decodedFolderName || !adapter.uploadPartToolImage) {
+      console.warn('[ViewPage.onUploadPartToolImage] Guard failed: folder=%s, adapter=%s', decodedFolderName, !!adapter.uploadPartToolImage);
+      return;
+    }
+    const filePath = window.electronAPI?.getFilePath(image);
+    if (!filePath) {
+      console.warn('[ViewPage.onUploadPartToolImage] Could not resolve file path for:', image.name);
+      return;
+    }
 
     const result = await adapter.uploadPartToolImage(
       decodedFolderName,
@@ -489,6 +654,68 @@ export function ViewPage() {
     store.updatePartTool(partToolId, { previewImageId: areaId });
   }, []);
 
+  const createUploadSubstepImage = useCallback((substepId: string) => {
+    return async (file: File, crop: NormalizedCrop) => {
+      if (!decodedFolderName || !adapter.uploadSubstepImage) {
+        console.warn('[ViewPage.onUploadSubstepImage] Guard failed: folder=%s, adapter=%s', decodedFolderName, !!adapter.uploadSubstepImage);
+        return;
+      }
+      const filePath = window.electronAPI?.getFilePath(file);
+      if (!filePath) {
+        console.warn('[ViewPage.onUploadSubstepImage] Could not resolve file path for:', file.name);
+        return;
+      }
+
+      const result = await adapter.uploadSubstepImage(
+        decodedFolderName,
+        substepId,
+        { type: 'path', path: filePath },
+        crop,
+      );
+
+      if (result.success && result.vfaId) {
+        const store = useEditorStore.getState();
+        // Remove old substep image rows before adding new ones
+        const substep = store.data?.substeps?.[substepId];
+        if (substep) {
+          for (const oldRowId of [...substep.imageRowIds]) {
+            const oldRow = store.data?.substepImages?.[oldRowId];
+            if (oldRow) {
+              store.deleteSubstepImage(oldRowId);
+              store.deleteVideoFrameArea(oldRow.videoFrameAreaId);
+            }
+          }
+        }
+        const newLocalPath = buildMediaUrl(decodedFolderName!, `media/frames/${result.vfaId}/image`);
+        // Add VFA row to store
+        store.addVideoFrameArea({
+          id: result.vfaId,
+          versionId: getVersionId(),
+          videoId: null,
+          frameNumber: null,
+          x: crop.x,
+          y: crop.y,
+          width: crop.width,
+          height: crop.height,
+          type: 'SubstepImage',
+          localPath: newLocalPath,
+        });
+        // Add substep_images junction row to store
+        if (result.substepImageId) {
+          store.addSubstepImage({
+            id: result.substepImageId,
+            versionId: getVersionId(),
+            substepId,
+            videoFrameAreaId: result.vfaId,
+            order: 0,
+          });
+        }
+      } else if (!result.success) {
+        console.error('[ViewPage.onUploadSubstepImage] Upload failed:', result.error);
+      }
+    };
+  }, [decodedFolderName, adapter, getVersionId]);
+
   // Image callbacks for PartToolTable (shared by PartToolListPanel + SubstepEditPopover)
   const imageCallbacks = useMemo(() => ({
     onUploadImage: onUploadPartToolImage,
@@ -518,6 +745,7 @@ export function ViewPage() {
     onDeleteSubstep,
     onDeleteImage,
     onDeleteTutorial,
+    onAnnotateVideo,
     onUpdatePartTool,
     onAddSubstepPartTool,
     onUpdateSubstepPartToolAmount,
@@ -528,14 +756,17 @@ export function ViewPage() {
     onDeleteAssembly,
     onRenameAssembly,
     onMoveStepToAssembly,
+    onReorderAssembly,
+    renderAssemblyList,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
     onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
-    onDeleteSubstep, onDeleteImage, onDeleteTutorial,
+    onDeleteSubstep, onDeleteImage, onDeleteTutorial, onAnnotateVideo,
     onUpdatePartTool,
     onAddSubstepPartTool, onUpdateSubstepPartToolAmount, onDeleteSubstepPartTool,
     onReplaceSubstepPartTool, onCreateAndReplacePartTool,
     onAddAssembly, onDeleteAssembly, onRenameAssembly, onMoveStepToAssembly,
+    onReorderAssembly, renderAssemblyList,
   ]);
 
   // Memoized partTools array (avoids new array on every render prop call)
@@ -546,19 +777,35 @@ export function ViewPage() {
 
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
   const renderEditPopover = useCallback(
-    (props: Parameters<typeof SubstepEditPopover>[0]) => (
-      <SubstepEditPopover
-        {...props}
-        allPartTools={allPartToolsList}
-        folderName={decodedFolderName}
-        catalogs={safetyIconCatalogs}
-        getPreviewUrl={getPartToolPreviewUrl}
-        getPartToolImages={getPartToolImages}
-        imageCallbacks={imageCallbacks}
-        onOpenPartToolList={onOpenPartToolList}
-      />
-    ),
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, allPartToolsList, onOpenPartToolList],
+    (props: Parameters<typeof SubstepEditPopover>[0] & { substepId?: string }) => {
+      const state = useEditorStore.getState();
+      const substepImageId = props.substepId
+        ? state.data?.substeps?.[props.substepId]?.imageRowIds?.[0] ?? null
+        : null;
+
+      return (
+        <SubstepEditPopover
+          {...props}
+          allPartTools={allPartToolsList}
+          folderName={decodedFolderName}
+          catalogs={safetyIconCatalogs}
+          getPreviewUrl={getPartToolPreviewUrl}
+          getPartToolImages={getPartToolImages}
+          imageCallbacks={imageCallbacks}
+          onOpenPartToolList={onOpenPartToolList}
+          substepImageId={substepImageId}
+          versionId={state.data?.currentVersionId ?? ''}
+          drawings={state.data?.drawings ?? {}}
+          onAddDrawing={state.addDrawing}
+          onUpdateDrawing={state.updateDrawing}
+          onDeleteDrawing={state.deleteDrawing}
+          onUploadSubstepImage={props.substepId ? createUploadSubstepImage(props.substepId) : undefined}
+          onUploadSubstepVideo={props.substepId ? createUploadSubstepVideo(props.substepId) : undefined}
+          substepId={props.substepId}
+        />
+      );
+    },
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, allPartToolsList, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
   );
 
   // ── Part/tool editor render function (render prop for PartsDrawer) ──
@@ -670,10 +917,32 @@ export function ViewPage() {
                   noteIconLabels={noteIconLabels}
                 />
               </InstructionViewContainer>
+              {editEnabled && editModeActive && videoEditorData && (
+                <VideoEditorDialog
+                  open={!!editingVideoSubstepId}
+                  onClose={closeVideoEditor}
+                  onSave={onSaveVideoEdits}
+                  videoData={videoEditorData}
+                />
+              )}
+              {editEnabled && editModeActive && videoAnnotationData && annotatingVideoSubstepId && (
+                <VideoEditorDialog
+                  mode="view"
+                  open={!!annotatingVideoSubstepId}
+                  onClose={closeAnnotationEditor}
+                  videoData={videoAnnotationData}
+                  substepId={annotatingVideoSubstepId}
+                  versionId={getVersionId()}
+                  drawings={viewerData?.drawings ?? {}}
+                  onAddDrawing={onAddVideoDrawing}
+                  onUpdateDrawing={onUpdateVideoDrawing}
+                  onDeleteDrawing={onDeleteVideoDrawing}
+                />
+              )}
               {editEnabled && editModeActive && (
                 <PartToolListPanel
                   open={partToolListOpen}
-                  onClose={() => setPartToolListOpen(false)}
+                  onClose={closePartToolList}
                   partTools={viewerData?.partTools ?? {}}
                   substepPartTools={viewerData?.substepPartTools ?? {}}
                   callbacks={partToolListCallbacks}

@@ -1,6 +1,7 @@
-const { contextBridge, ipcRenderer } = require("electron");
+const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 const electronAPI = {
+  getFilePath: (file: File) => webUtils.getPathForFile(file),
   onNavigate: (callback: (path: string) => void) => {
     const handler = (_event: unknown, navPath: string) => callback(navPath);
     ipcRenderer.on("navigate", handler);
@@ -41,10 +42,23 @@ const electronAPI = {
         imagePath,
         crop,
       ),
+    uploadSubstepImage: (
+      folderName: string,
+      substepId: string,
+      imagePath: string,
+      crop?: { x: number; y: number; width: number; height: number },
+    ) =>
+      ipcRenderer.invoke(
+        "projects:upload-substep-image",
+        folderName,
+        substepId,
+        imagePath,
+        crop,
+      ),
     uploadSubstepVideo: (
       folderName: string,
       substepId: string,
-      args: { sourceVideoPath: string },
+      args: { sourceVideoPath: string; sections?: Array<{ startFrame: number; endFrame: number }> | null },
     ) =>
       ipcRenderer.invoke(
         "projects:upload-substep-video",

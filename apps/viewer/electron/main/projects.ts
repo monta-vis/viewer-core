@@ -1,4 +1,3 @@
-import { app } from "electron";
 import path from "path";
 import fs from "fs";
 import crypto from "crypto";
@@ -17,6 +16,7 @@ import {
   type ProjectChanges as DbProjectChanges,
   type SaveConfig,
 } from "@monta-vis/db-utils";
+import { getElectronPaths } from "./electronPaths.js";
 
 /** Image extensions to search for, in priority order. */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'];
@@ -65,12 +65,12 @@ const ALLOWED_IMAGE_EXTENSIONS = new Set([
 ]);
 
 export function getProjectsBasePath(): string {
-  return path.join(app.getPath("documents"), "Montavis");
+  return path.join(getElectronPaths().documentsPath, "Montavis");
 }
 
 /** Verify that a resolved path stays within the Montavis directory tree (projects + catalogs). */
 function isInsideMontavisPath(filePath: string): boolean {
-  return isInsidePath(filePath, path.join(app.getPath("documents"), "Montavis"));
+  return isInsidePath(filePath, path.join(getElectronPaths().documentsPath, "Montavis"));
 }
 
 /** Verify that a resolved path stays within the Montavis base directory. */
@@ -80,7 +80,7 @@ export function isInsideBasePath(filePath: string): boolean {
 
 /** Verify the file is within a user-accessible directory (not system paths). */
 function isInsideUserHome(filePath: string): boolean {
-  return isInsidePath(filePath, app.getPath("home"));
+  return isInsidePath(filePath, getElectronPaths().homePath);
 }
 
 /**
@@ -252,6 +252,23 @@ export function getProjectData(folderName: string): ElectronProjectData {
       }
     } finally {
       migrationDb.close();
+    }
+  }
+
+  // Drop has_blurred_version columns (no longer needed — export-utils uses filesystem check)
+  {
+    const migDb = new Database(dbPath);
+    try {
+      const vsCols = migDb.pragma("table_info(video_sections)") as Array<{ name: string }>;
+      if (vsCols.some(c => c.name === "has_blurred_version")) {
+        migDb.exec("ALTER TABLE video_sections DROP COLUMN has_blurred_version");
+      }
+      const vfaCols = migDb.pragma("table_info(video_frame_areas)") as Array<{ name: string }>;
+      if (vfaCols.some(c => c.name === "has_blurred_version")) {
+        migDb.exec("ALTER TABLE video_frame_areas DROP COLUMN has_blurred_version");
+      }
+    } finally {
+      migDb.close();
     }
   }
 
@@ -492,9 +509,10 @@ export async function uploadPartToolImage(
   const destFile = path.join(destDir, "image.jpg");
 
   try {
+    const paths = getElectronPaths();
     const ffmpegBin = resolveFFmpegBinary(
-      app.isPackaged ? process.resourcesPath : app.getAppPath(),
-      app.isPackaged,
+      paths.isPackaged ? paths.resourcesPath : paths.appPath,
+      paths.isPackaged,
     );
     await processImage(ffmpegBin, resolvedSource, destFile, crop, PARTTOOL_EXPORT_SIZE);
 
@@ -522,15 +540,23 @@ export async function uploadPartToolImage(
          VALUES (?, ?, ?)`,
       ).run(junctionId, partToolId, vfaId);
 
-      // Update part_tool preview_image_id
-      db.prepare(
-        `UPDATE part_tools SET preview_image_id = ? WHERE id = ?`,
-      ).run(vfaId, partToolId);
+      // Update part_tool preview_image_id (only if column exists)
+      const columns = db.prepare("PRAGMA table_info(part_tools)").all() as { name: string }[];
+      const hasPreviewImageId = columns.some((c) => c.name === "preview_image_id");
+      if (hasPreviewImageId) {
+        db.prepare(
+          `UPDATE part_tools SET preview_image_id = ? WHERE id = ?`,
+        ).run(vfaId, partToolId);
+      } else {
+        console.warn("[uploadPartToolImage] part_tools table has no preview_image_id column — skipping UPDATE");
+      }
 
       db.exec("COMMIT");
       db.close();
+      console.log("[uploadPartToolImage] Success: vfaId=%s, junctionId=%s", vfaId, junctionId);
       return { success: true, vfaId, junctionId, isPreview: true };
     } catch (txErr) {
+      console.error("[uploadPartToolImage] DB transaction failed:", txErr);
       db.exec("ROLLBACK");
       db.close();
       // Clean up copied file on failure
@@ -540,6 +566,107 @@ export async function uploadPartToolImage(
       throw txErr;
     }
   } catch (err) {
+    console.error("[uploadPartToolImage] Failed:", err);
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Upload substep image
+// ---------------------------------------------------------------------------
+
+/**
+ * Copy an image to the project's media folder and create the necessary DB rows
+ * for a substep image. Returns the new video_frame_area ID on success.
+ */
+export async function uploadSubstepImage(
+  folderName: string,
+  substepId: string,
+  sourceImagePath: string,
+  crop?: { x: number; y: number; width: number; height: number },
+): Promise<{ success: boolean; vfaId?: string; substepImageId?: string; error?: string }> {
+  console.log("[uploadSubstepImage] Entry: folder=%s, substep=%s, source=%s", folderName, substepId, sourceImagePath);
+  const basePath = getProjectsBasePath();
+  const dbPath = path.join(basePath, folderName, "montavis.db");
+
+  if (!isInsideBasePath(dbPath) || !fs.existsSync(dbPath)) {
+    console.error("[uploadSubstepImage] Project not found: %s", dbPath);
+    return { success: false, error: "Project not found" };
+  }
+
+  const sourceCheck = validateImageSource(sourceImagePath);
+  if (!sourceCheck.valid) {
+    console.error("[uploadSubstepImage] Invalid source: %s", sourceCheck.error);
+    return { success: false, error: sourceCheck.error };
+  }
+  const resolvedSource = sourceCheck.resolved;
+
+  const vfaId = crypto.randomUUID();
+  const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
+  const destFile = path.join(destDir, "image.jpg");
+
+  try {
+    const paths = getElectronPaths();
+    const ffmpegBin = resolveFFmpegBinary(
+      paths.isPackaged ? paths.resourcesPath : paths.appPath,
+      paths.isPackaged,
+    );
+    await processImage(ffmpegBin, resolvedSource, destFile, crop, EXPORT_SIZE);
+
+    // Create DB rows
+    const db = new Database(dbPath);
+    db.pragma("foreign_keys = ON");
+    db.exec("BEGIN TRANSACTION");
+
+    try {
+      // Clean up old substep images before inserting new ones
+      const oldVfaIds = db.prepare(
+        `SELECT video_frame_area_id FROM substep_images WHERE substep_id = ?`,
+      ).all(substepId) as { video_frame_area_id: string }[];
+
+      db.prepare(`DELETE FROM substep_images WHERE substep_id = ?`).run(substepId);
+      for (const { video_frame_area_id } of oldVfaIds) {
+        db.prepare(`DELETE FROM video_frame_areas WHERE id = ?`).run(video_frame_area_id);
+        // Remove old media files from disk
+        const oldDir = path.join(basePath, folderName, "media", "frames", video_frame_area_id);
+        try { fs.rmSync(oldDir, { recursive: true }); } catch { /* ignore if already gone */ }
+      }
+
+      const cx = crop?.x ?? 0;
+      const cy = crop?.y ?? 0;
+      const cw = crop?.width ?? 1;
+      const ch = crop?.height ?? 1;
+
+      db.prepare(
+        `INSERT INTO video_frame_areas (id, x, y, width, height)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).run(vfaId, cx, cy, cw, ch);
+
+      // Insert substep_images junction row
+      const substepImageId = crypto.randomUUID();
+      db.prepare(
+        `INSERT INTO substep_images (id, substep_id, video_frame_area_id, "order")
+         VALUES (?, ?, ?, 0)`,
+      ).run(substepImageId, substepId, vfaId);
+
+      db.exec("COMMIT");
+      db.close();
+      console.log("[uploadSubstepImage] Success: vfaId=%s, substepImageId=%s", vfaId, substepImageId);
+      return { success: true, vfaId, substepImageId };
+    } catch (txErr) {
+      console.error("[uploadSubstepImage] DB transaction failed:", txErr);
+      db.exec("ROLLBACK");
+      db.close();
+      try {
+        fs.rmSync(destDir, { recursive: true });
+      } catch { /* ignore cleanup errors */ }
+      throw txErr;
+    }
+  } catch (err) {
+    console.error("[uploadSubstepImage] Failed:", err);
     return {
       success: false,
       error: err instanceof Error ? err.message : String(err),
@@ -578,9 +705,10 @@ export async function uploadCoverImage(
   const destFile = path.join(destDir, "image.jpg");
 
   try {
+    const paths = getElectronPaths();
     const ffmpegBin = resolveFFmpegBinary(
-      app.isPackaged ? process.resourcesPath : app.getAppPath(),
-      app.isPackaged,
+      paths.isPackaged ? paths.resourcesPath : paths.appPath,
+      paths.isPackaged,
     );
     await processImage(ffmpegBin, resolvedSource, destFile, crop, EXPORT_SIZE);
 

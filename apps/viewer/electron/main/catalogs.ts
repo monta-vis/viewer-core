@@ -1,9 +1,9 @@
-import { app } from "electron";
 import path from "path";
 import fs from "fs";
 import type { SafetyIconCatalog } from "@monta-vis/editor-core";
 import type { CatalogJson } from "../../src/types/catalog.js";
 import { isInsidePath } from "./pathUtils.js";
+import { getElectronPaths } from "./electronPaths.js";
 
 /**
  * Scan ~/Documents/Montavis/Catalogs/SafetyIcons/ for subdirectories,
@@ -11,7 +11,7 @@ import { isInsidePath } from "./pathUtils.js";
  */
 export function getSafetyIconCatalogs(): SafetyIconCatalog[] {
   const catalogsDir = path.join(
-    app.getPath("documents"),
+    getElectronPaths().documentsPath,
     "Montavis",
     "Catalogs",
     "SafetyIcons",
@@ -66,7 +66,7 @@ export type CatalogType = 'SafetyIcons' | 'PartToolIcons';
  */
 export function resolveCatalogIconPath(catalogType: CatalogType, catalogName: string, filename: string): string | null {
   const catalogsDir = path.join(
-    app.getPath("documents"),
+    getElectronPaths().documentsPath,
     "Montavis",
     "Catalogs",
     catalogType,

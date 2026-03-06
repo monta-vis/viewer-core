@@ -3,22 +3,14 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createReadStream, existsSync, statSync } from "fs";
 import { extname } from "path";
-import {
-  listProjects,
-  getProjectData,
-  saveProjectData,
-  uploadPartToolImage,
-  uploadCoverImage,
-  copyCatalogIcon,
-  resolveMediaPath,
-} from "./projects.js";
+import { resolveMediaPath } from "./projects.js";
 import type { ProjectChanges } from "./projects.js";
-import { getSafetyIconCatalogs } from "./catalogs.js";
 import { importMvisFromPath } from "./import-mvis.js";
-import { uploadSubstepVideo } from "./video.js";
 import { exportProject } from "./export.js";
 import type { ExportType } from "./export.js";
 import type { VideoUploadArgs } from "./video.js";
+import { initElectronPaths } from "./electronPaths.js";
+import { DbWorker } from "./dbWorker.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -188,36 +180,62 @@ function registerProtocol(): void {
 }
 
 // ---------------------------------------------------------------------------
+// DB Worker
+// ---------------------------------------------------------------------------
+
+let dbWorker: DbWorker;
+
+// ---------------------------------------------------------------------------
 // IPC handlers
 // ---------------------------------------------------------------------------
 
 function registerIpcHandlers(): void {
-  ipcMain.handle("projects:list", () => listProjects());
+  dbWorker = new DbWorker(
+    path.join(__dirname, "dbWorkerThread.js"),
+    {
+      documentsPath: app.getPath("documents"),
+      homePath: app.getPath("home"),
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath(),
+    },
+  );
+
+  ipcMain.handle("projects:list", () =>
+    dbWorker.request("listProjects"),
+  );
+
   ipcMain.handle("projects:get-data", (_event, folderName: string) =>
-    getProjectData(folderName),
+    dbWorker.request("getProjectData", folderName),
   );
 
   ipcMain.handle(
     "projects:save-data",
     (_event, folderName: string, changes: ProjectChanges) =>
-      saveProjectData(folderName, changes),
+      dbWorker.request("saveProjectData", folderName, changes),
   );
 
   ipcMain.handle(
     "projects:upload-parttool-image",
-    async (_event, folderName: string, partToolId: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
-      await uploadPartToolImage(folderName, partToolId, imagePath, crop),
+    (_event, folderName: string, partToolId: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
+      dbWorker.request("uploadPartToolImage", folderName, partToolId, imagePath, crop),
   );
 
   ipcMain.handle(
     "projects:upload-cover-image",
-    async (_event, folderName: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
-      await uploadCoverImage(folderName, imagePath, crop),
+    (_event, folderName: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
+      dbWorker.request("uploadCoverImage", folderName, imagePath, crop),
+  );
+
+  ipcMain.handle(
+    "projects:upload-substep-image",
+    (_event, folderName: string, substepId: string, imagePath: string, crop?: { x: number; y: number; width: number; height: number }) =>
+      dbWorker.request("uploadSubstepImage", folderName, substepId, imagePath, crop),
   );
 
   ipcMain.handle(
     "projects:upload-substep-video",
-    async (_event, folderName: unknown, substepId: unknown, args: unknown) => {
+    (_event, folderName: unknown, substepId: unknown, args: unknown) => {
       if (typeof folderName !== "string" || typeof substepId !== "string") {
         return { success: false, error: "Invalid arguments" };
       }
@@ -228,7 +246,7 @@ function registerIpcHandlers(): void {
       ) {
         return { success: false, error: "Invalid video upload arguments" };
       }
-      return uploadSubstepVideo(folderName, substepId, args as VideoUploadArgs);
+      return dbWorker.request("uploadSubstepVideo", folderName, substepId, args as VideoUploadArgs);
     },
   );
 
@@ -241,17 +259,19 @@ function registerIpcHandlers(): void {
       if (catalogType !== "SafetyIcons" && catalogType !== "PartToolIcons") {
         return { success: false, error: `Invalid catalog type: ${catalogType}` };
       }
-      // Validate entryId is a valid UUID format
       const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       if (!UUID_RE.test(entryId)) {
         return { success: false, error: "entryId must be a valid UUID" };
       }
-      return copyCatalogIcon(folderName, catalogType, iconId, entryId);
+      return dbWorker.request("copyCatalogIcon", folderName, catalogType, iconId, entryId);
     },
   );
 
-  ipcMain.handle("catalogs:get-safety-icons", () => getSafetyIconCatalogs());
+  ipcMain.handle("catalogs:get-safety-icons", () =>
+    dbWorker.request("getSafetyIconCatalogs"),
+  );
 
+  // Export stays on main thread (uses dialog.showSaveDialog)
   ipcMain.handle(
     "projects:export",
     (_event, folderName: unknown, type: unknown) => {
@@ -326,10 +346,25 @@ function createWindow() {
 // ---------------------------------------------------------------------------
 
 void app.whenReady().then(() => {
+  // Initialize shared path config so modules that replaced direct `app.*`
+  // calls with `getElectronPaths()` work on the main thread too (protocol
+  // handler, import-mvis, export modules).
+  initElectronPaths({
+    documentsPath: app.getPath("documents"),
+    homePath: app.getPath("home"),
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+  });
+
   Menu.setApplicationMenu(null);
   registerProtocol();
   registerIpcHandlers();
   createWindow();
+});
+
+app.on("will-quit", () => {
+  dbWorker?.terminate();
 });
 
 app.on("window-all-closed", () => {
