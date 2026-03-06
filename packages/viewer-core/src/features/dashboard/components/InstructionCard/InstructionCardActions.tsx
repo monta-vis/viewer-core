@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback } from 'react';
 import { clsx } from 'clsx';
-import { Pencil, Globe, Film, EyeOff, Loader2, BookOpen, Languages, GraduationCap, Download, Package, FileText } from 'lucide-react';
+import { Pencil, Globe, Film, EyeOff, Loader2, BookOpen, Languages, GraduationCap, Download, Package, FileText, ShieldCheck, ShieldOff } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { IconButton } from '@/components/ui';
 import { useClickOutside } from '@/hooks';
@@ -25,11 +25,13 @@ interface InstructionCardActionsProps {
   isBlurDisabled?: boolean;
   onTranslate?: () => void;
   isTranslating?: boolean;
-  isTranslateDisabled?: boolean;
+  isAutoTranslateDisabled?: boolean;
   onEditTranslations?: () => void;
   onTutorial?: () => void;
   onExport?: (format: ExportFormat) => void;
   isExporting?: boolean;
+  onToggleBlurred?: (useBlurred: boolean) => void;
+  useBlurred?: boolean;
 }
 
 type DropdownType = 'translate' | 'export' | null;
@@ -44,11 +46,13 @@ export function InstructionCardActions({
   isBlurDisabled = false,
   onTranslate,
   isTranslating = false,
-  isTranslateDisabled = false,
+  isAutoTranslateDisabled = false,
   onEditTranslations,
   onTutorial,
   onExport,
   isExporting = false,
+  onToggleBlurred,
+  useBlurred = false,
 }: InstructionCardActionsProps) {
   const { t } = useTranslation();
   const [openDropdown, setOpenDropdown] = useState<DropdownType>(null);
@@ -56,7 +60,7 @@ export function InstructionCardActions({
 
   useClickOutside(wrapperRef, () => setOpenDropdown(null), openDropdown !== null);
 
-  const hasAnyAction = !!(onEdit || onTutorial || onProcessMedia || onBlurPersons || onTranslate || onEditTranslations || onExport);
+  const hasAnyAction = !!(onEdit || onTutorial || onProcessMedia || onBlurPersons || onTranslate || onEditTranslations || onExport || onToggleBlurred);
 
   const toggleDropdown = useCallback((target: NonNullable<DropdownType>) => {
     setOpenDropdown(prev => prev === target ? null : target);
@@ -141,7 +145,7 @@ export function InstructionCardActions({
             aria-label={t('instruction.translate', 'Translate')}
             variant="glass"
             size="sm"
-            disabled={isTranslating || isTranslateDisabled}
+            disabled={isTranslating}
             onClick={(e) => {
               e.stopPropagation();
               toggleDropdown('translate');
@@ -165,6 +169,21 @@ export function InstructionCardActions({
             className={clsx(isExporting && 'cursor-wait')}
           />
         )}
+
+        {/* Protected / blurred media toggle */}
+        {onToggleBlurred && (
+          <IconButton
+            icon={useBlurred ? <ShieldCheck /> : <ShieldOff />}
+            aria-label={useBlurred ? t('instruction.showOriginal', 'Show original media') : t('instruction.useBlurred', 'Use blurred media')}
+            variant="glass"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleBlurred(!useBlurred);
+            }}
+            className={clsx(useBlurred && '!text-green-400')}
+          />
+        )}
       </div>
 
       {/* Dropdown menus — rendered outside overflow-hidden container */}
@@ -178,6 +197,7 @@ export function InstructionCardActions({
           {onTranslate && (
             <button
               type="button"
+              disabled={isAutoTranslateDisabled}
               onClick={(e) => {
                 e.stopPropagation();
                 setOpenDropdown(null);
@@ -186,7 +206,7 @@ export function InstructionCardActions({
               className={clsx(
                 'w-full flex items-center gap-2 px-3 py-2 text-sm',
                 'text-[var(--color-text-base)]',
-                GLASS_ITEM,
+                isAutoTranslateDisabled ? 'opacity-50 cursor-not-allowed' : GLASS_ITEM,
               )}
             >
               <Globe className="w-4 h-4" />

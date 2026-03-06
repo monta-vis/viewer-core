@@ -1,5 +1,5 @@
 import { clsx } from 'clsx';
-import { Check, X, ShieldCheck, ShieldOff, Trash2 } from 'lucide-react';
+import { Check, X, Trash2 } from 'lucide-react';
 import { Card, Badge, IconButton } from '@/components/ui';
 import { useInstructionCard } from './useInstructionCard';
 import { InstructionCardImage } from './InstructionCardImage';
@@ -55,38 +55,15 @@ export function InstructionCard(props: InstructionCardProps) {
               isBlurring={props.isBlurring}
               isBlurDisabled={props.isBlurDisabled}
               onTranslate={props.onTranslate}
-              isTranslateDisabled={props.isTranslateDisabled}
+              isAutoTranslateDisabled={props.isAutoTranslateDisabled}
               isTranslating={state.translatingLangs.size > 0}
               onEditTranslations={onEditTranslations}
               onTutorial={props.onTutorial}
               onExport={onExport}
               isExporting={state.isExporting}
+              onToggleBlurred={props.onToggleBlurred}
+              useBlurred={props.useBlurred}
             />
-          )}
-
-          {/* Blurred media toggle — top-right of image, wrapped in pill like action buttons */}
-          {props.onToggleBlurred && (
-            <div className={clsx(
-              'absolute top-3 right-3 z-10 rounded-lg shadow-lg p-1 backdrop-blur-md ring-1 ring-white/20',
-              props.useBlurred
-                ? 'bg-green-500/20'
-                : 'bg-white/20 dark:bg-black/25',
-            )}>
-              <IconButton
-                icon={props.useBlurred ? <ShieldCheck /> : <ShieldOff />}
-                aria-label={props.useBlurred ? t('instruction.showOriginal', 'Show original media') : t('instruction.useBlurred', 'Use blurred media')}
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  props.onToggleBlurred!(!props.useBlurred);
-                }}
-                className={clsx(
-                  'hover:bg-white/25 dark:hover:bg-white/15',
-                  props.useBlurred && '!text-white',
-                )}
-              />
-            </div>
           )}
 
           {/* Delete button — bottom-right of image, visible on hover */}

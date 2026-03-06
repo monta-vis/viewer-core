@@ -49,8 +49,8 @@ export interface InstructionCardProps {
   onExport?: (format: ExportFormat) => void;
   /** Called when Translate button is clicked */
   onTranslate?: () => void;
-  /** Whether the translate button should be disabled (e.g. AI disconnected) */
-  isTranslateDisabled?: boolean;
+  /** Whether the auto-translate dropdown item should be disabled (e.g. Ollama disconnected) */
+  isAutoTranslateDisabled?: boolean;
   /** Called when Process Media button is clicked */
   onProcessMedia?: () => void;
   /** Whether media is currently being processed */
