@@ -30,6 +30,10 @@ vi.mock('@/components/ui', () => ({
   CollapsiblePanel: ({ children }: { children: React.ReactNode }) => <div data-testid="collapsible-panel">{children}</div>,
   TutorialClickIcon: () => null,
   IconButton: (props: Record<string, unknown>) => <button {...props} />,
+  TextInputModal: () => null,
+  Switch: ({ checked, onChange, 'aria-label': ariaLabel }: { checked: boolean; onChange: (v: boolean) => void; 'aria-label'?: string }) => (
+    <button type="button" role="switch" aria-checked={checked} aria-label={ariaLabel} onClick={() => onChange(!checked)} />
+  ),
 }));
 
 // Track props passed to PartToolDetailModal
