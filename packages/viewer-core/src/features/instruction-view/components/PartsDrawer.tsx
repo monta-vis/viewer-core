@@ -21,11 +21,25 @@ import { StepCountSlider } from './StepCountSlider';
 // localStorage key for persisting step count preference
 const STORAGE_KEY_COUNT = 'montavis-parts-tools-step-count';
 
+function loadStepCountPreference(): number | 'all' {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_COUNT);
+    if (raw === 'all') return 'all';
+    if (raw) {
+      const num = parseInt(raw, 10);
+      if (!isNaN(num) && num >= 1) return num;
+    }
+  } catch (error) {
+    console.warn('[PartsDrawer] Failed to load step count preference:', error);
+  }
+  return 1;
+}
+
 function saveStepCountPreference(value: number | 'all'): void {
   try {
     localStorage.setItem(STORAGE_KEY_COUNT, String(value));
-  } catch {
-    // localStorage may not be available
+  } catch (error) {
+    console.warn('[PartsDrawer] Failed to save step count preference:', error);
   }
 }
 
@@ -87,7 +101,7 @@ export function PartsDrawer({
   const [filterModalOpen, setFilterModalOpen] = useState(false);
 
   // Sliding window: selectedCount determines how many steps to show from currentStepNumber
-  const [selectedCount, setSelectedCount] = useState<number | 'all'>(1);
+  const [selectedCount, setSelectedCount] = useState<number | 'all'>(loadStepCountPreference);
 
   // Track previous isOpen to detect opening transition
   const [prevIsOpen, setPrevIsOpen] = useState(false);
@@ -107,7 +121,7 @@ export function PartsDrawer({
 
   // Derive start/end from currentStepNumber + selectedCount (sliding window)
   const startStep = selectedCount === 'all' ? 1 : currentStepNumber;
-  const endStep = selectedCount === 'all' ? totalSteps : Math.min(currentStepNumber + (selectedCount as number) - 1, totalSteps);
+  const endStep = selectedCount === 'all' ? totalSteps : Math.min(currentStepNumber + selectedCount - 1, totalSteps);
 
   // Get filtered parts/tools using the hook
   const stepRange = useMemo<[number, number]>(

@@ -118,7 +118,7 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
       />
 
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 z-20 mt-1 bg-[var(--color-bg-elevated)] rounded-lg shadow-lg border border-[var(--color-border-base)] overflow-hidden max-h-[18rem] overflow-y-auto scrollbar-subtle">
+        <div role="listbox" className="absolute top-full left-0 right-0 z-20 mt-1 bg-[var(--color-bg-elevated)] rounded-lg shadow-lg border border-[var(--color-border-base)] overflow-hidden max-h-[18rem] overflow-y-auto scrollbar-subtle">
           {results.length === 0 ? (
             <p className="px-4 py-3 text-sm text-[var(--color-text-muted)]">
               {t('instructionView.noMatchingPartsTools', 'No matching parts or tools')}
@@ -131,6 +131,8 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
                 <button
                   key={pt.id}
                   type="button"
+                  role="option"
+                  aria-selected={index === activeIndex}
                   onClick={() => handleSelect(pt.id)}
                   className={clsx(
                     'w-full flex items-center gap-3 px-4 py-2.5 text-left',
