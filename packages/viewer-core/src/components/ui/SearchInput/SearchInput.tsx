@@ -11,6 +11,8 @@ export interface SearchInputProps {
   placeholder?: string;
   /** Whether to show the clear button when value is non-empty (default: true). */
   showClear?: boolean;
+  /** Called when the input receives focus. */
+  onFocus?: () => void;
   /** Additional class names for the wrapper. */
   className?: string;
   /** Accessible label for the input. */
@@ -20,6 +22,7 @@ export interface SearchInputProps {
 export function SearchInput({
   value,
   onChange,
+  onFocus,
   placeholder,
   showClear = true,
   className,
@@ -47,6 +50,7 @@ export function SearchInput({
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onFocus={onFocus}
         placeholder={placeholder}
         aria-label={ariaLabel}
         className={clsx(

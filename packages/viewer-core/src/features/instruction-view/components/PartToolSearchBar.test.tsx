@@ -54,6 +54,23 @@ describe('PartToolSearchBar', () => {
     expect(screen.getByText('Washer')).toBeInTheDocument();
   });
 
+  it('shows ALL items on focus even when count exceeds MAX_RESULTS (6)', () => {
+    const manyPartTools = Array.from({ length: 10 }, (_, i) =>
+      makePart({ id: `pt-${i}`, name: `Part ${i}` }),
+    );
+    render(
+      <PartToolSearchBar
+        partTools={manyPartTools}
+        selectedPartTool={null}
+        onSelect={vi.fn()}
+        onClear={vi.fn()}
+      />,
+    );
+    fireEvent.focus(screen.getByPlaceholderText('Search parts & tools...'));
+    const buttons = screen.getAllByRole('button');
+    expect(buttons).toHaveLength(10);
+  });
+
   it('shows fuzzy-matched results when typing', () => {
     render(
       <PartToolSearchBar

@@ -65,7 +65,6 @@ export function buildSnapshotFromRows(
   data: SnapshotRowData,
 ): Record<string, unknown> {
   const { instruction } = data;
-  const useBlurred = !!instruction.use_blurred;
 
   // Group relations
   const substepsByStep = groupIds(data.substeps, "step_id");
@@ -124,32 +123,28 @@ export function buildSnapshotFromRows(
     };
   }
 
-  // Build video sections with relative URLs (blurred when applicable)
+  // Build video sections with relative URLs (always video.mp4 — blur handled at archive level)
   const videoSections: Record<string, unknown> = {};
   for (const r of data.videoSections) {
-    const videoFile =
-      useBlurred && r.has_blurred_version ? "video_blurred.mp4" : "video.mp4";
     videoSections[r.id] = {
       id: r.id,
       video_id: r.video_id,
       start_frame: r.start_frame,
       end_frame: r.end_frame,
       content_aspect_ratio: r.content_aspect_ratio ?? null,
-      url_1080p: `./media/sections/${r.id}/${videoFile}`,
-      url_720p: `./media/sections/${r.id}/${videoFile}`,
-      url_480p: `./media/sections/${r.id}/${videoFile}`,
+      url_1080p: `./media/sections/${r.id}/video.mp4`,
+      url_720p: `./media/sections/${r.id}/video.mp4`,
+      url_480p: `./media/sections/${r.id}/video.mp4`,
     };
   }
 
-  // Build video frame areas with relative URLs (blurred when applicable)
+  // Build video frame areas with relative URLs (always image.jpg — blur handled at archive level)
   const videoFrameAreas: Record<string, unknown> = {};
   for (const r of data.videoFrameAreas) {
     const imageFile =
       r.image_ext && r.image_ext !== ".jpg"
         ? `image${r.image_ext}`
-        : useBlurred && r.has_blurred_version
-          ? "image_blurred.jpg"
-          : "image.jpg";
+        : "image.jpg";
     videoFrameAreas[r.id] = {
       id: r.id,
       video_id: r.video_id,
@@ -355,57 +350,6 @@ export async function generateDataJson(
   };
 
   db.close();
-
-  // Filesystem fallback: patch has_blurred_version for projects blurred before the DB flag fix
-  if (projectDir) {
-    const { default: path } = await import("path");
-    const { promises: fsp } = await import("fs");
-    const CONCURRENCY = 20;
-    const pending: Array<{ row: RowWithId; filePath: string }> = [];
-
-    for (const row of rowData.videoSections) {
-      if (!row.has_blurred_version) {
-        pending.push({
-          row,
-          filePath: path.join(
-            projectDir,
-            "media",
-            "sections",
-            row.id,
-            "video_blurred.mp4",
-          ),
-        });
-      }
-    }
-    for (const row of rowData.videoFrameAreas) {
-      if (!row.has_blurred_version) {
-        pending.push({
-          row,
-          filePath: path.join(
-            projectDir,
-            "media",
-            "frames",
-            row.id,
-            "image_blurred.jpg",
-          ),
-        });
-      }
-    }
-
-    for (let i = 0; i < pending.length; i += CONCURRENCY) {
-      const batch = pending.slice(i, i + CONCURRENCY);
-      await Promise.all(
-        batch.map(({ row, filePath }) =>
-          fsp
-            .access(filePath)
-            .then(() => {
-              row.has_blurred_version = 1;
-            })
-            .catch(() => {}),
-        ),
-      );
-    }
-  }
 
   // Detect actual image extension for catalog-icon VFAs (.png, .svg)
   if (projectDir && findImageInDir) {

@@ -153,7 +153,7 @@ export function PartsDrawer({
       className="bg-[var(--color-bg-surface)] shadow-md border-b border-[var(--color-border-muted)]"
     >
         {/* Content - scrollable */}
-        <div className="overflow-y-auto scrollbar-subtle p-3">
+        <div className="overflow-y-auto scrollbar-subtle px-3">
             <div className="flex flex-wrap gap-2 content-start">
               {/* Step filter — inline with the grid */}
               <StepCountSlider

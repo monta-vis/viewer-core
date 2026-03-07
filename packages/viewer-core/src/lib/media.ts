@@ -22,10 +22,10 @@ export const DEFAULT_FPS = 30;
 export const MediaPaths = {
   proxy: (videoId: string) => `proxy/${videoId}.mp4`,
   section: (sectionId: string) => `media/sections/${sectionId}/video.mp4`,
-  sectionBlurred: (sectionId: string) => `media/sections/${sectionId}/video_blurred.mp4`,
   substepVideo: (substepId: string) => `media/substeps/${substepId}/video.mp4`,
+  substepVideoBlurred: (substepId: string) => `media_blurred/substeps/${substepId}/video.mp4`,
   frame: (frameAreaId: string) => `media/frames/${frameAreaId}/image`,
-  frameBlurred: (frameAreaId: string) => `media/frames/${frameAreaId}/image_blurred`,
+  frameBlurred: (frameAreaId: string) => `media_blurred/frames/${frameAreaId}/image`,
 } as const;
 
 /**

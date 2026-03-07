@@ -29,8 +29,8 @@ export function resolvePartToolImageUrl(
   const areaId = sorted[0].videoFrameAreaId;
 
   if (folderName) {
-    const fileName = useBlurred ? 'image_blurred' : 'image';
-    return buildMediaUrl(folderName, `media/frames/${areaId}/${fileName}`);
+    const base = useBlurred ? 'media_blurred/frames' : 'media/frames';
+    return buildMediaUrl(folderName, `${base}/${areaId}/image`);
   }
 
   // Fallback: use pre-exported localPath from the store (mweb context)

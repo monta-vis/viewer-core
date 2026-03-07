@@ -15,6 +15,7 @@ export const zh = {
   },
   common: {
     close: '关闭',
+    home: '首页',
     cancel: '取消',
     confirm: '确认',
     ok: '确定',
@@ -51,7 +52,7 @@ export const zh = {
     tools: '工具',
     noPartsTools: '无零件或工具',
     filterSteps: '筛选步骤',
-    showNextSteps: '步骤数',
+    showNextSteps: '显示后续步骤',
     startStep: '起始步骤',
     endStep: '结束步骤',
     clickToEdit: '点击编辑',
@@ -101,6 +102,10 @@ export const zh = {
       openParts: '打开零件和工具',
     },
     start: '开始',
+    searchPartsTools: '搜索零件和工具...',
+    noMatchingPartsTools: '没有匹配的零件或工具',
+    clearPartToolFilter: '清除筛选',
+    filterByPartTool: '按零件或工具筛选',
   },
   editorCore: {
     addNote: '添加备注',

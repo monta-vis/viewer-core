@@ -2,7 +2,7 @@ import { type HTMLAttributes } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 import { Card } from '../Card';
-import { Spinner } from '../Spinner';
+import { LogoSpinner } from '../LogoSpinner';
 
 export interface LoadingCardProps extends HTMLAttributes<HTMLDivElement> {
   /** Primary text shown below the progress bar (e.g. project name) */
@@ -17,7 +17,7 @@ export function LoadingCard({ title, subtitle, className, ...props }: LoadingCar
   return (
     <div className={clsx('animate-pulse', className)} {...props}>
       <Card variant="elevated" padding="lg" className="flex flex-col items-center gap-4 min-w-[18rem] max-w-[24rem]">
-        <Spinner size="xl" />
+        <LogoSpinner size="xl" />
 
         {/* Indeterminate progress bar */}
         <div

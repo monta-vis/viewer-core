@@ -103,7 +103,7 @@ describe("buildSnapshotFromRows", () => {
     expect(sections["vs-1"].url_1080p).toBe("./media/sections/vs-1/video.mp4");
   });
 
-  it("uses blurred video URL when use_blurred is set", () => {
+  it("always uses video.mp4 URL even when use_blurred is set (blur handled at archive level)", () => {
     const data = makeMinimalData({
       instruction: {
         id: "inst-1",
@@ -137,7 +137,7 @@ describe("buildSnapshotFromRows", () => {
     >;
 
     expect(sections["vs-1"].url_1080p).toBe(
-      "./media/sections/vs-1/video_blurred.mp4",
+      "./media/sections/vs-1/video.mp4",
     );
   });
 

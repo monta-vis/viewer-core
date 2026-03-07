@@ -15,6 +15,7 @@ export const ja = {
   },
   common: {
     close: '閉じる',
+    home: 'ホーム',
     cancel: 'キャンセル',
     confirm: '確認',
     ok: 'OK',
@@ -51,7 +52,7 @@ export const ja = {
     tools: '工具',
     noPartsTools: '部品・工具なし',
     filterSteps: 'ステップを絞り込む',
-    showNextSteps: 'ステップ数',
+    showNextSteps: '次のステップを表示',
     startStep: '開始ステップ',
     endStep: '終了ステップ',
     clickToEdit: 'クリックして編集',
@@ -101,6 +102,10 @@ export const ja = {
       openParts: '部品と工具を開く',
     },
     start: '開始',
+    searchPartsTools: '部品と工具を検索...',
+    noMatchingPartsTools: '一致する部品または工具がありません',
+    clearPartToolFilter: 'フィルターをクリア',
+    filterByPartTool: '部品または工具でフィルター',
   },
   editorCore: {
     addNote: 'メモを追加',

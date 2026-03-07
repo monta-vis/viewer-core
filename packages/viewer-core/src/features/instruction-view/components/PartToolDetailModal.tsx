@@ -128,6 +128,7 @@ export function PartToolDetailModal({ item, onClose, folderName, partToolVideoFr
               <img
                 src={previewImageUrl}
                 alt={item.partTool.name}
+                loading="lazy"
                 className="w-full h-full object-contain"
               />
             ) : (

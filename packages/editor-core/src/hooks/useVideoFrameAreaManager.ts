@@ -38,10 +38,10 @@ export interface UseVideoFrameAreaManagerReturn {
   createImageArea: (rect: Rectangle) => CreateAreaResult | null;
 
   /** Create a PartToolScan area at current frame. Returns IDs for selection. */
-  createPartToolScanArea: (rect: Rectangle, partToolId: string) => CreateAreaResult | null;
+  createPartToolScanArea: (rect: Rectangle, partToolId: string, segmentationPoints?: string | null) => CreateAreaResult | null;
 
   /** Create a PartToolScan area at current frame WITHOUT linking to a PartTool yet. */
-  createPartToolAreaOnly: (rect: Rectangle) => CreateAreaResult | null;
+  createPartToolAreaOnly: (rect: Rectangle, segmentationPoints?: string | null) => CreateAreaResult | null;
 
   /** Update an area's coordinates */
   updateArea: (areaId: string, rect: Rectangle) => void;
@@ -190,7 +190,7 @@ export function useVideoFrameAreaManager({
   // Create PartToolScan area
   // ========================================
   const createPartToolScanArea = useCallback(
-    (rect: Rectangle, partToolId: string): CreateAreaResult | null => {
+    (rect: Rectangle, partToolId: string, segmentationPoints?: string | null): CreateAreaResult | null => {
       const data = useEditorStore.getState().data;
       if (!videoId || !data) {
         console.warn('Cannot create part/tool area: no video');
@@ -210,6 +210,7 @@ export function useVideoFrameAreaManager({
         width: normalized.width,
         height: normalized.height,
         type: 'PartToolScan' as const,
+        segmentationPoints: segmentationPoints ?? null,
       };
 
       // Add area to store (also updates Video.frameAreaIds automatically)
@@ -250,7 +251,7 @@ export function useVideoFrameAreaManager({
   // Create PartToolScan area WITHOUT junction (for draw-first workflow)
   // ========================================
   const createPartToolAreaOnly = useCallback(
-    (rect: Rectangle): CreateAreaResult | null => {
+    (rect: Rectangle, segmentationPoints?: string | null): CreateAreaResult | null => {
       if (!videoId) {
         console.warn('Cannot create part/tool area: no video');
         return null;
@@ -269,6 +270,7 @@ export function useVideoFrameAreaManager({
         width: normalized.width,
         height: normalized.height,
         type: 'PartToolScan' as const,
+        segmentationPoints: segmentationPoints ?? null,
       };
 
       // Add area to store (also updates Video.frameAreaIds automatically)

@@ -13,6 +13,7 @@ export const en = {
   },
   common: {
     close: 'Close',
+    home: 'Home',
     cancel: 'Cancel',
     confirm: 'Confirm',
     ok: 'OK',
@@ -49,7 +50,7 @@ export const en = {
     tools: 'Tools',
     noPartsTools: 'No parts or tools',
     filterSteps: 'Filter steps',
-    showNextSteps: 'Step count',
+    showNextSteps: 'Show next steps',
     startStep: 'Start step',
     endStep: 'End step',
     clickToEdit: 'click to edit',
@@ -99,6 +100,10 @@ export const en = {
       openParts: 'Open parts & tools',
     },
     start: 'Start Assembly',
+    searchPartsTools: 'Search parts & tools...',
+    noMatchingPartsTools: 'No matching parts or tools',
+    clearPartToolFilter: 'Clear filter',
+    filterByPartTool: 'Filter by part or tool',
   },
   editorCore: {
     addNote: 'Add note',

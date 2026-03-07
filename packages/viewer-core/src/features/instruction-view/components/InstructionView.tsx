@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Fragment, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, ChevronRight, Gauge, LayoutGrid, Package, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Gauge, Home, LayoutGrid, Package, Plus, X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { Button, Drawer, TutorialClickIcon } from '@/components/ui';
@@ -66,6 +66,8 @@ interface InstructionViewProps {
   instructionId?: string;
   /** Callback to take a break (navigate to dashboard, pause tracking) */
   onBreak?: () => void;
+  /** Icon variant for the break button. 'close' shows X icon (default), 'home' shows Home icon */
+  breakVariant?: 'close' | 'home';
   /** Activity logger instance (from ViewPage) */
   activityLogger?: {
     logStepEntered: (stepId: string) => void;
@@ -150,7 +152,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, instructionId, onBreak, activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, web3FormsKey, noteIconLabels, renderEditPopover, renderPartToolEditor }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, instructionId, onBreak, breakVariant = 'close', activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, web3FormsKey, noteIconLabels, renderEditPopover, renderPartToolEditor }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -659,7 +661,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, activi
                 onClick={() => {
                   const opening = !showOverview;
                   setShowOverview(opening);
-                  if (opening) setIsPartsDrawerOpen(false);
+                  if (opening) { setIsPartsDrawerOpen(false); }
                 }}
                 className={`flex items-center gap-0.5 sm:gap-1 min-w-0 justify-center px-2 sm:px-3 h-12 sm:h-14 rounded-lg transition-colors ${
                   showOverview
@@ -693,8 +695,12 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, activi
               )}
               onClick={() => {
                 const opening = !isPartsDrawerOpen;
-                setIsPartsDrawerOpen(opening);
-                if (opening) setTutorialStep((s) => advanceOnDrawerOpen(s));
+                if (opening) {
+                  setIsPartsDrawerOpen(true);
+                  setTutorialStep((s) => advanceOnDrawerOpen(s));
+                } else {
+                  handlePartsDrawerClose();
+                }
               }}
               aria-label={t('instructionView.partsToolsOverview', 'Parts & Tools')}
             >
@@ -729,16 +735,18 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, activi
               stepNumber={currentIndex + 1}
               web3FormsKey={web3FormsKey}
             />
-            {/* Close button - always visible when onBreak exists */}
+            {/* Break button - shows Home icon (desktop) or Close icon (mweb) */}
             {onBreak && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg hover:bg-[var(--color-bg-elevated)]"
                 onClick={onBreak}
-                aria-label={t('instructionView.close', 'Close')}
+                aria-label={breakVariant === 'home' ? t('common.home', 'Home') : t('common.close', 'Close')}
               >
-                <X className="h-5 w-5 sm:h-6 sm:w-6" />
+                {breakVariant === 'home'
+                  ? <Home className="h-5 w-5 sm:h-6 sm:w-6" />
+                  : <X className="h-5 w-5 sm:h-6 sm:w-6" />}
               </Button>
             )}
           </div>
@@ -750,13 +758,11 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, activi
       <div ref={partsPanelRef}>
         <PartsDrawer
           isOpen={isPartsDrawerOpen}
-          onClose={handlePartsDrawerClose}
           currentStepNumber={currentIndex + 1}
           totalSteps={totalSteps}
           highlightedSubstepId={highlightedSubstep?.substepId}
           folderName={folderName}
           useBlurred={useBlurred}
-          tutorialHighlight={tutorialStep === 1}
           useRawVideo={useRawVideo}
           editMode={effectiveEditMode}
           renderPartToolEditor={effectiveEditMode ? renderPartToolEditor : undefined}
@@ -934,6 +940,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, activi
         >
           <StepOverview
             onStepSelect={handleOverviewStepSelect}
+            activeStepId={visibleStepId}
             useRawVideo={useRawVideo}
             folderName={folderName}
             editMode={effectiveEditMode}

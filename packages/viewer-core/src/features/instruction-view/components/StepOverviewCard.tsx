@@ -56,6 +56,7 @@ export function StepOverviewCard({
     <Card
       role="button"
       tabIndex={0}
+      data-step-id={stepId}
       onClick={onClick}
       onKeyDown={(e) => e.key === 'Enter' && onClick?.()}
       interactive
@@ -83,6 +84,7 @@ export function StepOverviewCard({
             <img
               src={previewImageUrl}
               alt={title || `${t('instructionView.step', 'Step')} ${stepNumber}`}
+              loading="lazy"
               className="w-full h-full object-contain"
             />
           ) : (

@@ -193,8 +193,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
     };
   }
 
-  // Build video sections with mvis-media:// URLs
-  const sectionFile = useBlurred ? 'video_blurred.mp4' : 'video.mp4';
+  // Build video sections with mvis-media:// URLs (sections are never blurred individually)
   const videoSections: InstructionSnapshot['videoSections'] = {};
   for (const row of data.videoSections) {
     const r = row as { id: string; video_id: string | null; start_frame: number; end_frame: number; fps?: number | null; content_aspect_ratio?: number | null };
@@ -206,14 +205,15 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
       fps: r.fps ?? null,
       content_aspect_ratio: r.content_aspect_ratio ?? null,
       viewport_keyframe_ids: kfBySection[r.id] || [],
-      url_720p: buildMediaUrl(folderName, `media/sections/${r.id}/${sectionFile}`),
+      url_720p: buildMediaUrl(folderName, `media/sections/${r.id}/video.mp4`),
       url_1080p: '',
       url_480p: '',
     };
   }
 
   // Build video frame areas with mvis-media:// URLs
-  const frameFile = useBlurred ? 'image_blurred' : 'image';
+  // When useBlurred, read from media_blurred/ folder (same filename, separate tree)
+  const frameBase = useBlurred ? 'media_blurred/frames' : 'media/frames';
   const videoFrameAreas: InstructionSnapshot['videoFrameAreas'] = {};
   for (const row of data.videoFrameAreas) {
     const r = row as {
@@ -234,7 +234,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
       width: r.width,
       height: r.height,
       segmentation_points: r.segmentation_points ?? null,
-      url_720p: buildMediaUrl(folderName, `media/frames/${r.id}/${frameFile}`),
+      url_720p: buildMediaUrl(folderName, `${frameBase}/${r.id}/image`),
       url_1080p: '',
       url_480p: '',
     };

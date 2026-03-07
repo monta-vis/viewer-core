@@ -9,6 +9,18 @@ import {
 } from '../types';
 import { useShiftKey } from '../hooks/useShiftKey';
 
+/** Derive a fill color with 20% opacity from a CSS color string.
+ *  Handles both rgba(...) format and hex colors. */
+function colorWithAlpha(color: string, alpha: number): string {
+  // rgba/hsla functional notation: replace the last numeric value (alpha) before closing paren
+  if (/\)$/.test(color)) {
+    return color.replace(/[\d.]+\)$/, `${alpha})`);
+  }
+  // Hex color: append 2-digit hex alpha
+  const hex = Math.round(alpha * 255).toString(16).padStart(2, '0');
+  return `${color}${hex}`;
+}
+
 // Re-export for backwards compatibility
 export type VideoFrameAreaData = AreaData;
 export type ResizeHandle = AreaResizeHandle;
@@ -69,8 +81,10 @@ export function AreaHighlight({
         .map((contour) =>
           contour
             .map((p, i) => {
-              const px = p.x * 100;
-              const py = p.y * 100;
+              // Points are in image-space (0-1). Remap to bbox-relative (0-100).
+              // area.x/y/width/height are already in 0-100 percentage of image.
+              const px = (((p.x * 100) - area.x) / area.width) * 100;
+              const py = (((p.y * 100) - area.y) / area.height) * 100;
               return i === 0 ? `M ${px} ${py}` : `L ${px} ${py}`;
             })
             .join(' ') + ' Z',
@@ -81,7 +95,7 @@ export function AreaHighlight({
     } catch {
       return null;
     }
-  }, [area.segmentationPoints]);
+  }, [area.segmentationPoints, area.x, area.y, area.width, area.height]);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -181,22 +195,20 @@ export function AreaHighlight({
         onClick={handleClick}
       />
 
-      {/* Visual border (non-interactive) — hidden when contour is present */}
-      {!contourPath && (
-        <div
-          className={clsx(
-            'absolute inset-0 border-2 pointer-events-none',
-            'transition-all duration-150'
-          )}
-          style={{
-            borderColor: color,
-            backgroundColor: selected ? `${color}15` : 'transparent',
-            boxShadow: editing
-              ? `0 0 0.75rem 0.25rem ${color}, inset 0 0 0.5rem 0.125rem ${color}40`
-              : undefined,
-          }}
-        />
-      )}
+      {/* Visual border (non-interactive) */}
+      <div
+        className={clsx(
+          'absolute inset-0 border-2 pointer-events-none',
+          'transition-all duration-150'
+        )}
+        style={{
+          borderColor: color,
+          backgroundColor: selected ? `${color}15` : 'transparent',
+          boxShadow: editing
+            ? `0 0 0.75rem 0.25rem ${color}, inset 0 0 0.5rem 0.125rem ${color}40`
+            : undefined,
+        }}
+      />
 
       {/* Segmentation contour overlay (replaces rectangular border when present) */}
       {contourPath && (
@@ -209,7 +221,7 @@ export function AreaHighlight({
         >
           <path
             d={contourPath}
-            fill={`${color}20`}
+            fill={colorWithAlpha(color, 0.2)}
             stroke={color}
             strokeWidth={2}
             vectorEffect="non-scaling-stroke"

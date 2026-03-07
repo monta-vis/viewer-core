@@ -122,6 +122,7 @@ export function PartToolCard({
               <img
                 src={previewImageUrl}
                 alt={name}
+                loading="lazy"
                 className="w-full h-full object-contain"
               />
             ) : (
@@ -228,6 +229,7 @@ export function PartToolCard({
               <img
                 src={previewImageUrl}
                 alt=""
+                loading="lazy"
                 className="w-full h-full object-contain"
               />
             ) : (

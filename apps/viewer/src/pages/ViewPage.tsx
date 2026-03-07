@@ -13,7 +13,7 @@ import {
   ViewerDataProvider,
   VideoProvider,
   IconButton,
-  LoadingCard,
+  LogoSpinner,
   Navbar,
   useTheme,
 } from "@monta-vis/viewer-core";
@@ -888,10 +888,7 @@ export function ViewPage() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg-base)]">
-        <LoadingCard
-          title={decodedFolderName ?? ""}
-          subtitle={t("common.loadingInstruction", "Loading instruction...")}
-        />
+        <LogoSpinner size="xl" />
       </div>
     );
   }
@@ -926,6 +923,7 @@ export function ViewPage() {
                 <InstructionView
                   selectedStepId={selectedStepId}
                   onBreak={() => navigate("/")}
+                  breakVariant="home"
                   folderName={decodedFolderName}
                   editModeActive={editEnabled && editModeActive}
                   editCallbacks={editEnabled ? editCallbacks : undefined}

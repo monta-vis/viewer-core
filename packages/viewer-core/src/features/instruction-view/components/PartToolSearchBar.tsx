@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Package, Wrench, X } from 'lucide-react';
 import { clsx } from 'clsx';
@@ -27,9 +27,10 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const results = query.trim()
+  const results = useMemo(() => query.trim()
     ? fuzzySearch(partTools, query, getSearchFields).slice(0, MAX_RESULTS)
-    : partTools.slice(0, MAX_RESULTS).map((item) => ({ item, score: 0 }));
+    : partTools.map((item) => ({ item, score: 0 })),
+  [query, partTools]);
 
   const handleSelect = useCallback((partToolId: string) => {
     setQuery('');
@@ -130,9 +131,9 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
               return (
                 <button
                   key={pt.id}
-                  type="button"
                   role="option"
                   aria-selected={index === activeIndex}
+                  type="button"
                   onClick={() => handleSelect(pt.id)}
                   className={clsx(
                     'w-full flex items-center gap-3 px-4 py-2.5 text-left',

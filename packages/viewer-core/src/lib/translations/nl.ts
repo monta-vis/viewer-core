@@ -15,6 +15,7 @@ export const nl = {
   },
   common: {
     close: 'Sluiten',
+    home: 'Startpagina',
     cancel: 'Annuleren',
     confirm: 'Bevestigen',
     ok: 'OK',
@@ -51,7 +52,7 @@ export const nl = {
     tools: 'Gereedschap',
     noPartsTools: 'Geen onderdelen of gereedschap',
     filterSteps: 'Stappen filteren',
-    showNextSteps: 'Aantal stappen',
+    showNextSteps: 'Toon volgende stappen',
     startStep: 'Beginstap',
     endStep: 'Eindstap',
     clickToEdit: 'klik om te bewerken',
@@ -101,6 +102,10 @@ export const nl = {
       openParts: 'Onderdelen en gereedschap openen',
     },
     start: 'Start',
+    searchPartsTools: 'Onderdelen en gereedschap zoeken...',
+    noMatchingPartsTools: 'Geen overeenkomende onderdelen of gereedschap',
+    clearPartToolFilter: 'Filter wissen',
+    filterByPartTool: 'Filteren op onderdeel of gereedschap',
   },
   editorCore: {
     addNote: 'Notitie toevoegen',

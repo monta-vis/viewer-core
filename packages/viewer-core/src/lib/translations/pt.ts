@@ -15,6 +15,7 @@ export const pt = {
   },
   common: {
     close: 'Fechar',
+    home: 'Início',
     cancel: 'Cancelar',
     confirm: 'Confirmar',
     ok: 'OK',
@@ -51,7 +52,7 @@ export const pt = {
     tools: 'Ferramentas',
     noPartsTools: 'Sem peças ou ferramentas',
     filterSteps: 'Filtrar passos',
-    showNextSteps: 'Número de passos',
+    showNextSteps: 'Mostrar os próximos passos',
     startStep: 'Passo inicial',
     endStep: 'Passo final',
     clickToEdit: 'clique para editar',
@@ -101,6 +102,10 @@ export const pt = {
       openParts: 'Abrir peças e ferramentas',
     },
     start: 'Iniciar',
+    searchPartsTools: 'Pesquisar peças e ferramentas...',
+    noMatchingPartsTools: 'Nenhuma peça ou ferramenta encontrada',
+    clearPartToolFilter: 'Limpar filtro',
+    filterByPartTool: 'Filtrar por peça ou ferramenta',
   },
   editorCore: {
     addNote: 'Adicionar nota',

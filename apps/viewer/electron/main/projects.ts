@@ -255,7 +255,7 @@ export function getProjectData(folderName: string): ElectronProjectData {
     }
   }
 
-  // Drop has_blurred_version columns (no longer needed — export-utils uses filesystem check)
+  // Drop has_blurred_version columns (no longer needed — blur uses media_blurred/ folder)
   {
     const migDb = new Database(dbPath);
     try {

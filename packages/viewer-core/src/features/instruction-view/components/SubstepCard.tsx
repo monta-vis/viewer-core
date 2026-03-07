@@ -610,6 +610,7 @@ export const SubstepCard = memo(function SubstepCard({
                 src={imageUrl}
                 alt={altText}
                 draggable={false}
+                loading="lazy"
                 className="w-full h-full object-contain select-none"
                 onLoad={(e) => {
                   const img = e.currentTarget;

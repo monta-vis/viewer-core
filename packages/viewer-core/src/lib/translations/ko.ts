@@ -15,6 +15,7 @@ export const ko = {
   },
   common: {
     close: '닫기',
+    home: '홈',
     cancel: '취소',
     confirm: '확인',
     ok: '확인',
@@ -51,7 +52,7 @@ export const ko = {
     tools: '도구',
     noPartsTools: '부품 또는 도구 없음',
     filterSteps: '단계 필터',
-    showNextSteps: '단계 수',
+    showNextSteps: '다음 단계 표시',
     startStep: '시작 단계',
     endStep: '종료 단계',
     clickToEdit: '클릭하여 편집',
@@ -101,6 +102,10 @@ export const ko = {
       openParts: '부품 및 도구 열기',
     },
     start: '시작',
+    searchPartsTools: '부품 및 도구 검색...',
+    noMatchingPartsTools: '일치하는 부품 또는 도구 없음',
+    clearPartToolFilter: '필터 지우기',
+    filterByPartTool: '부품 또는 도구로 필터',
   },
   editorCore: {
     addNote: '메모 추가',

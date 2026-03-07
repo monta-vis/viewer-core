@@ -417,8 +417,8 @@ export function FeedbackWidget({
         {/* Header - matching PartsDrawer style */}
         <div className="flex items-center justify-between px-4 py-1 shadow-sm bg-gradient-to-r from-[var(--color-bg-elevated)] to-[var(--color-bg-surface)]">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-[hsl(27,51%,56%)]/10">
-              <SupportAgentIcon className="h-8 w-8 text-[hsl(27,51%,56%)]" />
+            <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-[hsl(0,60%,65%)]/10">
+              <SupportAgentIcon className="h-8 w-8 text-[hsl(0,60%,65%)]" />
             </div>
             <h2 className="font-semibold text-lg text-[var(--color-text-base)]">
               {t('feedback.title', 'Report a Problem')}

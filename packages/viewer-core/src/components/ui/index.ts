@@ -13,6 +13,9 @@ export type { ColorSwatchProps, ColorSwatchSize } from './ColorSwatch'
 export { Spinner } from './Spinner'
 export type { SpinnerProps, SpinnerSize } from './Spinner'
 
+export { LogoSpinner } from './LogoSpinner'
+export type { LogoSpinnerProps } from './LogoSpinner'
+
 export { LoadingCard } from './LoadingCard'
 export type { LoadingCardProps } from './LoadingCard'
 

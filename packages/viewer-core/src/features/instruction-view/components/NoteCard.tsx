@@ -56,6 +56,7 @@ export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, o
             <img
               src={iconUrl}
               alt={categoryLabel}
+              loading="lazy"
               className="w-full h-full object-contain"
             />
           </Tooltip>
