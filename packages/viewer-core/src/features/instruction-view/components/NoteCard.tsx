@@ -4,7 +4,7 @@ import { getCategoryPriority, safetyIconUrl, NOTE_CATEGORY_STYLES, type SafetyIc
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
 import { Tooltip } from '@/components/ui/Tooltip';
 
-/** Unified note card: fixed icon + sliding text panel. */
+/** Unified note card: fixed icon + show/hide text badge. */
 interface NoteCardProps {
   safetyIconCategory: SafetyIconCategory;
   text: string;
@@ -36,21 +36,18 @@ export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, o
     iconUrl = videoFrameAreas?.[safetyIconId]?.localPath ?? null;
   }
 
+  const ariaLabel = hasText ? `${categoryLabel}: ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}` : categoryLabel;
+
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={clsx(
-        'flex items-center cursor-pointer focus:outline-none rounded-lg w-full border-2 min-h-14',
-        hasText && isExpanded
-          ? [styles.bg, styles.border, 'backdrop-blur-md']
-          : 'border-transparent bg-transparent',
-      )}
-      aria-label={hasText ? `${categoryLabel}: ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}` : categoryLabel}
-      aria-expanded={isExpanded}
-    >
-      {/* Icon — fixed size, never moves or resizes */}
-      <span className="flex-shrink-0 w-14 h-14 flex items-center justify-center">
+    <div className="flex items-end" data-testid="note-card">
+      {/* Icon button — in-flow, fixed size */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex-shrink-0 z-10 w-14 h-14 flex items-center justify-center cursor-pointer focus:outline-none rounded-lg"
+        aria-label={ariaLabel}
+        aria-expanded={isExpanded}
+      >
         {iconUrl ? (
           <Tooltip content={iconLabel ?? categoryLabel}>
             <img
@@ -63,23 +60,28 @@ export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, o
         ) : (
           <span className={clsx('text-xs font-bold uppercase', styles.text)}>{safetyIconCategory.slice(0, 3)}</span>
         )}
-      </span>
-      {/* Text panel — slides via max-width + opacity transition; hidden entirely for icon-only notes */}
-      {hasText && (
+      </button>
+      {/* Text badge — in-flow, tucked behind icon with negative margin */}
+      {hasText && isExpanded && (
         <span
+          role="button"
+          tabIndex={0}
+          aria-label={ariaLabel}
+          onClick={onToggle}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggle(); } }}
           className={clsx(
-            'overflow-hidden transition-[max-width,opacity] duration-300 ease-out',
-            isExpanded ? 'max-w-[60rem] opacity-100' : 'max-w-0 opacity-0',
+            '-ml-14 rounded-r-lg border-2 border-l-0 cursor-pointer',
+            styles.bg, styles.border,
           )}
         >
-          <span className="flex items-center gap-2 pl-2 pr-1">
+          <span className="flex items-center gap-2 pl-16 pr-2 py-1 min-h-14">
             <span className="text-lg leading-relaxed text-white">
               {text}
             </span>
           </span>
         </span>
       )}
-    </button>
+    </div>
   );
 }
 

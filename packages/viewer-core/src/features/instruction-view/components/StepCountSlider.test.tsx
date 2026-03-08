@@ -18,10 +18,13 @@ describe('StepCountSlider', () => {
   const defaultProps = {
     value: 3,
     isAll: false,
+    isAssembly: false,
+    hasMultipleAssemblies: false,
     currentStepNumber: 1,
     totalSteps: 10,
     onChange: vi.fn(),
     onAllChange: vi.fn(),
+    onAssemblyChange: vi.fn(),
     onNumberClick: vi.fn(),
   };
 
@@ -58,15 +61,15 @@ describe('StepCountSlider', () => {
   it('toggles All switch and calls onAllChange', () => {
     const onAllChange = vi.fn();
     render(<StepCountSlider {...defaultProps} onAllChange={onAllChange} />);
-    const toggle = screen.getByRole('switch');
+    const toggle = screen.getByLabelText('All');
     fireEvent.click(toggle);
     expect(onAllChange).toHaveBeenCalledWith(true);
   });
 
-  it('disables slider when isAll is true', () => {
+  it('slider stays enabled when isAll is true', () => {
     render(<StepCountSlider {...defaultProps} isAll={true} />);
     const slider = screen.getByTestId('step-count-slider');
-    expect(slider).toBeDisabled();
+    expect(slider).not.toBeDisabled();
   });
 
   it('shows "All" text when isAll is true', () => {
@@ -97,7 +100,49 @@ describe('StepCountSlider', () => {
     render(<StepCountSlider {...defaultProps} />);
     const slider = screen.getByTestId('step-count-slider');
     expect(slider).toHaveAttribute('aria-label');
-    expect(screen.getByRole('switch')).toHaveAttribute('aria-label');
+    expect(screen.getByLabelText('All')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /click to edit/i })).toBeInTheDocument();
+  });
+
+  // === Assembly toggle tests ===
+
+  it('shows assembly toggle only when hasMultipleAssemblies is true', () => {
+    render(<StepCountSlider {...defaultProps} hasMultipleAssemblies={true} />);
+    expect(screen.getByLabelText('Filter by assembly')).toBeInTheDocument();
+  });
+
+  it('hides assembly toggle when hasMultipleAssemblies is false', () => {
+    render(<StepCountSlider {...defaultProps} hasMultipleAssemblies={false} />);
+    expect(screen.queryByLabelText('Filter by assembly')).not.toBeInTheDocument();
+  });
+
+  it('slider stays enabled when isAssembly is true', () => {
+    render(<StepCountSlider {...defaultProps} isAssembly={true} hasMultipleAssemblies={true} />);
+    const slider = screen.getByTestId('step-count-slider');
+    expect(slider).not.toBeDisabled();
+  });
+
+  it('calls onAssemblyChange when assembly toggle is clicked', () => {
+    const onAssemblyChange = vi.fn();
+    render(
+      <StepCountSlider
+        {...defaultProps}
+        hasMultipleAssemblies={true}
+        onAssemblyChange={onAssemblyChange}
+      />,
+    );
+    const toggle = screen.getByLabelText('Filter by assembly');
+    fireEvent.click(toggle);
+    expect(onAssemblyChange).toHaveBeenCalledWith(true);
+  });
+
+  it('renders label and pill in the first grid row', () => {
+    render(<StepCountSlider {...defaultProps} />);
+    // Label should be present
+    const label = screen.getByTestId('step-count-row1');
+    expect(label).toBeInTheDocument();
+    // Pill button should be present in the same grid
+    const pill = screen.getByRole('button', { name: /click to edit/i });
+    expect(pill).toBeInTheDocument();
   });
 });

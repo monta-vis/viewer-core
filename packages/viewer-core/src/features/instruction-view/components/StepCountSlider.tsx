@@ -1,6 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { clsx } from 'clsx';
 import { Pencil } from 'lucide-react';
+import { AssemblyIcon } from '@/lib/icons';
 
 import { Switch } from '@/components/ui';
 
@@ -9,6 +10,10 @@ interface StepCountSliderProps {
   value: number;
   /** Whether "All" mode is active */
   isAll: boolean;
+  /** Whether assembly filter mode is active */
+  isAssembly: boolean;
+  /** Whether to show the assembly toggle (needs 2+ assemblies) */
+  hasMultipleAssemblies: boolean;
   /** Current step number (1-indexed) — start of the visible range */
   currentStepNumber: number;
   /** Total number of steps */
@@ -17,6 +22,8 @@ interface StepCountSliderProps {
   onChange: (value: number) => void;
   /** Called when "All" switch is toggled */
   onAllChange: (checked: boolean) => void;
+  /** Called when assembly switch is toggled */
+  onAssemblyChange: (checked: boolean) => void;
   /** Called when the number label is clicked (opens modal) */
   onNumberClick: () => void;
 }
@@ -27,24 +34,28 @@ const SLIDER_MAX = 6;
 /**
  * StepCountSlider - Inline slider for adjusting step count filter
  *
- * Three rows: label, range slider, number pill + All switch.
- * Slider always spans 1..6; clamped to totalSteps when fewer.
- * Designed to sit inline with PartToolCards in the flex-wrap grid.
+ * CSS grid: 3 rows × 2 columns.
+ *   Row 1: label (left, wraps naturally) | pill button (right)
+ *   Row 2: slider (spans both columns)
+ *   Row 3: assembly toggle (left)        | All toggle (right)
  */
 export function StepCountSlider({
   value,
   isAll,
+  isAssembly,
+  hasMultipleAssemblies,
   currentStepNumber,
   totalSteps,
   onChange,
   onAllChange,
+  onAssemblyChange,
   onNumberClick,
 }: StepCountSliderProps) {
   const { t } = useTranslation();
 
   const sliderMax = Math.min(SLIDER_MAX, totalSteps);
   const clampedValue = Math.min(value, sliderMax);
-  const isDisabled = isAll || totalSteps <= 1;
+  const isDisabled = totalSteps <= 1;
   const progress = sliderMax > 1
     ? ((clampedValue - 1) / (sliderMax - 1)) * 100
     : 100;
@@ -52,18 +63,44 @@ export function StepCountSlider({
   // Show the actual step range: "1" when single step, "1-3" for a range, "All" when toggled
   const endStep = isAll ? totalSteps : Math.min(currentStepNumber + value - 1, totalSteps);
   const startStep = isAll ? 1 : currentStepNumber;
-  const countDisplay = isAll
-    ? t('instructionView.all', 'All')
-    : startStep === endStep
-      ? String(startStep)
-      : `${startStep}-${endStep}`;
+  let countDisplay: string;
+  if (isAll) {
+    countDisplay = t('instructionView.all', 'All');
+  } else if (startStep === endStep) {
+    countDisplay = String(startStep);
+  } else {
+    countDisplay = `${startStep}-${endStep}`;
+  }
 
   return (
-    <div className="flex flex-col justify-between h-22 w-[9.5rem] px-2 py-1.5">
-      {/* Row 1: Label */}
-      <span className="text-xs text-[var(--color-text-muted)]">
-        {t('instructionView.showNextSteps', 'Show next steps')}
-      </span>
+    <div
+      className="flex flex-col h-22 w-[10rem] px-2 py-1 gap-0.5"
+    >
+      {/* Row 1: Label + hero number */}
+      <div className="flex items-baseline justify-between">
+        <span
+          className="text-xs uppercase tracking-wider text-[var(--color-text-muted)] font-medium"
+          data-testid="step-count-row1"
+        >
+          {t('instructionView.steps', 'Steps')}
+        </span>
+
+        {/* Hero step range — large, clickable, Montavis cyan */}
+        <button
+          type="button"
+          onClick={onNumberClick}
+          className="group flex items-center gap-1 cursor-pointer bg-transparent border-none p-0"
+          aria-label={`${countDisplay}, ${t('instructionView.clickToEdit', 'click to edit')}`}
+        >
+          <span
+            className="text-xl font-bold tabular-nums whitespace-nowrap tracking-tight text-[var(--color-secondary)] group-hover:text-[var(--color-secondary-hover)] transition-colors"
+            style={{ textShadow: '0 0 0.75rem color-mix(in srgb, var(--color-secondary) 35%, transparent)' }}
+          >
+            {countDisplay}
+          </span>
+          <Pencil className="w-2.5 h-2.5 text-[var(--color-text-subtle)] opacity-0 group-hover:opacity-100 transition-opacity" />
+        </button>
+      </div>
 
       {/* Row 2: Slider */}
       <input
@@ -76,12 +113,12 @@ export function StepCountSlider({
         aria-label={t('instructionView.showNextSteps', 'Show next steps')}
         data-testid="step-count-slider"
         className={clsx(
-          'w-full h-1.5 rounded-full appearance-none',
+          'w-full h-1 rounded-full appearance-none self-center',
           isDisabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
           // Webkit thumb
           '[&::-webkit-slider-thumb]:appearance-none',
-          '[&::-webkit-slider-thumb]:w-4',
-          '[&::-webkit-slider-thumb]:h-4',
+          '[&::-webkit-slider-thumb]:w-3.5',
+          '[&::-webkit-slider-thumb]:h-3.5',
           '[&::-webkit-slider-thumb]:rounded-full',
           '[&::-webkit-slider-thumb]:bg-[var(--color-secondary)]',
           '[&::-webkit-slider-thumb]:shadow-md',
@@ -89,8 +126,8 @@ export function StepCountSlider({
           '[&::-webkit-slider-thumb]:transition-transform',
           '[&::-webkit-slider-thumb]:hover:scale-110',
           // Firefox thumb
-          '[&::-moz-range-thumb]:w-4',
-          '[&::-moz-range-thumb]:h-4',
+          '[&::-moz-range-thumb]:w-3.5',
+          '[&::-moz-range-thumb]:h-3.5',
           '[&::-moz-range-thumb]:rounded-full',
           '[&::-moz-range-thumb]:bg-[var(--color-secondary)]',
           '[&::-moz-range-thumb]:border-none',
@@ -107,19 +144,21 @@ export function StepCountSlider({
         }}
       />
 
-      {/* Row 3: Number pill + All switch */}
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={onNumberClick}
-          className="group inline-flex items-center gap-1.5 rounded-full bg-[var(--color-bg-base)] border border-[var(--color-border-muted)] hover:border-[var(--color-border-base)] hover:bg-[var(--color-bg-elevated)] transition-all cursor-pointer px-3 py-0.5"
-          aria-label={`${countDisplay}, ${t('instructionView.clickToEdit', 'click to edit')}`}
-        >
-          <span className="text-sm font-semibold text-[var(--color-text-base)] tabular-nums">
-            {countDisplay}
-          </span>
-          <Pencil className="w-3 h-3 text-[var(--color-text-subtle)] group-hover:text-[var(--color-secondary)] transition-colors" />
-        </button>
+      {/* Row 3: Toggles */}
+      <div className="flex items-center justify-between mt-auto">
+        {hasMultipleAssemblies ? (
+          <div className="flex items-center gap-1.5">
+            <AssemblyIcon className="w-3.5 h-3.5 text-[var(--color-text-muted)]" aria-hidden="true" />
+            <Switch
+              checked={isAssembly}
+              onChange={onAssemblyChange}
+              size="sm"
+              aria-label={t('instructionView.filterByAssembly', 'Filter by assembly')}
+            />
+          </div>
+        ) : (
+          <div />
+        )}
 
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-[var(--color-text-muted)]">

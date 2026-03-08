@@ -1,5 +1,5 @@
 import { useTranslation } from 'react-i18next';
-import { Package, Wrench } from 'lucide-react';
+import { PartIcon, ToolIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
 import { Card } from '@/components/ui';
@@ -50,14 +50,14 @@ export function PartsToolsOverviewCard({
         {/* Main icons */}
         <div className="w-full h-full flex items-center justify-center gap-4">
           <div className="flex flex-col items-center gap-1">
-            <Package className="w-10 h-10 text-[var(--color-element-part)] opacity-80" />
+            <PartIcon className="w-10 h-10 text-[var(--color-element-part)] opacity-80" />
             <span className="text-xs font-medium text-[var(--color-text-muted)]">
               {totalParts}
             </span>
           </div>
           <div className="w-px h-12 bg-[var(--color-border)]" />
           <div className="flex flex-col items-center gap-1">
-            <Wrench className="w-10 h-10 text-[var(--color-element-tool)] opacity-80" />
+            <ToolIcon className="w-10 h-10 text-[var(--color-element-tool)] opacity-80" />
             <span className="text-xs font-medium text-[var(--color-text-muted)]">
               {totalTools}
             </span>

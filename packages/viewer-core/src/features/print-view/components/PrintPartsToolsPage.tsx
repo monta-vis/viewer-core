@@ -33,7 +33,7 @@ export function PrintPartsToolsPage({
   if (parts.length === 0 && tools.length === 0) return null;
 
   return (
-    <div className="print-page-break" data-testid="print-parts-tools-page">
+    <div className="print-page-break print-page" data-testid="print-parts-tools-page">
       <h2 className="print-section-header" style={{ marginBottom: '0.75rem' }}>
         {t('printView.partsAndTools', 'Parts & Tools')}
       </h2>
@@ -73,6 +73,9 @@ export function PrintPartsToolsPage({
           </div>
         </div>
       )}
+
+      {/* Spacer pushes footer to page bottom */}
+      <div className="print-page-spacer" />
 
       <PrintPageFooter instructionName={instructionName} pageNumber={pageNumber} />
     </div>

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Package, Wrench, X } from 'lucide-react';
+import { X } from 'lucide-react';
+import { PartIcon, ToolIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
 import type { PartToolRow } from '@/features/instruction';
@@ -77,7 +78,7 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
 
   // Filter mode: show chip
   if (selectedPartTool) {
-    const TypeIcon = selectedPartTool.type === 'Part' ? Package : Wrench;
+    const TypeIcon = selectedPartTool.type === 'Part' ? PartIcon : ToolIcon;
     return (
       <div className="flex items-center gap-2 h-11 px-4 bg-[var(--color-bg-surface)] rounded-xl shadow-sm shadow-black/8">
         <TypeIcon className="w-4 h-4 text-[var(--color-text-muted)] flex-shrink-0" />
@@ -127,7 +128,7 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
           ) : (
             results.map((match, index) => {
               const pt = match.item;
-              const TypeIcon = pt.type === 'Part' ? Package : Wrench;
+              const TypeIcon = pt.type === 'Part' ? PartIcon : ToolIcon;
               return (
                 <button
                   key={pt.id}

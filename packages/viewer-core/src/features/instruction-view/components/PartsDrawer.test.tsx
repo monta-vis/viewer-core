@@ -55,6 +55,7 @@ vi.mock('../context', () => ({
     videos: {},
     videoFrameAreas: {},
     partToolVideoFrameAreas: {},
+    assemblies: {},
   }),
 }));
 

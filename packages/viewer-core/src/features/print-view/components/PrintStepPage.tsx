@@ -41,10 +41,10 @@ export function PrintStepPage({
   const totalSubsteps = stepSubsteps.length;
 
   return (
-    <div className="print-page-break-before" data-testid="print-step-page">
+    <div className="print-page-break-before print-page" data-testid="print-step-page">
       {/* Step header */}
       <div style={{ marginBottom: '0.625rem' }}>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem' }}>
+        <div className="print-step-header">
           <span className="print-step-number">
             {t('printView.step', 'Step')} {step.stepNumber}
           </span>
@@ -73,6 +73,9 @@ export function PrintStepPage({
           </div>
         );
       })}
+
+      {/* Spacer pushes footer to page bottom */}
+      <div className="print-page-spacer" />
 
       <PrintPageFooter instructionName={instructionName} pageNumber={pageNumber} />
     </div>

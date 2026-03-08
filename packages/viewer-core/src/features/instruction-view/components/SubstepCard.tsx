@@ -1,7 +1,8 @@
 import { memo, type ReactNode } from 'react';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Package, GraduationCap, Play, VideoOff, Pencil } from 'lucide-react';
+import { X, GraduationCap, Play, VideoOff, Pencil } from 'lucide-react';
+import { PartToolBadge } from './PartToolBadge';
 import { clsx } from 'clsx';
 
 import { Card, TutorialClickIcon, IconButton } from '@/components/ui';
@@ -521,6 +522,15 @@ export const SubstepCard = memo(function SubstepCard({
     [isPlayingInline, videoDrawings, visibleVideoDrawingIds, imageDrawings],
   );
 
+  // Pre-compute parts/tools badge counts
+  const partToolBadge = useMemo(() => {
+    if (partTools.length === 0) return null;
+    const partCount = partTools.filter((pt) => pt.partTool.type === 'Part').length;
+    const toolCount = partTools.filter((pt) => pt.partTool.type === 'Tool').length;
+
+    return { partCount, toolCount };
+  }, [partTools]);
+
   const handleActivate = useCallback((e?: React.MouseEvent) => {
     // Suppress click after long press (loupe gesture)
     if (longPress.didLongPressRef.current) {
@@ -791,22 +801,21 @@ export const SubstepCard = memo(function SubstepCard({
         {/* Note cards - hidden during inline playback */}
         {!isPlayingInline && sortedNotes.length > 0 && (
           <div
-            className="absolute left-2 bottom-2 z-10 inline-flex flex-col gap-2 max-w-[calc(100%-1rem)]"
+            className="absolute left-0 bottom-[4.5rem] z-10 inline-flex flex-col gap-2 max-w-full"
             onClick={(e) => e.stopPropagation()}
           >
             {sortedNotes.map((noteRow) => (
-              <div key={noteRow.id} className="flex items-center gap-1">
-                <NoteCard
-                  safetyIconCategory={noteRow.note.safetyIconCategory}
-                  text={noteRow.note.text}
-                  safetyIconId={noteRow.note.safetyIconId}
-                  isExpanded={expandedNoteIds.has(noteRow.id)}
-                  onToggle={handleNoteToggle}
-                  folderName={folderName}
-                  videoFrameAreas={videoFrameAreas}
-                  iconLabel={noteIconLabels?.[noteRow.note.safetyIconId]}
-                />
-              </div>
+              <NoteCard
+                key={noteRow.id}
+                safetyIconCategory={noteRow.note.safetyIconCategory}
+                text={noteRow.note.text}
+                safetyIconId={noteRow.note.safetyIconId}
+                isExpanded={expandedNoteIds.has(noteRow.id)}
+                onToggle={handleNoteToggle}
+                folderName={folderName}
+                videoFrameAreas={videoFrameAreas}
+                iconLabel={noteIconLabels?.[noteRow.note.safetyIconId]}
+              />
             ))}
           </div>
         )}
@@ -857,20 +866,17 @@ export const SubstepCard = memo(function SubstepCard({
         )}
 
         {/* Bottom right: parts & tools badge */}
-        {!isPlayingInline && partTools.length > 0 && (
+        {!isPlayingInline && partToolBadge && (
           <div
             className="absolute bottom-2 right-2 z-10 flex items-center gap-1"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              type="button"
-              aria-label={`${partTools.length} ${t('instructionView.partsTools', 'Parts & Tools')}`}
-              className="flex items-center gap-2 px-4 h-14 rounded-full border-2 border-[var(--color-element-tool)] bg-[var(--color-element-tool)]/20 backdrop-blur-sm text-white text-base font-medium transition-all focus:outline-none cursor-pointer hover:scale-105 active:scale-95"
+            <PartToolBadge
+              partCount={partToolBadge.partCount}
+              toolCount={partToolBadge.toolCount}
+              className="backdrop-blur-sm"
               onClick={onPartToolClick}
-            >
-              <Package className="h-7 w-7 text-[var(--color-element-tool)]" />
-              <span>{partTools.length}</span>
-            </button>
+            />
           </div>
         )}
 

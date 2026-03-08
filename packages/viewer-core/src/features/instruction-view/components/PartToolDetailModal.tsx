@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, Package, Wrench, Hash, FileText, Ruler, Box, Scale, Tag } from 'lucide-react';
+import { X, Hash, FileText, Ruler, Box, Scale, Tag } from 'lucide-react';
+import { PartIcon, ToolIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
@@ -66,7 +67,7 @@ export function PartToolDetailModal({ item, onClose, folderName, partToolVideoFr
   if (!item) return null;
 
   const isPart = item.partTool.type === 'Part';
-  const Icon = isPart ? Package : Wrench;
+  const Icon = isPart ? PartIcon : ToolIcon;
   const accentColor = isPart ? 'var(--color-element-part)' : 'var(--color-element-tool)';
   const typeLabel = isPart
     ? t('instructionView.part', 'Part')

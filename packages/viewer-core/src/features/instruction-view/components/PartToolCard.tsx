@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { clsx } from 'clsx';
-import { Package, Wrench } from 'lucide-react';
+import { PartIcon, ToolIcon } from '@/lib/icons';
 
 interface PartToolCardProps {
   name: string;
@@ -37,24 +37,16 @@ export function PartToolCard({
   const [isExpanded, setIsExpanded] = useState(false);
   const [panelPosition, setPanelPosition] = useState({ top: 0, left: 0 });
   const cardRef = useRef<HTMLDivElement>(null);
-  const Icon = type === 'part' ? Package : Wrench;
+  const Icon = type === 'part' ? PartIcon : ToolIcon;
 
-  // Color scheme based on type
-  const colors = type === 'part'
-    ? {
-        accent: 'var(--color-element-part)',
-        accentRgb: '45, 212, 191', // teal
-        bg: 'rgba(45, 212, 191, 0.08)',
-        border: 'rgba(45, 212, 191, 0.25)',
-        glow: 'rgba(45, 212, 191, 0.4)',
-      }
-    : {
-        accent: 'var(--color-element-tool)',
-        accentRgb: '96, 165, 250', // blue
-        bg: 'rgba(96, 165, 250, 0.08)',
-        border: 'rgba(96, 165, 250, 0.25)',
-        glow: 'rgba(96, 165, 250, 0.4)',
-      };
+  // Color scheme based on type — derived from CSS tokens via color-mix()
+  const tokenVar = type === 'part' ? '--color-element-part' : '--color-element-tool';
+  const colors = {
+    accent: `var(${tokenVar})`,
+    bg: `color-mix(in srgb, var(${tokenVar}) 8%, transparent)`,
+    border: `color-mix(in srgb, var(${tokenVar}) 25%, transparent)`,
+    glow: `color-mix(in srgb, var(${tokenVar}) 40%, transparent)`,
+  };
 
   // Close panel on any click when expanded
   useEffect(() => {
@@ -291,7 +283,7 @@ export function PartToolCard({
               'font-mono truncate mt-0.5',
               compact ? 'text-[0.625rem]' : 'text-xs'
             )}
-            style={{ color: `rgba(${colors.accentRgb}, 0.7)` }}
+            style={{ color: `color-mix(in srgb, ${colors.accent} 70%, transparent)` }}
           >
             {partNumber || '\u00A0'}
           </div>
@@ -300,10 +292,9 @@ export function PartToolCard({
         {/* Bottom accent line */}
         <div
           className={clsx(
-            'absolute bottom-0 left-0 right-0',
+            'absolute bottom-0 left-0 right-0 h-0.5',
             'transition-all duration-200',
             'group-hover:h-1',
-            compact ? 'h-0.5' : 'h-0.5'
           )}
           style={{ background: colors.accent }}
         />

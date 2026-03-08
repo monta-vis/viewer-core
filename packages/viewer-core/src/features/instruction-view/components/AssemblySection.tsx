@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Package, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { AssemblyIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
 import { Card, Badge, IconButton } from '@/components/ui';
 import { StepAssignmentDialog } from './StepAssignmentDialog';
-import { usePreferredResolution } from '@/hooks';
 import type { Assembly } from '@/features/instruction';
 import { StepOverviewCard } from './StepOverviewCard';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
@@ -16,7 +16,6 @@ import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 export function getStepPreviewUrl(
   step: StepWithPreview,
   useRawVideo: boolean,
-  _resolution: string
 ): string | null {
   if (useRawVideo) return null;
   return step.previewLocalPath || null;
@@ -93,7 +92,6 @@ export function AssemblySection({
   allSteps,
 }: AssemblySectionProps) {
   const { t } = useTranslation();
-  const { resolvedResolution } = usePreferredResolution();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState(assembly.title ?? '');
@@ -172,7 +170,7 @@ export function AssemblySection({
             isExpanded && 'shadow-sm'
           )}
         >
-          <Package className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
+          <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
 
           {isEditingTitle ? (
             <input
@@ -245,7 +243,7 @@ export function AssemblySection({
             isExpanded && 'shadow-sm'
           )}
         >
-          <Package className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
+          <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
           <span className="flex-1 font-medium text-[var(--color-text-base)] truncate">
             {assembly.title}
           </span>
@@ -278,7 +276,7 @@ export function AssemblySection({
                   title={step.title}
                   description={step.description}
                   substepCount={step.substepCount}
-                  previewImageUrl={getStepPreviewUrl(step, useRawVideo, resolvedResolution)}
+                  previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
                   useRawVideo={useRawVideo}
                   frameCaptureData={step.frameCaptureData}
                   onClick={() => onStepSelect(step.id)}
@@ -346,7 +344,6 @@ export function UnassignedSection({
   onMoveStepToAssembly,
 }: UnassignedSectionProps) {
   const { t } = useTranslation();
-  const { resolvedResolution } = usePreferredResolution();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -427,7 +424,7 @@ export function UnassignedSection({
                 title={step.title}
                 description={step.description}
                 substepCount={step.substepCount}
-                previewImageUrl={getStepPreviewUrl(step, useRawVideo, resolvedResolution)}
+                previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
                 useRawVideo={useRawVideo}
                 frameCaptureData={step.frameCaptureData}
                 onClick={() => onStepSelect(step.id)}

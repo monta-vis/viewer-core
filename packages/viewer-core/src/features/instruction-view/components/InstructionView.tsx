@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Fragment, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Check, ChevronDown, ChevronRight, Gauge, Home, LayoutGrid, Package, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Gauge, Home, LayoutGrid, Plus, X } from 'lucide-react';
+import { PartIcon, ToolIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
 import { Button, Drawer, TutorialClickIcon } from '@/components/ui';
@@ -37,6 +38,7 @@ import { useSwipeGestures, type DrawerRefs } from '../hooks/useSwipeGestures';
 import { useVisibleStep } from '../hooks/useVisibleStep';
 import { buildVideoEntry, type SubstepVideoEntry } from '../utils/buildVideoEntry';
 import { StepSeparator } from './StepSeparator';
+import { AssemblySeparator } from './AssemblySeparator';
 
 /** Stable empty array to avoid new-reference re-renders in SubstepCard effects */
 const EMPTY_DRAWINGS: DrawingRow[] = [];
@@ -224,6 +226,47 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
 
   const totalSteps = sortedSteps.length;
 
+  // Compute separate part/tool counts per assembly (unique partToolIds by type)
+  const assemblyPartToolCounts = useMemo(() => {
+    if (!data) return new Map<string, { parts: number; tools: number }>();
+    const counts = new Map<string, { parts: number; tools: number }>();
+
+    for (const assembly of Object.values(data.assemblies)) {
+      const partIds = new Set<string>();
+      const toolIds = new Set<string>();
+      for (const stepId of assembly.stepIds) {
+        const step = data.steps[stepId];
+        if (!step) continue;
+        for (const substepId of step.substepIds) {
+          const substep = data.substeps[substepId];
+          if (!substep) continue;
+          for (const ptId of substep.partToolRowIds) {
+            const row = data.substepPartTools[ptId];
+            if (!row) continue;
+            const partTool = data.partTools[row.partToolId];
+            if (!partTool) continue;
+            if (partTool.type === 'Tool') {
+              toolIds.add(row.partToolId);
+            } else {
+              partIds.add(row.partToolId);
+            }
+          }
+        }
+      }
+      counts.set(assembly.id, { parts: partIds.size, tools: toolIds.size });
+    }
+    return counts;
+  }, [data]);
+
+  // Determine if we should show assembly separators (2+ assemblies with assigned steps)
+  const showAssemblySeparators = useMemo(() => {
+    if (!data) return false;
+    const assembliesWithSteps = Object.values(data.assemblies).filter(
+      (a) => a.stepIds.length > 0,
+    );
+    return assembliesWithSteps.length >= 2;
+  }, [data]);
+
   // Refs for step sections (scroll-to-step + useVisibleStep)
   const stepSectionRefs = useRef(new Map<string, HTMLDivElement>());
 
@@ -272,8 +315,11 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
   const [showOverview, setShowOverview] = useState(false);
 
   // State for parts drawer - starts open for initial view (closed in editor preview)
-  // Tutorial mode overrides to closed so step 0 ("click Package button") works.
+  // Tutorial mode overrides to closed so step 0 ("click PartIcon button") works.
   const [isPartsDrawerOpen, setIsPartsDrawerOpen] = useState(tutorial ? false : initialPartsDrawerOpen);
+
+  // Initial step count for PartsDrawer when opened from assembly pill
+  const [partsDrawerInitialCount, setPartsDrawerInitialCount] = useState<number | 'all' | 'assembly' | undefined>(undefined);
 
   // State for feedback widget (controlled by swipe gesture)
   const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
@@ -543,6 +589,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
         onTutorialClick: () => handleTutorialClick(id),
         onPartToolClick: () => {
           setHighlightedSubstep({ substepId: id, stepNumber });
+          setPartsDrawerInitialCount(undefined);
           setIsPartsDrawerOpen(true);
         },
       });
@@ -682,20 +729,23 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
             </div>
           )}
 
-          {/* Center: Parts/Tools drawer button - milk-glass orange style (matches SubstepCard badge) */}
+          {/* Center: Parts/Tools drawer button - diagonal split: tool (yellow) top-left, part (orange) bottom-right */}
           <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-1 justify-center">
             <button
               type="button"
               className={clsx(
-                'relative group flex items-center justify-center rounded-lg transition-all duration-200',
-                'h-12 w-12 sm:h-14 sm:w-14 m-0 bg-[var(--color-element-tool)]/10 hover:bg-[var(--color-element-tool)]/20',
-                'border border-[var(--color-element-tool)]/30 hover:border-[var(--color-element-tool)]/50',
-                'text-[var(--color-element-tool)]',
+                'relative group overflow-hidden rounded-lg transition-all duration-200',
+                'h-12 w-12 sm:h-14 sm:w-14 m-0',
+                'border border-[var(--color-border)]/30 hover:border-[var(--color-border)]/50',
                 tutorialStep === 0 && 'shadow-[inset_0_0_0_0.1875rem_var(--color-tutorial)]',
               )}
+              style={{
+                background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-element-tool) 15%, transparent) 45%, color-mix(in srgb, var(--color-element-part) 15%, transparent) 55%)',
+              }}
               onClick={() => {
                 const opening = !isPartsDrawerOpen;
                 if (opening) {
+                  setPartsDrawerInitialCount(undefined);
                   setIsPartsDrawerOpen(true);
                   setTutorialStep((s) => advanceOnDrawerOpen(s));
                 } else {
@@ -704,7 +754,14 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
               }}
               aria-label={t('instructionView.partsToolsOverview', 'Parts & Tools')}
             >
-              <Package className="h-5 w-5 sm:h-6 sm:w-6 transition-transform duration-200 group-hover:scale-110" />
+              {/* Top-left icon — Tool */}
+              <span className="absolute top-0.5 left-0.5 sm:top-1 sm:left-1" aria-hidden="true">
+                <ToolIcon className="h-5 w-5 sm:h-6 sm:w-6 text-[var(--color-element-tool)] transition-transform duration-200 group-hover:scale-110" />
+              </span>
+              {/* Bottom-right icon — Part */}
+              <span className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1" aria-hidden="true">
+                <PartIcon className="h-5 w-5 sm:h-6 sm:w-6 text-[var(--color-element-part)] transition-transform duration-200 group-hover:scale-110" />
+              </span>
               {tutorialStep === 0 && <TutorialClickIcon iconPosition="bottom-right" label={t('instructionView.tutorial.openParts')} labelPosition="bottom-right" labelWidth="10rem" />}
             </button>
           </div>
@@ -766,6 +823,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
           useRawVideo={useRawVideo}
           editMode={effectiveEditMode}
           renderPartToolEditor={effectiveEditMode ? renderPartToolEditor : undefined}
+          initialStepCount={partsDrawerInitialCount}
         />
       </div>
 
@@ -773,9 +831,33 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
       <div className="flex-1 relative overflow-hidden isolate">
           {/* All steps - scrollable single-page layout */}
           <div ref={gridContainerRef} className="h-full overflow-y-auto overscroll-y-contain scrollbar-subtle pt-3 px-1 sm:px-2">
-            {stepsWithSubsteps.map(({ step: currentStep, substeps: stepSubsteps }, stepIdx) => (
+            {stepsWithSubsteps.map(({ step: currentStep, substeps: stepSubsteps }, stepIdx) => {
+              const prevAssemblyId = stepIdx > 0 ? stepsWithSubsteps[stepIdx - 1].step.assemblyId : null;
+              const assemblyChanged = showAssemblySeparators && currentStep.assemblyId != null && currentStep.assemblyId !== prevAssemblyId;
+              const assembly = assemblyChanged && data ? data.assemblies[currentStep.assemblyId!] : null;
+
+              return (
               <div key={currentStep.id} ref={(el) => { if (el) stepSectionRefs.current.set(currentStep.id, el); }}>
-                {stepIdx > 0 && <StepSeparator stepNumber={currentStep.stepNumber} title={currentStep.title} />}
+                {assemblyChanged && assembly && (
+                  <AssemblySeparator
+                    title={assembly.title ?? assembly.id}
+                    stepCount={assembly.stepIds.length}
+                    partCount={assemblyPartToolCounts.get(assembly.id)?.parts ?? 0}
+                    toolCount={assemblyPartToolCounts.get(assembly.id)?.tools ?? 0}
+                    onPartToolClick={() => {
+                      // Scroll to first step of this assembly so PartsDrawer shows correct range
+                      const firstStepId = assembly.stepIds[0];
+                      if (firstStepId) {
+                        const el = stepSectionRefs.current.get(firstStepId);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                      setPartsDrawerInitialCount('assembly');
+                      setIsPartsDrawerOpen(true);
+                      setHighlightedSubstep(null);
+                    }}
+                  />
+                )}
+                {stepIdx > 0 && !assemblyChanged && <StepSeparator stepNumber={currentStep.stepNumber} title={currentStep.title} />}
 
                 {stepSubsteps.length === 0 ? (
                   <div className="py-8 flex items-center justify-center text-[var(--color-text-muted)]">
@@ -913,7 +995,8 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
 
             {/* Completion banner after all steps */}
             {instructionId && (

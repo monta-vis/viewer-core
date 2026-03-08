@@ -229,7 +229,6 @@ export function VideoProvider({ children, defaultFps = 30 }: VideoProviderProps)
     if (newFps) setFps(newFps);
     setIsReady(false);
     setHasError(false);
-    setCurrentTime(0);
     setIsPlaying(false);
   }, []);
 
@@ -238,7 +237,7 @@ export function VideoProvider({ children, defaultFps = 30 }: VideoProviderProps)
       const playPromise = videoRef.current.play();
       if (playPromise !== undefined) {
         playPromise.catch((error) => {
-          console.warn('Video play failed:', error);
+          console.warn('[VideoContext] Video play failed:', error);
         });
       }
     }

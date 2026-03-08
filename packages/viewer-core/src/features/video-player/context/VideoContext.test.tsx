@@ -72,6 +72,33 @@ describe('VideoContext', () => {
 
       expect(result.current.fps).toBe(24);
     });
+
+    it('does not eagerly reset currentTime when switching videos', () => {
+      const { result } = renderHook(() => useVideo(), {
+        wrapper: VideoProvider,
+      });
+
+      const mockVideo = createMockVideoElement({ duration: 100 });
+
+      act(() => {
+        result.current.registerVideoElement(mockVideo);
+        result.current.loadVideo('http://example.com/video1.mp4');
+        mockVideo.dispatchEvent(new Event('loadedmetadata'));
+      });
+
+      // Seek to a non-zero position
+      act(() => {
+        result.current.seek(42);
+      });
+      expect(result.current.currentTime).toBe(42);
+
+      // Switch to another video — currentTime should NOT be reset to 0 eagerly
+      act(() => {
+        result.current.loadVideo('http://example.com/video2.mp4');
+      });
+
+      expect(result.current.currentTime).toBe(42);
+    });
   });
 
   describe('registerVideoElement', () => {

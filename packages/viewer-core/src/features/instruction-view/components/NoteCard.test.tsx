@@ -20,44 +20,68 @@ vi.mock('@/lib/media', () => ({
   },
 }));
 
-describe('NoteCard border stability', () => {
-  const borderProps = {
+describe('NoteCard icon stability', () => {
+  const baseProps = {
     safetyIconCategory: 'Warnzeichen' as const,
     safetyIconId: 'W001-Allgemeines-Warnzeichen.png',
     text: 'Caution',
     onToggle: vi.fn(),
   };
 
-  it('always renders with border-2 regardless of expanded state', () => {
-    const { rerender } = render(<NoteCard {...borderProps} isExpanded={true} />);
-    const btn = screen.getByRole('button');
-    expect(btn.className).toContain('border-2');
-
-    rerender(<NoteCard {...borderProps} isExpanded={false} />);
-    expect(btn.className).toContain('border-2');
+  it('outer container uses flex layout for in-flow wrapping', () => {
+    render(<NoteCard {...baseProps} isExpanded={true} />);
+    const container = screen.getByTestId('note-card');
+    expect(container.className).toContain('flex');
+    expect(container.className).toContain('items-end');
+    expect(container.className).not.toContain('relative');
+    expect(container.className).not.toContain('h-14');
   });
 
-  it('applies category border color and backdrop-blur when expanded with text', () => {
-    render(<NoteCard {...borderProps} isExpanded={true} />);
-    const btn = screen.getByRole('button');
-    expect(btn.className).toContain('backdrop-blur-md');
-    expect(btn.className).not.toContain('border-transparent');
+  it('icon button is in-flow with flex-shrink-0 and fixed w-14 h-14', () => {
+    const { rerender } = render(<NoteCard {...baseProps} isExpanded={true} />);
+    const btn = screen.getByRole('button', { name: /Warnzeichen/ });
+    expect(btn.className).toContain('flex-shrink-0');
+    expect(btn.className).toContain('w-14');
+    expect(btn.className).toContain('h-14');
+    expect(btn.className).not.toContain('absolute');
+
+    rerender(<NoteCard {...baseProps} isExpanded={false} />);
+    expect(btn.className).toContain('flex-shrink-0');
+    expect(btn.className).toContain('w-14');
+    expect(btn.className).toContain('h-14');
+    expect(btn.className).not.toContain('absolute');
   });
 
-  it('always has min-h-14 to lock height during collapse', () => {
-    const { rerender } = render(<NoteCard {...borderProps} isExpanded={true} />);
-    const btn = screen.getByRole('button');
-    expect(btn.className).toContain('min-h-14');
-
-    rerender(<NoteCard {...borderProps} isExpanded={false} />);
-    expect(btn.className).toContain('min-h-14');
+  it('text badge gets its own bg/border/backdrop-blur when expanded', () => {
+    render(<NoteCard {...baseProps} isExpanded={true} />);
+    const textBadge = screen.getByText('Caution').closest('[role="button"]')!;
+    expect(textBadge.className).toContain('backdrop-blur-md');
+    expect(textBadge.className).toContain('border-2');
+    expect(textBadge.className).toContain('rounded-r-lg');
   });
 
-  it('applies border-transparent and bg-transparent when collapsed with text', () => {
-    render(<NoteCard {...borderProps} isExpanded={false} />);
-    const btn = screen.getByRole('button');
-    expect(btn.className).toContain('border-transparent');
-    expect(btn.className).toContain('bg-transparent');
+  it('expanded text badge uses -ml-14 to tuck behind icon and is in-flow', () => {
+    render(<NoteCard {...baseProps} isExpanded={true} />);
+    const textBadge = screen.getByText('Caution').closest('[role="button"]')!;
+    expect(textBadge.className).toContain('-ml-14');
+    expect(textBadge.className).not.toContain('absolute');
+  });
+
+  it('expanded text badge inner span has pl-16 for icon clearance', () => {
+    render(<NoteCard {...baseProps} isExpanded={true} />);
+    const innerSpan = screen.getByText('Caution').closest('.flex.items-center')!;
+    expect(innerSpan.className).toContain('pl-16');
+  });
+
+  it('text badge is not rendered when collapsed', () => {
+    render(<NoteCard {...baseProps} isExpanded={false} />);
+    expect(screen.queryByText('Caution')).toBeNull();
+  });
+
+  it('icon button does not have border or bg styles (only text badge does)', () => {
+    render(<NoteCard {...baseProps} isExpanded={true} />);
+    const btn = screen.getByRole('button', { name: /Warnzeichen/ });
+    expect(btn.className).not.toContain('border-2');
     expect(btn.className).not.toContain('backdrop-blur-md');
   });
 });
@@ -118,6 +142,22 @@ describe('NoteCard safety icon resolution', () => {
   });
 });
 
+describe('NoteCard text wrapping', () => {
+  const animProps = {
+    safetyIconCategory: 'Warnzeichen' as const,
+    safetyIconId: 'W001-Allgemeines-Warnzeichen.png',
+    text: 'Caution: handle with care',
+    isExpanded: true,
+    onToggle: vi.fn(),
+  };
+
+  it('allows text to wrap to multiple lines when content is long', () => {
+    render(<NoteCard {...animProps} />);
+    const textEl = screen.getByText('Caution: handle with care');
+    expect(textEl.className).not.toContain('whitespace-nowrap');
+  });
+});
+
 describe('NoteCard icon label tooltip', () => {
   const tooltipProps = {
     safetyIconCategory: 'Warnzeichen' as const,
@@ -142,5 +182,29 @@ describe('NoteCard icon label tooltip', () => {
     fireEvent.mouseEnter(wrapper);
     // categoryLabel = t('editor.safetyCategory.Warnzeichen', 'Warnzeichen') → 'Warnzeichen'
     expect(screen.getByRole('tooltip')).toHaveTextContent('Warnzeichen');
+  });
+});
+
+describe('NoteCard click behavior', () => {
+  const clickProps = {
+    safetyIconCategory: 'Warnzeichen' as const,
+    safetyIconId: 'W001-Allgemeines-Warnzeichen.png',
+    text: 'Caution',
+    isExpanded: true,
+    onToggle: vi.fn(),
+  };
+
+  it('calls onToggle when icon button is clicked', () => {
+    render(<NoteCard {...clickProps} />);
+    fireEvent.click(screen.getByRole('button', { name: /Warnzeichen/ }));
+    expect(clickProps.onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onToggle when text badge is clicked', () => {
+    const onToggle = vi.fn();
+    render(<NoteCard {...clickProps} onToggle={onToggle} />);
+    const textBadge = screen.getByText('Caution').closest('[role="button"]')!;
+    fireEvent.click(textBadge);
+    expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });

@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Package, Wrench, Pencil, Box, Ruler } from 'lucide-react';
+import { Pencil, Box, Ruler } from 'lucide-react';
+import { PartIcon, ToolIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
 import { CollapsiblePanel, IconButton, TextInputModal } from '@/components/ui';
@@ -21,10 +22,11 @@ import { StepCountSlider } from './StepCountSlider';
 // localStorage key for persisting step count preference
 const STORAGE_KEY_COUNT = 'montavis-parts-tools-step-count';
 
-function loadStepCountPreference(): number | 'all' {
+function loadStepCountPreference(): number | 'all' | 'assembly' {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_COUNT);
     if (raw === 'all') return 'all';
+    if (raw === 'assembly') return 'assembly';
     if (raw) {
       const num = parseInt(raw, 10);
       if (!isNaN(num) && num >= 1) return num;
@@ -35,7 +37,7 @@ function loadStepCountPreference(): number | 'all' {
   return 1;
 }
 
-function saveStepCountPreference(value: number | 'all'): void {
+function saveStepCountPreference(value: number | 'all' | 'assembly'): void {
   try {
     localStorage.setItem(STORAGE_KEY_COUNT, String(value));
   } catch (error) {
@@ -62,6 +64,8 @@ interface PartsDrawerProps {
   editMode?: boolean;
   /** Render function for the part/tool editor (provided by editor-core via app shell). */
   renderPartToolEditor?: (props: { item: AggregatedPartTool; onClose: () => void }) => ReactNode;
+  /** Initial step count to show when drawer opens. Default: 1 */
+  initialStepCount?: number | 'all' | 'assembly';
 }
 
 /**
@@ -85,6 +89,7 @@ export function PartsDrawer({
   useRawVideo = false,
   editMode = false,
   renderPartToolEditor,
+  initialStepCount,
 }: PartsDrawerProps) {
   const { t } = useTranslation();
   const data = useViewerData();
@@ -101,7 +106,7 @@ export function PartsDrawer({
   const [filterModalOpen, setFilterModalOpen] = useState(false);
 
   // Sliding window: selectedCount determines how many steps to show from currentStepNumber
-  const [selectedCount, setSelectedCount] = useState<number | 'all'>(loadStepCountPreference);
+  const [selectedCount, setSelectedCount] = useState<number | 'all' | 'assembly'>(loadStepCountPreference);
 
   // Track previous isOpen to detect opening transition
   const [prevIsOpen, setPrevIsOpen] = useState(false);
@@ -111,7 +116,7 @@ export function PartsDrawer({
   // BEFORE DOM commit, preventing the width animation glitch caused by stale state.
   if (isOpen && !prevIsOpen) {
     setPrevIsOpen(true);
-    setSelectedCount(1);
+    setSelectedCount(initialStepCount ?? 1);
   }
   if (!isOpen && prevIsOpen) {
     setPrevIsOpen(false);
@@ -119,9 +124,38 @@ export function PartsDrawer({
     setEditingItemId(null);
   }
 
+  // Compute assembly step range for the current step's assembly
+  const assemblyStepRange = useMemo<[number, number]>(() => {
+    if (!data) return [currentStepNumber, currentStepNumber];
+    const currentStep = Object.values(data.steps).find(
+      (s) => s.stepNumber === currentStepNumber,
+    );
+    if (!currentStep?.assemblyId) return [currentStepNumber, currentStepNumber];
+    const assemblySteps = Object.values(data.steps)
+      .filter((s) => s.assemblyId === currentStep.assemblyId);
+    const nums = assemblySteps.map((s) => s.stepNumber);
+    return [Math.min(...nums), Math.max(...nums)];
+  }, [data, currentStepNumber]);
+
+  // Whether there are 2+ assemblies with steps (controls toggle visibility)
+  const hasMultipleAssemblies = useMemo(() => {
+    if (!data) return false;
+    return Object.values(data.assemblies).filter((a) => a.stepIds.length > 0).length >= 2;
+  }, [data]);
+
   // Derive start/end from currentStepNumber + selectedCount (sliding window)
-  const startStep = selectedCount === 'all' ? 1 : currentStepNumber;
-  const endStep = selectedCount === 'all' ? totalSteps : Math.min(currentStepNumber + selectedCount - 1, totalSteps);
+  let startStep: number;
+  let endStep: number;
+  if (selectedCount === 'all') {
+    startStep = 1;
+    endStep = totalSteps;
+  } else if (selectedCount === 'assembly') {
+    startStep = assemblyStepRange[0];
+    endStep = assemblyStepRange[1];
+  } else {
+    startStep = currentStepNumber;
+    endStep = Math.min(currentStepNumber + selectedCount - 1, totalSteps);
+  }
 
   // Get filtered parts/tools using the hook
   const stepRange = useMemo<[number, number]>(
@@ -132,8 +166,9 @@ export function PartsDrawer({
 
   const allItems = useMemo(() => [...tools, ...parts], [tools, parts]);
 
-  // Check if "All" mode is active
+  // Check active filter modes
   const isAllMode = selectedCount === 'all';
+  const isAssemblyMode = selectedCount === 'assembly';
 
   // Build suggestions for step count modal: "All" + 1..totalSteps
   const stepCountSuggestions = useMemo<TextInputSuggestion[]>(() => {
@@ -157,11 +192,14 @@ export function PartsDrawer({
             <div className="flex flex-wrap gap-2 content-start">
               {/* Step filter — inline with the grid */}
               <StepCountSlider
-                value={typeof selectedCount === 'number' ? selectedCount : totalSteps}
+                value={typeof selectedCount === 'number' ? selectedCount : (endStep - startStep + 1)}
                 isAll={isAllMode}
-                currentStepNumber={currentStepNumber}
+                isAssembly={isAssemblyMode}
+                hasMultipleAssemblies={hasMultipleAssemblies}
+                currentStepNumber={startStep}
                 totalSteps={totalSteps}
                 onChange={(val) => {
+                  // Moving the slider clears assembly/all switches
                   setSelectedCount(val);
                   saveStepCountPreference(val);
                 }}
@@ -169,6 +207,15 @@ export function PartsDrawer({
                   if (checked) {
                     setSelectedCount('all');
                     saveStepCountPreference('all');
+                  } else {
+                    setSelectedCount(1);
+                    saveStepCountPreference(1);
+                  }
+                }}
+                onAssemblyChange={(checked) => {
+                  if (checked) {
+                    setSelectedCount('assembly');
+                    saveStepCountPreference('assembly');
                   } else {
                     setSelectedCount(1);
                     saveStepCountPreference(1);
@@ -230,7 +277,7 @@ export function PartsDrawer({
       {filterModalOpen && (
         <TextInputModal
           label={t('instructionView.showNextSteps', 'Show next steps')}
-          value={isAllMode ? '' : String(selectedCount)}
+          value={isAllMode || isAssemblyMode ? '' : String(selectedCount)}
           inputType="number"
           suggestions={stepCountSuggestions}
           onSelect={(id) => {
@@ -320,7 +367,7 @@ export function PartToolCard({
   onEditClick?: () => void;
 }) {
   const { t } = useTranslation();
-  const Icon = item.partTool.type === 'Part' ? Package : Wrench;
+  const Icon = item.partTool.type === 'Part' ? PartIcon : ToolIcon;
   const iconColorClass = item.partTool.type === 'Part'
     ? 'text-[var(--color-element-part)]'
     : 'text-[var(--color-element-tool)]';
@@ -369,7 +416,7 @@ export function PartToolCard({
 
   // Highlight ring when item belongs to the highlighted substep
   const highlightRingClass = isInHighlightedSubstep
-    ? 'ring-3 ring-[var(--color-element-tool)]'
+    ? `ring-3 ${item.partTool.type === 'Part' ? 'ring-[var(--color-element-part)]' : 'ring-[var(--color-element-tool)]'}`
     : '';
 
   return (

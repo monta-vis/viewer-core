@@ -8,10 +8,8 @@ interface PrintPartToolBadgeProps {
  * Compact inline badge showing part/tool name and quantity.
  */
 export function PrintPartToolBadge({ partTool }: PrintPartToolBadgeProps) {
-  const borderColor = partTool.type === 'Tool' ? '#6b7280' : 'var(--print-accent)';
-
   return (
-    <span className="print-part-badge" style={{ borderColor }}>
+    <span className="print-part-badge">
       {partTool.label && (
         <strong>{partTool.label}</strong>
       )}

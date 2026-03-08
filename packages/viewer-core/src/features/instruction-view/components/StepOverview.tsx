@@ -2,7 +2,6 @@ import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } fro
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 
-import { usePreferredResolution } from '@/hooks';
 import { UNASSIGNED_STEP_ID, sortSubstepsByVideoFrame, buildSortData, type Assembly } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byOrder, byStepNumber } from '@/lib/sortedValues';
@@ -48,7 +47,6 @@ interface StepOverviewProps {
  */
 export function StepOverview({ onStepSelect, useRawVideo = false, folderName, editMode = false, editCallbacks, activeStepId }: StepOverviewProps) {
   const { t } = useTranslation();
-  const { resolvedResolution } = usePreferredResolution();
   const data = useViewerData();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [filteredPartToolId, setFilteredPartToolId] = useState<string | null>(null);
@@ -346,7 +344,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 title={step.title}
                 description={step.description}
                 substepCount={step.substepCount}
-                previewImageUrl={getStepPreviewUrl(step, useRawVideo, resolvedResolution)}
+                previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
                 useRawVideo={useRawVideo}
                 frameCaptureData={step.frameCaptureData}
                 onClick={() => onStepSelect(step.id)}
