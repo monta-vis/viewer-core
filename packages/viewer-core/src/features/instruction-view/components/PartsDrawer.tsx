@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pencil, Box, Ruler } from 'lucide-react';
 import { PartIcon, ToolIcon } from '@/lib/icons';
@@ -105,6 +105,35 @@ export function PartsDrawer({
   // Whether the step-count filter modal is open
   const [filterModalOpen, setFilterModalOpen] = useState(false);
 
+  // Block scroll over the step-filter area so it doesn't trigger the
+  // parent horizontal scroll container.
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = filterRef.current;
+    if (!el) return;
+    // Block wheel/trackpad scroll over filter area
+    const preventWheel = (e: WheelEvent) => e.preventDefault();
+    el.addEventListener('wheel', preventWheel, { passive: false });
+    // Block drag-scroll: disable parent overflow while pointer is down
+    const lockScroll = () => {
+      if (!scrollRef.current) return;
+      scrollRef.current.style.overflowX = 'hidden';
+      const unlock = () => {
+        if (scrollRef.current) scrollRef.current.style.overflowX = '';
+        window.removeEventListener('pointerup', unlock);
+        window.removeEventListener('pointercancel', unlock);
+      };
+      window.addEventListener('pointerup', unlock, { once: true });
+      window.addEventListener('pointercancel', unlock, { once: true });
+    };
+    el.addEventListener('pointerdown', lockScroll);
+    return () => {
+      el.removeEventListener('wheel', preventWheel);
+      el.removeEventListener('pointerdown', lockScroll);
+    };
+  }, []);
+
   // Sliding window: selectedCount determines how many steps to show from currentStepNumber
   const [selectedCount, setSelectedCount] = useState<number | 'all' | 'assembly'>(loadStepCountPreference);
 
@@ -184,45 +213,45 @@ export function PartsDrawer({
   return (
     <CollapsiblePanel
       isOpen={isOpen}
-      maxHeight="50vh"
       className="bg-[var(--color-bg-surface)] shadow-md border-b border-[var(--color-border-muted)]"
     >
-        {/* Content - scrollable */}
-        <div className="overflow-y-auto scrollbar-subtle px-3">
-            <div className="flex flex-wrap gap-2 content-start">
-              {/* Step filter — inline with the grid */}
-              <StepCountSlider
-                value={typeof selectedCount === 'number' ? selectedCount : (endStep - startStep + 1)}
-                isAll={isAllMode}
-                isAssembly={isAssemblyMode}
-                hasMultipleAssemblies={hasMultipleAssemblies}
-                currentStepNumber={startStep}
-                totalSteps={totalSteps}
-                onChange={(val) => {
-                  // Moving the slider clears assembly/all switches
-                  setSelectedCount(val);
-                  saveStepCountPreference(val);
-                }}
-                onAllChange={(checked) => {
-                  if (checked) {
-                    setSelectedCount('all');
-                    saveStepCountPreference('all');
-                  } else {
-                    setSelectedCount(1);
-                    saveStepCountPreference(1);
-                  }
-                }}
-                onAssemblyChange={(checked) => {
-                  if (checked) {
-                    setSelectedCount('assembly');
-                    saveStepCountPreference('assembly');
-                  } else {
-                    setSelectedCount(1);
-                    saveStepCountPreference(1);
-                  }
-                }}
-                onNumberClick={() => setFilterModalOpen(true)}
-              />
+        {/* Content - scrollable: horizontal strip on mobile, vertical grid on desktop */}
+        <div ref={scrollRef} className="max-h-28 md:max-h-48 overflow-x-auto overflow-y-hidden md:overflow-x-hidden md:overflow-y-auto scrollbar-subtle px-3">
+            <div className="flex flex-nowrap gap-2 md:flex-wrap md:content-start">
+              <div ref={filterRef}>
+                <StepCountSlider
+                  value={typeof selectedCount === 'number' ? selectedCount : (endStep - startStep + 1)}
+                  isAll={isAllMode}
+                  isAssembly={isAssemblyMode}
+                  hasMultipleAssemblies={hasMultipleAssemblies}
+                  currentStepNumber={startStep}
+                  totalSteps={totalSteps}
+                  onChange={(val) => {
+                    // Moving the slider clears assembly/all switches
+                    setSelectedCount(val);
+                    saveStepCountPreference(val);
+                  }}
+                  onAllChange={(checked) => {
+                    if (checked) {
+                      setSelectedCount('all');
+                      saveStepCountPreference('all');
+                    } else {
+                      setSelectedCount(1);
+                      saveStepCountPreference(1);
+                    }
+                  }}
+                  onAssemblyChange={(checked) => {
+                    if (checked) {
+                      setSelectedCount('assembly');
+                      saveStepCountPreference('assembly');
+                    } else {
+                      setSelectedCount(1);
+                      saveStepCountPreference(1);
+                    }
+                  }}
+                  onNumberClick={() => setFilterModalOpen(true)}
+                />
+              </div>
 
               {allItems.map((item) => (
                 <PartToolCard
@@ -426,7 +455,7 @@ export function PartToolCard({
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
       className={clsx(
-        'flex flex-row items-stretch h-22 rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer',
+        'shrink-0 md:shrink flex flex-row items-stretch h-22 rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer',
         'shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]',
         'bg-[var(--color-bg-elevated)]',
         borderColorClass,
