@@ -61,5 +61,8 @@ export { matchTermsSearch, type MatchableEntry, type MatchResult } from './lib/m
 // Time formatting utilities
 export { formatTimecodeWithFrames } from './lib/timeFormat';
 
+// Domain icons (Part, Tool, Assembly — single source of truth)
+export { PartIcon, ToolIcon, AssemblyIcon } from './lib/icons';
+
 // Print View
 export * from './features/print-view';

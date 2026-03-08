@@ -104,6 +104,11 @@ export const en = {
     noMatchingPartsTools: 'No matching parts or tools',
     clearPartToolFilter: 'Clear filter',
     filterByPartTool: 'Filter by part or tool',
+    assembly: 'Assembly',
+    nSteps: '{{count}} Steps',
+    nParts: '{{count}} Parts',
+    nTools: '{{count}} Tools',
+    filterByAssembly: 'Filter by assembly',
   },
   editorCore: {
     addNote: 'Add note',
@@ -287,5 +292,6 @@ export const en = {
     articleNumber: 'Article Number',
     estimatedDuration: 'Estimated Duration',
     noImage: 'No image',
+    durationUnit: 'min',
   },
 } as const;

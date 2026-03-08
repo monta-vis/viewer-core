@@ -106,6 +106,11 @@ export const zh = {
     noMatchingPartsTools: '没有匹配的零件或工具',
     clearPartToolFilter: '清除筛选',
     filterByPartTool: '按零件或工具筛选',
+    assembly: '组件',
+    nSteps: '{{count}} 步骤',
+    nParts: '{{count}} 零件',
+    nTools: '{{count}} 工具',
+    filterByAssembly: '按组件筛选',
   },
   editorCore: {
     addNote: '添加备注',
@@ -289,5 +294,6 @@ export const zh = {
     articleNumber: '物料编号',
     estimatedDuration: '预计时长',
     noImage: '无图片',
+    durationUnit: '分钟',
   },
 } as const satisfies TranslationNamespaces;

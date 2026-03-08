@@ -22,9 +22,11 @@ export {
 // Components
 export { InstructionView } from './components/InstructionView';
 export { StepSeparator } from './components/StepSeparator';
+export { AssemblySeparator } from './components/AssemblySeparator';
 export { SubstepCard, type SubstepEditCallbacks } from './components/SubstepCard';
 export { StepOverview } from './components/StepOverview';
 export type { StepOverviewEditCallbacks } from './components/StepOverview';
+export { PartToolBadge } from './components/PartToolBadge';
 export { PartToolSearchBar } from './components/PartToolSearchBar';
 export { usePartToolStepMap } from './hooks/usePartToolStepMap';
 export { StepOverviewCard } from './components/StepOverviewCard';

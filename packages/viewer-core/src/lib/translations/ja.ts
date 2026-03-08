@@ -106,6 +106,11 @@ export const ja = {
     noMatchingPartsTools: '一致する部品または工具がありません',
     clearPartToolFilter: 'フィルターをクリア',
     filterByPartTool: '部品または工具でフィルター',
+    assembly: 'アセンブリ',
+    nSteps: '{{count}} ステップ',
+    nParts: '{{count}} 部品',
+    nTools: '{{count}} 工具',
+    filterByAssembly: 'アセンブリで絞り込み',
   },
   editorCore: {
     addNote: 'メモを追加',
@@ -289,5 +294,6 @@ export const ja = {
     articleNumber: '品番',
     estimatedDuration: '推定所要時間',
     noImage: '画像なし',
+    durationUnit: '分',
   },
 } as const satisfies TranslationNamespaces;

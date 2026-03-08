@@ -106,6 +106,11 @@ export const ko = {
     noMatchingPartsTools: '일치하는 부품 또는 도구 없음',
     clearPartToolFilter: '필터 지우기',
     filterByPartTool: '부품 또는 도구로 필터',
+    assembly: '어셈블리',
+    nSteps: '{{count}} 단계',
+    nParts: '{{count}} 부품',
+    nTools: '{{count}} 도구',
+    filterByAssembly: '조립별 필터',
   },
   editorCore: {
     addNote: '메모 추가',
@@ -289,5 +294,6 @@ export const ko = {
     articleNumber: '품번',
     estimatedDuration: '예상 소요 시간',
     noImage: '이미지 없음',
+    durationUnit: '분',
   },
 } as const satisfies TranslationNamespaces;

@@ -106,6 +106,11 @@ export const nl = {
     noMatchingPartsTools: 'Geen overeenkomende onderdelen of gereedschap',
     clearPartToolFilter: 'Filter wissen',
     filterByPartTool: 'Filteren op onderdeel of gereedschap',
+    assembly: 'Assemblage',
+    nSteps: '{{count}} Stappen',
+    nParts: '{{count}} Onderdelen',
+    nTools: '{{count}} Gereedschap',
+    filterByAssembly: 'Filteren op assemblage',
   },
   editorCore: {
     addNote: 'Notitie toevoegen',
@@ -289,5 +294,6 @@ export const nl = {
     articleNumber: 'Artikelnummer',
     estimatedDuration: 'Geschatte duur',
     noImage: 'Geen afbeelding',
+    durationUnit: 'min',
   },
 } as const satisfies TranslationNamespaces;

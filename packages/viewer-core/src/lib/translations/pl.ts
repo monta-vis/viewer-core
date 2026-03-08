@@ -106,6 +106,11 @@ export const pl = {
     noMatchingPartsTools: 'Brak pasujących części lub narzędzi',
     clearPartToolFilter: 'Wyczyść filtr',
     filterByPartTool: 'Filtruj wg części lub narzędzia',
+    assembly: 'Montaż',
+    nSteps: '{{count}} Kroków',
+    nParts: '{{count}} Części',
+    nTools: '{{count}} Narzędzia',
+    filterByAssembly: 'Filtruj według zespołu',
   },
   editorCore: {
     addNote: 'Dodaj notatkę',
@@ -289,5 +294,6 @@ export const pl = {
     articleNumber: 'Numer artykułu',
     estimatedDuration: 'Szacowany czas trwania',
     noImage: 'Brak obrazu',
+    durationUnit: 'min',
   },
 } as const satisfies TranslationNamespaces;
