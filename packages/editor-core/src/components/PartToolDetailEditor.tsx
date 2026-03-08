@@ -4,8 +4,10 @@ import { useTranslation } from 'react-i18next';
 import { X, Package, Wrench, Hash, FileText, Ruler, Box, Scale, ImageIcon, Trash2, Tag } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { AggregatedPartTool, PartToolRow } from '@monta-vis/viewer-core';
-import { TextInputModal, type TextInputSuggestion } from '@monta-vis/viewer-core';
+import { TextInputModal } from '@monta-vis/viewer-core';
 import type { FrameCaptureData } from '@monta-vis/viewer-core';
+import { PartToolSelectModal } from './PartToolSelectModal';
+import { toPartToolSelectItems } from './PartToolSelectList';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
 import { ImageCropDialog } from './ImageCropDialog';
 import type { PartToolTableImageCallbacks } from './PartToolTable';
@@ -123,15 +125,8 @@ export function PartToolDetailEditor({
     ? t('instructionView.part', 'Part')
     : t('instructionView.tool', 'Tool');
 
-  // Build catalog suggestions from allPartTools
-  const catalogSuggestions: TextInputSuggestion[] = useMemo(() => {
-    if (!allPartTools) return [];
-    return allPartTools.map((p) => ({
-      id: p.id,
-      label: p.name,
-      sublabel: [p.label, p.partNumber].filter(Boolean).join(' · ') || undefined,
-    }));
-  }, [allPartTools]);
+  // Build PartToolSelectItem[] from allPartTools for catalog fields
+  const partToolItems = useMemo(() => toPartToolSelectItems(allPartTools ?? []), [allPartTools]);
 
   /** i18n field labels for the TextInputModal header */
   const fieldLabels: Record<EditingField, string> = useMemo(() => ({
@@ -198,7 +193,7 @@ export function PartToolDetailEditor({
       console.warn('[PartToolDetailEditor.handleCropConfirm] onUploadImage callback not provided');
     }
     if (file && imageCallbacks?.onUploadImage) {
-      console.log('[PartToolDetailEditor.handleCropConfirm] Uploading part tool image: partTool=%s, file=%s', partToolId, file.name);
+      console.debug('[PartToolDetailEditor] Uploading part tool image: partTool=%s, file=%s', partToolId, file.name);
       imageCallbacks.onUploadImage(partToolId, file, crop);
     }
     if (cropDialogSrc) URL.revokeObjectURL(cropDialogSrc);
@@ -465,12 +460,27 @@ export function PartToolDetailEditor({
         </div>
       </div>
 
-      {/* Single TextInputModal for all field editing */}
+      {/* Modal for field editing — PartToolSelectModal for catalog fields, TextInputModal otherwise */}
       {editingField && (() => {
-        const dualConfirm =
-          hasCatalogSuggestions(editingField.field) &&
-          !!onCreatePartTool &&
-          item.partTool.name !== '';
+        const isCatalog = hasCatalogSuggestions(editingField.field);
+        const dualConfirm = isCatalog && !!onCreatePartTool && item.partTool.name !== '';
+        if (isCatalog && partToolItems.length > 0) {
+          return (
+            <PartToolSelectModal
+              label={fieldLabels[editingField.field]}
+              value={editingField.currentValue}
+              inputType="text"
+              onConfirm={handleFieldConfirm}
+              onCancel={handleFieldCancel}
+              items={partToolItems}
+              onSelect={handleNameSelect}
+              getPreviewUrl={previewImageUrl != null ? () => previewImageUrl : undefined}
+              onSecondaryConfirm={dualConfirm ? handleSecondaryConfirm : undefined}
+              secondaryConfirmLabel={dualConfirm ? t('editorCore.createNewPartTool', 'Create new') : undefined}
+              confirmLabel={dualConfirm ? t('editorCore.updateExisting', 'Update') : undefined}
+            />
+          );
+        }
         return (
           <TextInputModal
             label={fieldLabels[editingField.field]}
@@ -478,11 +488,6 @@ export function PartToolDetailEditor({
             inputType={editingField.field === 'amount' ? 'number' : editingField.field === 'description' ? 'textarea' : 'text'}
             onConfirm={handleFieldConfirm}
             onCancel={handleFieldCancel}
-            suggestions={hasCatalogSuggestions(editingField.field) ? catalogSuggestions : undefined}
-            onSelect={hasCatalogSuggestions(editingField.field) ? handleNameSelect : undefined}
-            onSecondaryConfirm={dualConfirm ? handleSecondaryConfirm : undefined}
-            secondaryConfirmLabel={dualConfirm ? t('editorCore.createNewPartTool', 'Create new') : undefined}
-            confirmLabel={dualConfirm ? t('editorCore.updateExisting', 'Update') : undefined}
           />
         );
       })()}

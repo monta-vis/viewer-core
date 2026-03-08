@@ -113,6 +113,10 @@ export { useImageDrawing, type UseImageDrawingProps } from './hooks/useImageDraw
 // useVideoDrawing (video-only drawing state management)
 export { useVideoDrawing, type UseVideoDrawingProps } from './hooks/useVideoDrawing';
 
+// Drawing state (shared selection, tool, color, multi-select)
+export { useDrawingState, type UseDrawingStateProps } from './hooks/useDrawingState';
+export { useDrawingDeleteKey } from './hooks/useDrawingDeleteKey';
+
 // Drawing percent helpers (frame ↔ substep percent conversion)
 export {
   prepareSections,
@@ -173,6 +177,20 @@ export { DraggableGrid } from './components/DraggableGrid';
 
 // reorderArray (immutable array reorder utility)
 export { reorderArray } from './utils/reorderArray';
+
+// PartToolSelectList (read-only selectable table list for part/tool picking)
+export {
+  PartToolSelectList,
+  toPartToolSelectItems,
+  type PartToolSelectListProps,
+  type PartToolSelectItem,
+} from './components/PartToolSelectList';
+
+// PartToolSelectModal (text input + PartToolSelectList table modal for catalog fields)
+export {
+  PartToolSelectModal,
+  type PartToolSelectModalProps,
+} from './components/PartToolSelectModal';
 
 // PartTool helpers
 export {

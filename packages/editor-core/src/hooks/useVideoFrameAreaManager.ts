@@ -43,8 +43,8 @@ export interface UseVideoFrameAreaManagerReturn {
   /** Create a PartToolScan area at current frame WITHOUT linking to a PartTool yet. */
   createPartToolAreaOnly: (rect: Rectangle, segmentationPoints?: string | null) => CreateAreaResult | null;
 
-  /** Update an area's coordinates */
-  updateArea: (areaId: string, rect: Rectangle) => void;
+  /** Update an area's coordinates (and optionally segmentation points) */
+  updateArea: (areaId: string, rect: Rectangle, segmentationPoints?: string | null) => void;
 
   /** Update an area's frame number (move to different frame) */
   updateAreaFrame: (areaId: string, newFrameNumber: number) => void;
@@ -289,14 +289,18 @@ export function useVideoFrameAreaManager({
   // Update area coordinates
   // ========================================
   const updateArea = useCallback(
-    (areaId: string, rect: Rectangle) => {
+    (areaId: string, rect: Rectangle, segmentationPoints?: string | null) => {
       const normalized = rectToNormalized(rect);
-      updateVideoFrameArea(areaId, {
+      const updates: Record<string, unknown> = {
         x: normalized.x,
         y: normalized.y,
         width: normalized.width,
         height: normalized.height,
-      });
+      };
+      if (segmentationPoints !== undefined) {
+        updates.segmentationPoints = segmentationPoints;
+      }
+      updateVideoFrameArea(areaId, updates);
     },
     [updateVideoFrameArea]
   );

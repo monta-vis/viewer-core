@@ -332,6 +332,50 @@ describe('useVideoFrameAreaManager', () => {
     });
   });
 
+  it('updateArea passes segmentationPoints when provided', () => {
+    const { result } = renderHook(() =>
+      useVideoFrameAreaManager({
+        videoId: 'vid-1',
+        versionId: 'ver-1',
+        selectedSubstepId: null,
+      }),
+    );
+
+    const points = JSON.stringify([{ x: 0.1, y: 0.2 }]);
+    act(() => {
+      result.current.updateArea('area-1', defaultRect, points);
+    });
+
+    expect(mockUpdateVideoFrameArea).toHaveBeenCalledWith('area-1', {
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 50,
+      segmentationPoints: points,
+    });
+  });
+
+  it('updateArea omits segmentationPoints when not provided', () => {
+    const { result } = renderHook(() =>
+      useVideoFrameAreaManager({
+        videoId: 'vid-1',
+        versionId: 'ver-1',
+        selectedSubstepId: null,
+      }),
+    );
+
+    act(() => {
+      result.current.updateArea('area-1', defaultRect);
+    });
+
+    expect(mockUpdateVideoFrameArea).toHaveBeenCalledWith('area-1', {
+      x: 10,
+      y: 20,
+      width: 100,
+      height: 50,
+    });
+  });
+
   it('jumpToAreaFrame calls seekFrame with area frame number', () => {
     mockData = {
       ...emptyData(),

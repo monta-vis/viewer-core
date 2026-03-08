@@ -94,6 +94,8 @@ interface VideoOverlayProps {
   };
   /** Called when user clicks on empty background (deselects all) */
   onBackgroundClick?: () => void;
+  /** When true, hide the built-in draw-mode hint indicator */
+  hideHint?: boolean;
   /** Current viewport for Ken Burns effect (always visible) */
   currentViewport?: ViewportKeyframe | null;
   /** Whether the viewport is selected for editing */
@@ -178,6 +180,7 @@ export function VideoOverlay({
   annotationResizeContainerRef,
   annotationResizeState,
   onBackgroundClick,
+  hideHint,
   currentViewport,
   isViewportSelected,
   onViewportClick,
@@ -573,7 +576,7 @@ export function VideoOverlay({
       )}
 
       {/* Draw mode indicator - outside video overlay, at container level */}
-      {isDrawMode && (
+      {isDrawMode && !hideHint && (
         <div className="absolute top-2 left-2 px-2 py-1 rounded text-xs text-white bg-black/50 z-50">
           {mode === 'area' && 'Draw area (Shift = free)'}
           {mode === 'partToolScan' && 'Scan part/tool (Shift = free)'}

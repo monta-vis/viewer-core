@@ -79,7 +79,7 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
   const inputClassName = 'w-full rounded-lg border border-[var(--color-border-base)] bg-[var(--color-bg-base)] px-3 py-2 text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]/40';
 
   return (
-    <DialogShell open blur maxWidth={onSecondaryConfirm ? 'max-w-md' : 'max-w-sm'} onClose={onCancel} className="bg-[var(--color-bg-surface)] border-[var(--color-border-muted)] space-y-4">
+    <DialogShell open blur maxWidth={onSecondaryConfirm ? 'max-w-md' : 'max-w-sm'} onClose={onCancel} className="bg-[var(--color-bg-surface)] space-y-4">
       {/* Label */}
       <h3 className="text-base font-medium text-[var(--color-text-base)]">{label}</h3>
 

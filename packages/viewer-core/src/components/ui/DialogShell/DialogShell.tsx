@@ -45,7 +45,7 @@ export function DialogShell({
   open,
   onClose,
   maxWidth = 'max-w-lg',
-  blur = false,
+  blur = true,
   className,
   children,
 }: DialogShellProps) {
@@ -84,7 +84,7 @@ export function DialogShell({
       <div
         data-testid="dialog-shell-panel"
         className={clsx(
-          'bg-[var(--color-bg-base)] border border-[var(--color-border)] rounded-xl shadow-2xl w-full mx-4 p-6',
+          'bg-[var(--color-bg-base)] border border-[var(--color-border-muted)] rounded-xl shadow-2xl w-full mx-4 p-6',
           maxWidth,
           className,
         )}

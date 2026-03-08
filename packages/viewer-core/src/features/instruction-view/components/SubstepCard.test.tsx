@@ -292,6 +292,29 @@ describe('SubstepCard — noteIconLabels', () => {
 });
 
 // ============================================================
+// isViewed — left border accent
+// ============================================================
+describe('SubstepCard — isViewed left border accent', () => {
+  it('adds left border class when isViewed is true', () => {
+    const { container } = render(<SubstepCard {...baseProps} isViewed />);
+    const card = container.firstElementChild!;
+    expect(card.className).toContain('border-l-[0.1875rem]');
+    expect(card.className).toContain('border-l-[var(--color-secondary)]');
+  });
+
+  it('does not add left border class when isViewed is false', () => {
+    const { container } = render(<SubstepCard {...baseProps} isViewed={false} />);
+    const card = container.firstElementChild!;
+    expect(card.className).not.toContain('border-l-[0.1875rem]');
+  });
+
+  it('does not render Eye icon when isViewed is true', () => {
+    render(<SubstepCard {...baseProps} isViewed />);
+    expect(screen.queryByTitle('Viewed')).not.toBeInTheDocument();
+  });
+});
+
+// ============================================================
 // Global playback speed sync (SpeedDrawer → SubstepCard)
 // ============================================================
 const videoProps = {

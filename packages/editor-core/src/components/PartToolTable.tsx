@@ -2,10 +2,12 @@ import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Trash2, Package, Wrench, ImagePlus, X } from 'lucide-react';
 import type { PartToolRow } from '@monta-vis/viewer-core';
-import { TextInputModal, type TextInputSuggestion } from '@monta-vis/viewer-core';
+import { TextInputModal } from '@monta-vis/viewer-core';
 import { computeUsedAmount, isPartToolNameValid } from '../utils/partToolHelpers';
 import { ImageCropDialog } from './ImageCropDialog';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
+import { PartToolSelectModal } from './PartToolSelectModal';
+import { toPartToolSelectItems } from './PartToolSelectList';
 import type { NormalizedCrop } from '../persistence/types';
 
 export interface PartToolTableItem {
@@ -166,14 +168,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
     callbacks.onUpdatePartTool(pt.id, { type: pt.type === 'Tool' ? 'Part' : 'Tool' });
   }, [pt.id, pt.type, callbacks]);
 
-  const suggestions: TextInputSuggestion[] = useMemo(() => {
-    if (!allPartTools) return [];
-    return allPartTools.map((p) => ({
-      id: p.id,
-      label: p.name,
-      sublabel: [p.label, p.partNumber].filter(Boolean).join(' · ') || undefined,
-    }));
-  }, [allPartTools]);
+  const partToolItems = useMemo(() => toPartToolSelectItems(allPartTools ?? []), [allPartTools]);
 
   const handleSelectSuggestion = useCallback(
     (partToolId: string) => {
@@ -395,14 +390,12 @@ const PartToolTableRow = memo(function PartToolTableRow({
           type="button"
           data-testid={`${testIdPrefix}-type-${row.rowId}`}
           aria-label={isTool ? t('editorCore.typeTool', 'Tool') : t('editorCore.typePart', 'Part')}
-          className={`flex items-center justify-center w-full rounded px-1 py-0.5 text-base font-semibold cursor-pointer transition-colors ${
-            isTool
-              ? 'bg-[var(--color-element-tool)]/15 text-[var(--color-element-tool)]'
-              : 'bg-[var(--color-element-part)]/15 text-[var(--color-element-part)]'
-          }`}
+          className="flex items-center justify-center w-full cursor-pointer transition-colors"
           onClick={toggleType}
         >
-          {isTool ? <Wrench className="h-2.5 w-2.5" /> : <Package className="h-2.5 w-2.5" />}
+          {isTool
+            ? <Wrench className="h-3 w-3 text-[var(--color-element-tool)]" />
+            : <Package className="h-3 w-3 text-[var(--color-element-part)]" />}
         </button>
       </td>
 
@@ -471,9 +464,26 @@ const PartToolTableRow = memo(function PartToolTableRow({
         </button>
       </td>
 
-      {/* TextInputModal for cell editing */}
+      {/* Modal for cell editing — PartToolSelectModal for catalog fields, TextInputModal otherwise */}
       {editingField && (() => {
         const dualConfirm = shouldShowDualConfirm(editingField.field, !!callbacks.onCreateAndReplacePartTool, pt.name);
+        if (editingField.withSuggestions) {
+          return (
+            <PartToolSelectModal
+              label={editingField.label}
+              value={editingField.value}
+              inputType={editingField.inputType}
+              onConfirm={handleFieldConfirm}
+              onCancel={handleFieldCancel}
+              items={partToolItems}
+              onSelect={handleSelectSuggestion}
+              getPreviewUrl={getPreviewUrl ? (item) => getPreviewUrl(item.id) : undefined}
+              onSecondaryConfirm={dualConfirm ? handleSecondaryConfirm : undefined}
+              secondaryConfirmLabel={dualConfirm ? t('editorCore.createNewPartTool', 'Create new') : undefined}
+              confirmLabel={dualConfirm ? t('editorCore.updateExisting', 'Update') : undefined}
+            />
+          );
+        }
         return (
           <TextInputModal
             label={editingField.label}
@@ -481,11 +491,6 @@ const PartToolTableRow = memo(function PartToolTableRow({
             inputType={editingField.inputType}
             onConfirm={handleFieldConfirm}
             onCancel={handleFieldCancel}
-            suggestions={editingField.withSuggestions ? suggestions : undefined}
-            onSelect={editingField.withSuggestions ? handleSelectSuggestion : undefined}
-            onSecondaryConfirm={dualConfirm ? handleSecondaryConfirm : undefined}
-            secondaryConfirmLabel={dualConfirm ? t('editorCore.createNewPartTool', 'Create new') : undefined}
-            confirmLabel={dualConfirm ? t('editorCore.updateExisting', 'Update') : undefined}
           />
         );
       })()}

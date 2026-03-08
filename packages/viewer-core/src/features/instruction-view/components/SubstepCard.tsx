@@ -1,7 +1,7 @@
 import { memo, type ReactNode } from 'react';
 import { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Eye, X, Package, GraduationCap, Play, VideoOff, Pencil } from 'lucide-react';
+import { X, Package, GraduationCap, Play, VideoOff, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import { Card, TutorialClickIcon, IconButton } from '@/components/ui';
@@ -559,6 +559,7 @@ export const SubstepCard = memo(function SubstepCard({
       className={clsx(
         landscape && 'h-full flex flex-col',
         tutorialDisplay && 'ring-2 ring-[var(--color-element-tutorial)]/60',
+        isViewed && 'border-l-[0.1875rem] border-l-[var(--color-secondary)]',
       )}
     >
       {/* Image area */}
@@ -781,14 +782,6 @@ export const SubstepCard = memo(function SubstepCard({
                     noteIconLabels,
                     folderName,
                   })}
-                </div>
-              )}
-              {isViewed && (
-                <div
-                  className="w-8 h-8 rounded-full bg-[var(--color-secondary)]/20 backdrop-blur-sm flex items-center justify-center shadow-lg"
-                  title={t('instructionView.viewed', 'Viewed')}
-                >
-                  <Eye className="h-4 w-4 text-[var(--color-secondary)]" />
                 </div>
               )}
             </>

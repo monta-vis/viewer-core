@@ -264,6 +264,30 @@ export function PartsDrawer({
   );
 }
 
+/** Renders the first available detail field: partNumber, material, or dimension. */
+function PartToolDetail({ partTool }: { partTool: AggregatedPartTool['partTool'] }) {
+  if (partTool.partNumber) {
+    return <span className="font-mono">#{partTool.partNumber}</span>;
+  }
+  if (partTool.material) {
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        <Box className="w-3 h-3 flex-shrink-0 inline" aria-hidden="true" />
+        {partTool.material}
+      </span>
+    );
+  }
+  if (partTool.dimension) {
+    return (
+      <span className="inline-flex items-center gap-0.5">
+        <Ruler className="w-3 h-3 flex-shrink-0 inline" aria-hidden="true" />
+        {partTool.dimension}
+      </span>
+    );
+  }
+  return <>{'\u00A0'}</>;
+}
+
 /**
  * Unified card component for parts/tools display
  * - Fixed 288px width, wraps naturally in flex container
@@ -349,9 +373,11 @@ export function PartToolCard({
     : '';
 
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
       className={clsx(
         'flex flex-row items-stretch h-22 rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer',
         'shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]',
@@ -394,19 +420,7 @@ export function PartToolCard({
 
         {/* Row 2: Optional detail — first available: partNumber, material, dimension */}
         <span className="block text-[0.65rem] leading-tight text-[var(--color-text-muted)] truncate">
-          {item.partTool.partNumber ? (
-            <span className="font-mono">#{item.partTool.partNumber}</span>
-          ) : item.partTool.material ? (
-            <span className="inline-flex items-center gap-0.5">
-              <Box className="w-3 h-3 flex-shrink-0 inline" aria-hidden="true" />
-              {item.partTool.material}
-            </span>
-          ) : item.partTool.dimension ? (
-            <span className="inline-flex items-center gap-0.5">
-              <Ruler className="w-3 h-3 flex-shrink-0 inline" aria-hidden="true" />
-              {item.partTool.dimension}
-            </span>
-          ) : '\u00A0'}
+          <PartToolDetail partTool={item.partTool} />
         </span>
 
         {/* Bottom: quantity badge + edit */}
@@ -438,6 +452,6 @@ export function PartToolCard({
           )}
         </div>
       </div>
-    </button>
+    </div>
   );
 }
