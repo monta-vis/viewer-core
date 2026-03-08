@@ -58,7 +58,7 @@ describe('PartToolListPanel', () => {
     const partTools: Record<string, PartToolRow> = {
       t1: makePt('t1', 'Wrench', 'Tool'),
       p2: makePt('p2', 'Screw', 'Part'),
-      p1: makePt('p1', 'Bolt', 'Part'),
+      p1: makePt('p1', 'Nut', 'Part'),
     };
     renderPanel({ partTools });
     const rows = screen.getAllByTestId(/^parttool-list-row-/);
@@ -85,7 +85,7 @@ describe('PartToolListPanel', () => {
   it('inline edit fields commit on blur', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
-    const partTools = { p1: makePt('p1', 'Bolt', 'Part') };
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({ partTools, callbacks: cbs });
 
     const nameInput = screen.getByTestId('parttool-list-row-name-p1');
@@ -108,7 +108,7 @@ describe('PartToolListPanel', () => {
   it('delete button calls onDeletePartTool', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
-    const partTools = { p1: makePt('p1', 'Bolt', 'Part') };
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({ partTools, callbacks: cbs });
 
     const deleteBtn = screen.getByTestId('parttool-list-row-delete-p1');
@@ -117,7 +117,7 @@ describe('PartToolListPanel', () => {
   });
 
   it('Used column shows computed amount', () => {
-    const partTools = { p1: makePt('p1', 'Bolt', 'Part', 5) };
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 5) };
     const substepPartTools = {
       spt1: { id: 'spt1', versionId: 'v1', substepId: 's1', partToolId: 'p1', amount: 2, order: 0 },
       spt2: { id: 'spt2', versionId: 'v1', substepId: 's2', partToolId: 'p1', amount: 3, order: 0 },
@@ -127,7 +127,7 @@ describe('PartToolListPanel', () => {
   });
 
   it('mismatch row has red styling when used !== declared', () => {
-    const partTools = { p1: makePt('p1', 'Bolt', 'Part', 5) };
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 5) };
     const substepPartTools = {
       spt1: { id: 'spt1', versionId: 'v1', substepId: 's1', partToolId: 'p1', amount: 2, order: 0 },
     };
@@ -167,7 +167,7 @@ describe('PartToolListPanel', () => {
 
   it('shows ImagePlus button when onUploadImage provided and no preview', () => {
     const cbs = { ...makeCallbacks(), onUploadImage: vi.fn() };
-    const partTools = { p1: makePt('p1', 'Bolt', 'Part') };
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({
       partTools,
       callbacks: cbs,
@@ -177,7 +177,7 @@ describe('PartToolListPanel', () => {
   });
 
   it('shows thumbnail when getPreviewUrl returns a URL', () => {
-    const partTools = { p1: makePt('p1', 'Bolt', 'Part') };
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({
       partTools,
       getPreviewUrl: () => 'http://example.com/img.jpg',
@@ -188,7 +188,7 @@ describe('PartToolListPanel', () => {
 
   it('shows delete overlay on thumbnail when onDeleteImage provided', () => {
     const cbs = { ...makeCallbacks(), onUploadImage: vi.fn(), onDeleteImage: vi.fn() };
-    const partTools = { p1: makePt('p1', 'Bolt', 'Part') };
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({
       partTools,
       callbacks: cbs,

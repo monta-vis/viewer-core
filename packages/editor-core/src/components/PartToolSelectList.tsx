@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Package, Wrench } from 'lucide-react';
+import { PartIcon, ToolIcon } from '@monta-vis/viewer-core';
 
 export interface PartToolSelectItem {
   id: string;
@@ -107,6 +107,7 @@ export function PartToolSelectList({ items, onSelect, getPreviewUrl, emptyMessag
       <tbody>
         {sortedItems.map((item) => {
           const isTool = item.type === 'tool';
+          const TypeIcon = isTool ? ToolIcon : PartIcon;
           const previewUrl = getPreviewUrl?.(item) ?? null;
           return (
             <tr
@@ -119,19 +120,15 @@ export function PartToolSelectList({ items, onSelect, getPreviewUrl, emptyMessag
                 <div className="h-6 w-6 rounded overflow-hidden flex items-center justify-center bg-[var(--color-bg-hover)]">
                   {previewUrl ? (
                     <img src={previewUrl} alt={item.name} className="h-full w-full object-cover" loading="lazy" />
-                  ) : isTool ? (
-                    <Wrench className="h-3 w-3 text-[var(--color-element-tool)]" />
                   ) : (
-                    <Package className="h-3 w-3 text-[var(--color-element-part)]" />
+                    <TypeIcon className={`h-3 w-3 ${isTool ? 'text-[var(--color-element-tool)]' : 'text-[var(--color-element-part)]'}`} />
                   )}
                 </div>
               </td>
 
               {/* Type icon */}
               <td className="px-2 py-1.5">
-                {isTool
-                  ? <Wrench className="h-3 w-3 text-[var(--color-element-tool)]" />
-                  : <Package className="h-3 w-3 text-[var(--color-element-part)]" />}
+                <TypeIcon className={`h-3 w-3 ${isTool ? 'text-[var(--color-element-tool)]' : 'text-[var(--color-element-part)]'}`} />
               </td>
 
               {/* Name */}

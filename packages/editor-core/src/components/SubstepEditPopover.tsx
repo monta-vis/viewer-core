@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 import {
-  Pencil, Trash2, Plus, Image, Video, Package,
+  Pencil, Trash2, Plus, Image, Video,
   GraduationCap, Repeat, StickyNote, AlignLeft, X,
   Undo2, Redo2, Upload,
 } from 'lucide-react';
@@ -19,7 +19,7 @@ import type {
   AreaData,
   Rectangle,
 } from '@monta-vis/viewer-core';
-import { TextInputModal, Button, SubstepCard, Tooltip } from '@monta-vis/viewer-core';
+import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
 import { ImageCropDialog } from './ImageCropDialog';
 import { ImageEditDialog } from './ImageEditDialog';
@@ -1006,7 +1006,7 @@ export function SubstepEditPopover({
           <div className="mt-4">
           <SectionCard
             data-testid="section-parts"
-            icon={<Package className="h-4 w-4" />}
+            icon={<PartIcon className="h-4 w-4" />}
             title={t('editorCore.partsTools', 'Parts/Tools')}
             addButton={
               <>

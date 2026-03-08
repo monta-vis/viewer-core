@@ -1,8 +1,9 @@
 import { useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Package, Plus, X, Download } from 'lucide-react';
+import { Plus, X, Download } from 'lucide-react';
 import type { PartToolRow, SubstepPartToolRow } from '@monta-vis/viewer-core';
+import { PartIcon } from '@monta-vis/viewer-core';
 import { sortPartToolRows } from '../utils/partToolHelpers';
 import { ICON_BTN_CLASS } from './editButtonStyles';
 import { PartToolTable, type PartToolTableItem, type PartToolTableCallbacks, type PartToolTableImageCallbacks } from './PartToolTable';
@@ -141,7 +142,7 @@ export function PartToolListPanel({
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-6 py-5 border-b border-[var(--color-border-base)]">
           <div className="flex items-center gap-2">
-            <Package className="h-4 w-4 text-[var(--color-element-muted)]" />
+            <PartIcon className="h-4 w-4 text-[var(--color-element-muted)]" />
             <h2 className="text-xl font-semibold text-[var(--color-text-base)]">
               {t('editorCore.partsToolsList', 'Parts / Tools')}
             </h2>

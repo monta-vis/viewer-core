@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { X, Package, Wrench, Hash, FileText, Ruler, Box, Scale, ImageIcon, Trash2, Tag } from 'lucide-react';
+import { X, Hash, FileText, Ruler, Box, Scale, ImageIcon, Trash2, Tag } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { AggregatedPartTool, PartToolRow } from '@monta-vis/viewer-core';
-import { TextInputModal } from '@monta-vis/viewer-core';
+import { TextInputModal, PartIcon, ToolIcon } from '@monta-vis/viewer-core';
 import type { FrameCaptureData } from '@monta-vis/viewer-core';
 import { PartToolSelectModal } from './PartToolSelectModal';
 import { toPartToolSelectItems } from './PartToolSelectList';
@@ -48,6 +48,13 @@ type EditingField = 'name' | 'label' | 'partNumber' | 'amount' | 'unit' | 'mater
 /** Fields that show catalog suggestions (search + swap) */
 function hasCatalogSuggestions(field: EditingField): boolean {
   return field === 'name' || field === 'label' || field === 'partNumber';
+}
+
+/** Map editing field to input type */
+function getInputType(field: EditingField): 'text' | 'number' | 'textarea' {
+  if (field === 'amount') return 'number';
+  if (field === 'description') return 'textarea';
+  return 'text';
 }
 
 /**
@@ -119,7 +126,7 @@ export function PartToolDetailEditor({
   }, []);
 
   const isPart = item.partTool.type === 'Part';
-  const Icon = isPart ? Package : Wrench;
+  const Icon = isPart ? PartIcon : ToolIcon;
   const accentColor = isPart ? 'var(--color-element-part)' : 'var(--color-element-tool)';
   const typeLabel = isPart
     ? t('instructionView.part', 'Part')
@@ -485,7 +492,7 @@ export function PartToolDetailEditor({
           <TextInputModal
             label={fieldLabels[editingField.field]}
             value={editingField.currentValue}
-            inputType={editingField.field === 'amount' ? 'number' : editingField.field === 'description' ? 'textarea' : 'text'}
+            inputType={getInputType(editingField.field)}
             onConfirm={handleFieldConfirm}
             onCancel={handleFieldCancel}
           />

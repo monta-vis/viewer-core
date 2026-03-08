@@ -1,8 +1,8 @@
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, Package, Wrench, ImagePlus, X } from 'lucide-react';
+import { Trash2, ImagePlus, X } from 'lucide-react';
 import type { PartToolRow } from '@monta-vis/viewer-core';
-import { TextInputModal } from '@monta-vis/viewer-core';
+import { TextInputModal, PartIcon, ToolIcon } from '@monta-vis/viewer-core';
 import { computeUsedAmount, isPartToolNameValid } from '../utils/partToolHelpers';
 import { ImageCropDialog } from './ImageCropDialog';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
@@ -394,8 +394,8 @@ const PartToolTableRow = memo(function PartToolTableRow({
           onClick={toggleType}
         >
           {isTool
-            ? <Wrench className="h-3 w-3 text-[var(--color-element-tool)]" />
-            : <Package className="h-3 w-3 text-[var(--color-element-part)]" />}
+            ? <ToolIcon className="h-3 w-3 text-[var(--color-element-tool)]" />
+            : <PartIcon className="h-3 w-3 text-[var(--color-element-part)]" />}
         </button>
       </td>
 
