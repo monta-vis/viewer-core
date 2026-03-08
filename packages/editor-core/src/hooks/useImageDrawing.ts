@@ -187,6 +187,7 @@ export function useImageDrawing({
     drawingTool: shared.drawingTool,
     drawingColor: shared.drawingColor,
     selectedDrawingId: shared.selectedDrawingId,
+    selectedDrawingIds: shared.selectedDrawingIds,
     textInputState,
     isDrawingMode,
 
@@ -200,6 +201,7 @@ export function useImageDrawing({
     // Handlers
     handleShapeDrawn,
     handleDrawingSelect: shared.handleDrawingSelect,
+    handleDrawingMultiSelect: shared.handleDrawingMultiSelect,
     handleDrawingDoubleClick,
     handleDrawingDelete: shared.handleDrawingDelete,
     handleDrawingToolSelect: shared.handleDrawingToolSelect,
@@ -209,5 +211,6 @@ export function useImageDrawing({
     handleTextSubmit,
     handleTextCancel,
     deselectDrawing,
+    deselectAll: shared.deselectAll,
   };
 }

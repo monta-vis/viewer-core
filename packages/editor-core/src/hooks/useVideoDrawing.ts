@@ -181,6 +181,7 @@ export function useVideoDrawing({
     drawingTool: shared.drawingTool,
     drawingColor: shared.drawingColor,
     selectedDrawingId: shared.selectedDrawingId,
+    selectedDrawingIds: shared.selectedDrawingIds,
     textInputState,
 
     // Derived data
@@ -193,6 +194,7 @@ export function useVideoDrawing({
     // Handlers
     handleShapeDrawn,
     handleDrawingSelect: shared.handleDrawingSelect,
+    handleDrawingMultiSelect: shared.handleDrawingMultiSelect,
     handleDrawingDelete: shared.handleDrawingDelete,
     handleDrawingToolSelect: shared.handleDrawingToolSelect,
     handleDrawingColorSelect: shared.handleDrawingColorSelect,
@@ -203,5 +205,6 @@ export function useVideoDrawing({
     handleTextSubmit,
     handleTextCancel,
     deselectDrawing: shared.deselectDrawing,
+    deselectAll: shared.deselectAll,
   };
 }

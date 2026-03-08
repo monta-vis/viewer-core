@@ -87,6 +87,7 @@ export {
 // Utils
 // ============================================
 
+export { applyLiveCoords } from './utils/applyLiveCoords';
 export { rectToNormalized, normalizedToRect, type NormalizedRect } from './utils/coordinates';
 
 // ============================================

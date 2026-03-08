@@ -10,7 +10,11 @@ interface AnnotationLayerProps {
   containerWidth: number;
   containerHeight: number;
   selectedId?: string | null;
+  /** Multi-select: set of selected annotation IDs */
+  selectedIds?: ReadonlySet<string>;
   onSelect?: (id: string) => void;
+  /** Called with event for multi-select support (Ctrl+click) */
+  onSelectWithEvent?: (id: string, e: React.MouseEvent) => void;
   onDeselect?: () => void;
   onDelete?: (id: string) => void;
   onHandleMouseDown?: (annotationId: string, handle: ShapeHandleType, e: React.MouseEvent) => void;
@@ -35,9 +39,10 @@ export function AnnotationLayer({
   containerWidth,
   containerHeight,
   selectedId,
+  selectedIds,
   onSelect,
+  onSelectWithEvent,
   onDeselect,
-  onDelete: _onDelete,
   onHandleMouseDown,
   bounds,
   isDrawModeActive,
@@ -49,7 +54,9 @@ export function AnnotationLayer({
       containerWidth={containerWidth}
       containerHeight={containerHeight}
       selectedId={selectedId}
+      selectedIds={selectedIds}
       onSelect={onSelect}
+      onSelectWithEvent={onSelectWithEvent}
       onDeselect={onDeselect}
       onHandleMouseDown={onHandleMouseDown}
       bounds={bounds}

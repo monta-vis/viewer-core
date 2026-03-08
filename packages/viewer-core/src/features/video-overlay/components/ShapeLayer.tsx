@@ -1,3 +1,4 @@
+import { memo, useCallback } from 'react';
 import type { ShapeHandleType, Rectangle } from '../types';
 import { ShapeRenderer, type ShapeData } from './ShapeRenderer';
 import { useShiftKey } from '../hooks/useShiftKey';
@@ -8,7 +9,11 @@ interface ShapeLayerProps<T extends ShapeData> {
   containerWidth: number;
   containerHeight: number;
   selectedId?: string | null;
+  /** Multi-select: set of selected shape IDs (takes precedence over selectedId) */
+  selectedIds?: ReadonlySet<string>;
   onSelect?: (id: string) => void;
+  /** Called with event for multi-select support (Ctrl+click) */
+  onSelectWithEvent?: (id: string, e: React.MouseEvent) => void;
   onDeselect?: () => void;
   onHandleMouseDown?: (shapeId: string, handle: ShapeHandleType, e: React.MouseEvent) => void;
   /** Bounds in container space (0-100%). When provided, shape coords are in local space (0-1) */
@@ -56,6 +61,79 @@ function transformShapeToContainerSpace<T extends ShapeData>(
 }
 
 /**
+ * Memoized wrapper that gives each shape stable callback references,
+ * avoiding per-shape closure allocation on every render.
+ */
+const ShapeItem = memo(function ShapeItem({
+  shape,
+  containerWidth,
+  containerHeight,
+  isSelected,
+  showEdgeHandles,
+  isDrawModeActive,
+  textScaleWidth,
+  shapePointerEvents,
+  onSelect,
+  onSelectWithEvent,
+  onHandleMouseDown,
+  onDoubleClick,
+}: {
+  shape: ShapeData;
+  containerWidth: number;
+  containerHeight: number;
+  isSelected: boolean;
+  showEdgeHandles: boolean;
+  isDrawModeActive: boolean;
+  textScaleWidth: number | undefined;
+  shapePointerEvents: React.CSSProperties['pointerEvents'];
+  onSelect?: (id: string) => void;
+  onSelectWithEvent?: (id: string, e: React.MouseEvent) => void;
+  onHandleMouseDown?: (shapeId: string, handle: ShapeHandleType, e: React.MouseEvent) => void;
+  onDoubleClick?: (id: string) => void;
+}) {
+  const handleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (onSelectWithEvent) {
+        onSelectWithEvent(shape.id, e);
+      } else {
+        onSelect?.(shape.id);
+      }
+    },
+    [shape.id, onSelect, onSelectWithEvent],
+  );
+
+  const handleHandleMouseDown = useCallback(
+    (handle: ShapeHandleType, e: React.MouseEvent) => {
+      onHandleMouseDown?.(shape.id, handle, e);
+    },
+    [shape.id, onHandleMouseDown],
+  );
+
+  const handleDoubleClick = useCallback(
+    () => onDoubleClick?.(shape.id),
+    [shape.id, onDoubleClick],
+  );
+
+  return (
+    <g style={{ pointerEvents: shapePointerEvents }}>
+      <ShapeRenderer
+        shape={shape}
+        containerWidth={containerWidth}
+        containerHeight={containerHeight}
+        isSelected={isSelected}
+        selectionMode={isSelected ? 'primary' : undefined}
+        showEdgeHandles={showEdgeHandles}
+        onClick={onSelect || onSelectWithEvent ? handleClick : undefined}
+        onHandleMouseDown={onHandleMouseDown ? handleHandleMouseDown : undefined}
+        isDrawModeActive={isDrawModeActive}
+        textScaleWidth={textScaleWidth}
+        onDoubleClick={onDoubleClick ? handleDoubleClick : undefined}
+      />
+    </g>
+  );
+});
+
+/**
  * ShapeLayer - Unified SVG layer for rendering multiple shapes.
  * Used by both AnnotationLayer and DrawingLayer.
  *
@@ -67,7 +145,9 @@ export function ShapeLayer<T extends ShapeData>({
   containerWidth,
   containerHeight,
   selectedId,
+  selectedIds,
   onSelect,
+  onSelectWithEvent,
   onDeselect,
   onHandleMouseDown,
   bounds,
@@ -76,12 +156,16 @@ export function ShapeLayer<T extends ShapeData>({
 }: ShapeLayerProps<T>) {
   const isShiftPressed = useShiftKey();
 
+  // Derive effective selection check
+  const isShapeSelected = (id: string) => selectedIds ? selectedIds.has(id) : selectedId === id;
+  const hasAnySelection = selectedIds ? selectedIds.size > 0 : !!selectedId;
+
   if (shapes.length === 0) return null;
 
   // Handle background click to deselect
   const handleBackgroundClick = (e: React.MouseEvent) => {
     // Only deselect if clicking directly on the SVG background (not on a shape)
-    if (e.target === e.currentTarget && selectedId) {
+    if (e.target === e.currentTarget && hasAnySelection) {
       onDeselect?.();
     }
   };
@@ -94,9 +178,9 @@ export function ShapeLayer<T extends ShapeData>({
   // Bounds pixel width for text fontSize scaling
   const boundsWidthPx = bounds ? (bounds.width / 100) * containerWidth : undefined;
 
-  // Disable pointer events when draw mode is active
-  const svgPointerEvents = isDrawModeActive ? 'none' : (selectedId ? 'auto' : 'none');
+  // Disable pointer events when draw mode is active or nothing is selected
   const shapePointerEvents = isDrawModeActive ? 'none' : 'auto';
+  const svgPointerEvents = isDrawModeActive || !hasAnySelection ? 'none' : 'auto';
 
   return (
     <svg
@@ -107,24 +191,21 @@ export function ShapeLayer<T extends ShapeData>({
       onClick={handleBackgroundClick}
     >
       {transformedShapes.map((shape) => (
-        <g key={shape.id} style={{ pointerEvents: shapePointerEvents }}>
-          <ShapeRenderer
-            shape={shape}
-            containerWidth={containerWidth}
-            containerHeight={containerHeight}
-            isSelected={selectedId === shape.id}
-            showEdgeHandles={isShiftPressed}
-            onClick={onSelect ? () => onSelect(shape.id) : undefined}
-            onHandleMouseDown={
-              onHandleMouseDown
-                ? (handle, e) => onHandleMouseDown(shape.id, handle, e)
-                : undefined
-            }
-            isDrawModeActive={isDrawModeActive}
-            textScaleWidth={boundsWidthPx}
-            onDoubleClick={onDoubleClick ? () => onDoubleClick(shape.id) : undefined}
-          />
-        </g>
+        <ShapeItem
+          key={shape.id}
+          shape={shape}
+          containerWidth={containerWidth}
+          containerHeight={containerHeight}
+          isSelected={isShapeSelected(shape.id)}
+          showEdgeHandles={isShiftPressed}
+          isDrawModeActive={isDrawModeActive}
+          textScaleWidth={boundsWidthPx}
+          shapePointerEvents={shapePointerEvents}
+          onSelect={onSelect}
+          onSelectWithEvent={onSelectWithEvent}
+          onHandleMouseDown={onHandleMouseDown}
+          onDoubleClick={onDoubleClick}
+        />
       ))}
     </svg>
   );

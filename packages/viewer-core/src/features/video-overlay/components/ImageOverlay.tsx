@@ -13,6 +13,7 @@ import type {
 import { useAreaSelection } from '../hooks/useAreaSelection';
 import { useAreaResize } from '../hooks/useAreaResize';
 import { useImageBounds } from '../hooks/useImageBounds';
+import { applyLiveCoords } from '../utils/applyLiveCoords';
 import { AreaHighlight } from './AreaHighlight';
 import { AnnotationLayer } from './AnnotationLayer';
 import { DrawingPreview } from './DrawingPreview';
@@ -76,7 +77,19 @@ interface ImageOverlayProps {
       y2: number | null;
       radius: number | null;
     } | null;
+    /** Live coordinates for all shapes during group move/resize */
+    liveGroupCoords?: ReadonlyMap<string, {
+      x1: number;
+      y1: number;
+      x2: number | null;
+      y2: number | null;
+      radius: number | null;
+    }> | null;
   };
+  /** Multi-select: set of selected annotation IDs */
+  selectedAnnotationIds?: ReadonlySet<string>;
+  /** Called with event for multi-select support (Ctrl+click) */
+  onAnnotationClickWithEvent?: (id: string, e: React.MouseEvent) => void;
   /** Called when user clicks on empty background (deselects all) */
   onBackgroundClick?: () => void;
   /** Bounds for annotation (image) drawings - coordinates in Video-Local Space (0-100%) */
@@ -120,6 +133,8 @@ export function ImageOverlay({
   onAnnotationHandleMouseDown,
   annotationResizeContainerRef,
   annotationResizeState,
+  selectedAnnotationIds,
+  onAnnotationClickWithEvent,
   onBackgroundClick,
   annotationBounds,
   onAnnotationDoubleClick,
@@ -178,31 +193,16 @@ export function ImageOverlay({
   const isAnnotationMode = mode === 'annotation';
   const isAreaDrawMode = mode === 'area';
 
-  // Apply live coords to annotation being resized
-  const annotationsWithLiveCoords = useMemo(() => {
-    if (!annotationResizeState?.isResizing || !annotationResizeState.liveCoords) {
-      return annotations;
-    }
-    return annotations.map((annotation) => {
-      if (annotation.id === annotationResizeState.resizingAnnotationId) {
-        const updated = {
-          ...annotation,
-          x1: annotationResizeState.liveCoords!.x1,
-          y1: annotationResizeState.liveCoords!.y1,
-          x2: annotationResizeState.liveCoords!.x2,
-          y2: annotationResizeState.liveCoords!.y2,
-          radius: annotationResizeState.liveCoords!.radius,
-        };
-        // Text shapes use x/y for positioning — keep them in sync
-        if (annotation.type === 'text') {
-          updated.x = annotationResizeState.liveCoords!.x1;
-          updated.y = annotationResizeState.liveCoords!.y1;
-        }
-        return updated;
-      }
-      return annotation;
-    });
-  }, [annotations, annotationResizeState]);
+  // Apply live coords to annotation being resized (single or group)
+  const annotationsWithLiveCoords = useMemo(
+    () => applyLiveCoords(annotations, {
+      isResizing: annotationResizeState?.isResizing ?? false,
+      liveGroupCoords: annotationResizeState?.liveGroupCoords,
+      liveCoords: annotationResizeState?.liveCoords ?? null,
+      resizingShapeId: annotationResizeState?.resizingAnnotationId ?? null,
+    }),
+    [annotations, annotationResizeState],
+  );
 
   // Mouse handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -323,7 +323,9 @@ export function ImageOverlay({
                 containerWidth={overlayWidth}
                 containerHeight={overlayHeight}
                 selectedId={selectedAnnotationId}
+                selectedIds={selectedAnnotationIds}
                 onSelect={onAnnotationClick ?? undefined}
+                onSelectWithEvent={onAnnotationClickWithEvent}
                 onDeselect={onAnnotationClick ? () => onAnnotationClick(null) : undefined}
                 onDelete={onAnnotationDelete}
                 onHandleMouseDown={onAnnotationHandleMouseDown}

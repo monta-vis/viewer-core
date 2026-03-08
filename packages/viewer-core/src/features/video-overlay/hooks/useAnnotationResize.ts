@@ -14,11 +14,15 @@ export interface AnnotationResizeState {
   resizingAnnotationId: string | null;
   activeHandle: ShapeHandleType | null;
   liveCoords: ShapeCoords | null;
+  /** Live coordinates for all shapes during group move/resize */
+  liveGroupCoords: ReadonlyMap<string, ShapeCoords> | null;
 }
 
 interface UseAnnotationResizeOptions {
   /** Called when resize/move is complete */
   onResizeComplete?: (annotationId: string, updates: Partial<AnnotationRow>) => void;
+  /** Called when group move/resize is complete */
+  onGroupMoveComplete?: (moves: Array<{ id: string; updates: Partial<AnnotationRow> }>) => void;
   /** Optional bounds to constrain resize/move operations */
   bounds?: Rectangle | null;
 }
@@ -29,6 +33,7 @@ interface UseAnnotationResizeOptions {
  */
 export function useAnnotationResize({
   onResizeComplete,
+  onGroupMoveComplete,
   bounds,
 }: UseAnnotationResizeOptions = {}) {
   const {
@@ -36,22 +41,17 @@ export function useAnnotationResize({
     resizingShapeId,
     activeHandle,
     liveCoords,
+    liveGroupCoords,
     containerRef,
     startResize: internalStartResize,
+    startGroupMove: internalStartGroupMove,
+    startGroupResize: internalStartGroupResize,
     cancelResize,
   } = useShapeResize<AnnotationRow>({
     onResizeComplete,
+    onGroupMoveComplete,
     bounds,
   });
-
-  // Wrap startResize to maintain the same API
-  const startResize = (
-    annotation: AnnotationRow,
-    handle: AnnotationHandleType,
-    e?: React.MouseEvent
-  ) => {
-    internalStartResize(annotation, handle, e);
-  };
 
   // Map internal state to annotation-specific naming
   const state: AnnotationResizeState = {
@@ -59,12 +59,15 @@ export function useAnnotationResize({
     resizingAnnotationId: resizingShapeId,
     activeHandle,
     liveCoords,
+    liveGroupCoords,
   };
 
   return {
     ...state,
     containerRef,
-    startResize,
+    startResize: internalStartResize,
+    startGroupMove: internalStartGroupMove,
+    startGroupResize: internalStartGroupResize,
     cancelResize,
   };
 }

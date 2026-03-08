@@ -92,7 +92,7 @@ export function ImageEditDialog({
     bounds: effectiveBounds,
   });
 
-  // Annotation resize hook
+  // Annotation resize hook (with group move/resize support)
   const annotationResize = useAnnotationResize({
     onResizeComplete: (id, coords) => {
       const updates: Partial<DrawingRow> = {
@@ -109,11 +109,22 @@ export function ImageEditDialog({
       }
       onUpdateDrawing(id, updates);
     },
+    onGroupMoveComplete: (moves) => {
+      for (const { id, updates } of moves) {
+        const finalUpdates: Partial<DrawingRow> = { ...updates };
+        const drawing = drawings[id];
+        if (drawing?.type === 'text' && updates.x1 !== undefined) {
+          finalUpdates.x = updates.x1;
+          finalUpdates.y = updates.y1;
+        }
+        onUpdateDrawing(id, finalUpdates);
+      }
+    },
     bounds: effectiveBounds,
   });
 
-  // Delete key handler for selected annotation
-  useDrawingDeleteKey(open, imageDrawing.selectedDrawingId, imageDrawing.handleDrawingDelete);
+  // Delete key handler for selected annotation (multi-select aware)
+  useDrawingDeleteKey(open, imageDrawing.selectedDrawingId, imageDrawing.handleDrawingDelete, imageDrawing.selectedDrawingIds);
 
   // Mode logic: tool selected → annotation mode, else none (area resizable)
   const overlayMode: ImageOverlayMode = imageDrawing.drawingTool ? 'annotation' : 'none';
@@ -133,30 +144,48 @@ export function ImageEditDialog({
   const handleAnnotationClick = useCallback(
     (id: string | null) => {
       if (id) {
-        imageDrawing.handleDrawingSelect(id);
+        imageDrawing.handleDrawingMultiSelect(id, null);
       } else {
         imageDrawing.deselectDrawing();
       }
     },
-    [imageDrawing.handleDrawingSelect, imageDrawing.deselectDrawing]
+    [imageDrawing.handleDrawingMultiSelect, imageDrawing.deselectDrawing]
   );
 
-  // Handle area update
-  const handleAreaUpdate = useCallback(
-    (areaId: string, rect: Rectangle) => {
-      onAreaUpdate?.(areaId, rect);
+  // Handle annotation click with event (for multi-select via Ctrl+click)
+  const handleAnnotationClickWithEvent = useCallback(
+    (id: string, e: React.MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        imageDrawing.handleDrawingMultiSelect(id, 'ctrl');
+      } else {
+        imageDrawing.handleDrawingMultiSelect(id, null);
+      }
     },
-    [onAreaUpdate]
+    [imageDrawing.handleDrawingMultiSelect],
   );
 
-  // Handle annotation resize start
+
+  // Handle annotation resize start (group move/resize aware)
   const handleAnnotationHandleMouseDown = useCallback(
     (annotationId: string, handle: string, e: React.MouseEvent) => {
       const annotation = drawings[annotationId];
       if (!annotation) return;
-      annotationResize.startResize(annotation, handle as Parameters<typeof annotationResize.startResize>[1], e);
+
+      // Group operations: if the annotation is part of a multi-selection
+      if (imageDrawing.selectedDrawingIds.size > 1 && imageDrawing.selectedDrawingIds.has(annotationId)) {
+        const selectedAnnotations = imageDrawing.annotations.filter(
+          (a) => imageDrawing.selectedDrawingIds.has(a.id),
+        );
+        if (handle === 'move') {
+          annotationResize.startGroupMove(selectedAnnotations, annotationId, e);
+        } else {
+          annotationResize.startGroupResize(selectedAnnotations, annotationId, handle as Parameters<typeof annotationResize.startGroupResize>[2], e);
+        }
+      } else {
+        annotationResize.startResize(annotation, handle as Parameters<typeof annotationResize.startResize>[1], e);
+      }
     },
-    [drawings, annotationResize]
+    [drawings, annotationResize, imageDrawing.selectedDrawingIds, imageDrawing.annotations]
   );
 
   return (
@@ -173,6 +202,8 @@ export function ImageEditDialog({
           drawings={imageDrawing.drawingCards}
           selectedDrawingId={imageDrawing.selectedDrawingId}
           onDrawingSelect={imageDrawing.handleDrawingSelect}
+          selectedDrawingIds={imageDrawing.selectedDrawingIds}
+          onDrawingMultiSelect={imageDrawing.handleDrawingMultiSelect}
           selectedDrawingFontSize={imageDrawing.selectedDrawingFontSize}
           onFontSizeSelect={imageDrawing.handleDrawingFontSizeSelect}
           drawingMode="image"
@@ -191,10 +222,12 @@ export function ImageEditDialog({
           mode={overlayMode}
           areas={areas}
           selectedAreaId={area?.id}
-          onAreaUpdate={handleAreaUpdate}
+          onAreaUpdate={onAreaUpdate}
           annotations={imageDrawing.annotations}
           selectedAnnotationId={imageDrawing.selectedDrawingId}
+          selectedAnnotationIds={imageDrawing.selectedDrawingIds}
           onAnnotationClick={handleAnnotationClick}
+          onAnnotationClickWithEvent={handleAnnotationClickWithEvent}
           onAnnotationDoubleClick={imageDrawing.handleDrawingDoubleClick}
           onAnnotationDelete={imageDrawing.handleDrawingDelete}
           annotationTool={imageDrawing.drawingTool}

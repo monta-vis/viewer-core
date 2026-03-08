@@ -10,7 +10,11 @@ interface DrawingLayerProps {
   containerWidth: number;
   containerHeight: number;
   selectedId?: string | null;
+  /** Multi-select: set of selected drawing IDs */
+  selectedIds?: ReadonlySet<string>;
   onSelect?: (id: string) => void;
+  /** Called with event for multi-select support (Ctrl+click) */
+  onSelectWithEvent?: (id: string, e: React.MouseEvent) => void;
   onDeselect?: () => void;
   onDelete?: (id: string) => void;
   onHandleMouseDown?: (drawingId: string, handle: ShapeHandleType, e: React.MouseEvent) => void;
@@ -35,9 +39,10 @@ export function DrawingLayer({
   containerWidth,
   containerHeight,
   selectedId,
+  selectedIds,
   onSelect,
+  onSelectWithEvent,
   onDeselect,
-  onDelete: _onDelete,
   onHandleMouseDown,
   bounds,
   isDrawModeActive,
@@ -49,7 +54,9 @@ export function DrawingLayer({
       containerWidth={containerWidth}
       containerHeight={containerHeight}
       selectedId={selectedId}
+      selectedIds={selectedIds}
       onSelect={onSelect}
+      onSelectWithEvent={onSelectWithEvent}
       onDeselect={onDeselect}
       onHandleMouseDown={onHandleMouseDown}
       bounds={bounds}

@@ -39,6 +39,10 @@ interface DrawingEditorProps {
   selectedDrawingId?: string | null;
   onDrawingSelect?: (id: string) => void;
 
+  // Multi-select (optional, backward compatible)
+  selectedDrawingIds?: ReadonlySet<string>;
+  onDrawingMultiSelect?: (id: string, modifier: 'ctrl' | 'shift' | null) => void;
+
   // Font size for text drawings
   selectedDrawingFontSize?: number | null;
   onFontSizeSelect?: (fontSize: number) => void;
@@ -59,6 +63,9 @@ interface DrawingEditorProps {
   onDrawingModeChange: (mode: DrawingMode) => void;
   /** Hide the image/video mode checkbox (default true) */
   showModeToggle?: boolean;
+
+  /** Called when a minicard click changes the active section type */
+  onDrawingSectionChange?: (section: 'image' | 'video') => void;
 
   // Actions
   onClose: () => void;
@@ -127,6 +134,8 @@ export function DrawingEditor({
   drawings = [],
   selectedDrawingId,
   onDrawingSelect,
+  selectedDrawingIds: selectedDrawingIdsProp,
+  onDrawingMultiSelect,
   selectedDrawingFontSize,
   onFontSizeSelect,
   minFrame: _minFrame = 0,
@@ -139,6 +148,7 @@ export function DrawingEditor({
   drawingMode,
   onDrawingModeChange,
   showModeToggle = true,
+  onDrawingSectionChange,
   onClose,
 }: DrawingEditorProps) {
   const { t } = useTranslation();
@@ -153,17 +163,37 @@ export function DrawingEditor({
     return drawings.find((d) => d.id === selectedDrawingId) ?? null;
   }, [drawings, selectedDrawingId]);
 
+  // Derive effective selection set (backward compat: single selectedDrawingId → Set)
+  const effectiveSelectedIds = useMemo(
+    () => selectedDrawingIdsProp ?? (selectedDrawingId ? new Set([selectedDrawingId]) : new Set<string>()),
+    [selectedDrawingIdsProp, selectedDrawingId],
+  );
+
+  // Selected video drawings with valid frame range (used for timeline drag + render)
+  const selectedVideoDrawings = useMemo(
+    () =>
+      drawings.filter(
+        (d) =>
+          d.type === 'video' &&
+          effectiveSelectedIds.has(d.id) &&
+          d.startFrame !== undefined &&
+          d.endFrame !== undefined,
+      ),
+    [drawings, effectiveSelectedIds],
+  );
+
   // Show selected drawing's color if one is selected, otherwise show active color
   const displayColor = selectedDrawingColor ?? activeColor;
 
-  // Sort drawings: image annotations first, then video drawings
-  const sortedDrawings = useMemo(() => {
-    const imageDrawings = drawings.filter((d) => d.type === 'image');
-    const videoDrawings = drawings
-      .filter((d) => d.type === 'video')
-      .sort((a, b) => (a.startFrame ?? 0) - (b.startFrame ?? 0));
-    return [...imageDrawings, ...videoDrawings];
-  }, [drawings]);
+  // Split drawings into image and video arrays
+  const imageDrawings = useMemo(
+    () => drawings.filter((d) => d.type === 'image'),
+    [drawings],
+  );
+  const videoDrawings = useMemo(
+    () => drawings.filter((d) => d.type === 'video').sort((a, b) => (a.startFrame ?? 0) - (b.startFrame ?? 0)),
+    [drawings],
+  );
 
   // Local state for timeline dragging
   const [isDragging, setIsDragging] = useState<'start' | 'end' | null>(null);
@@ -176,24 +206,28 @@ export function DrawingEditor({
   }, []);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!isDragging || !trackRef.current || !selectedDrawing || selectedDrawing.type !== 'video') return;
+    if (!isDragging || !trackRef.current) return;
+
+    if (selectedVideoDrawings.length === 0) return;
 
     const rect = trackRef.current.getBoundingClientRect();
     const percent = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
 
-    const startPercent = selectedDrawing.startFrame ?? 0;
-    const endPercent = selectedDrawing.endFrame ?? 100;
+    for (const d of selectedVideoDrawings) {
+      const startPercent = d.startFrame ?? 0;
+      const endPercent = d.endFrame ?? 100;
 
-    if (isDragging === 'start') {
-      const newStart = Math.min(percent, endPercent - 1);
-      onDrawingFrameUpdate?.(selectedDrawing.id, newStart, endPercent);
-      onSeekPercent?.(newStart);
-    } else {
-      const newEnd = Math.max(percent, startPercent + 1);
-      onDrawingFrameUpdate?.(selectedDrawing.id, startPercent, newEnd);
-      onSeekPercent?.(newEnd);
+      if (isDragging === 'start') {
+        const newStart = Math.min(percent, endPercent - 1);
+        onDrawingFrameUpdate?.(d.id, newStart, endPercent);
+      } else {
+        const newEnd = Math.max(percent, startPercent + 1);
+        onDrawingFrameUpdate?.(d.id, startPercent, newEnd);
+      }
     }
-  }, [isDragging, selectedDrawing, onDrawingFrameUpdate, onSeekPercent]);
+
+    onSeekPercent?.(percent);
+  }, [isDragging, selectedVideoDrawings, onDrawingFrameUpdate, onSeekPercent]);
 
   const handleMouseUp = useCallback(() => {
     setIsDragging(null);
@@ -230,6 +264,53 @@ export function DrawingEditor({
   const handleModeToggle = useCallback(() => {
     onDrawingModeChange(drawingMode === 'image' ? 'video' : 'image');
   }, [drawingMode, onDrawingModeChange]);
+
+  // Render a single minicard button
+  const renderMinicard = (drawing: DrawingCardData, section: 'image' | 'video') => {
+    const Icon = getShapeIcon(drawing.shapeType);
+    const isInSelection = effectiveSelectedIds.has(drawing.id);
+    const bgColor = drawing.type === 'image'
+      ? 'var(--color-element-image)'
+      : 'var(--color-element-drawing)';
+    const TypeIcon = drawing.type === 'image' ? Image : Video;
+
+    const handleMinicardClick = (e: React.MouseEvent) => {
+      onDrawingSectionChange?.(section);
+      if (onDrawingMultiSelect) {
+        if (e.ctrlKey || e.metaKey) {
+          onDrawingMultiSelect(drawing.id, 'ctrl');
+        } else if (e.shiftKey) {
+          onDrawingMultiSelect(drawing.id, 'shift');
+        } else {
+          onDrawingMultiSelect(drawing.id, null);
+        }
+      } else {
+        onDrawingSelect?.(drawing.id);
+      }
+    };
+
+    return (
+      <button
+        key={drawing.id}
+        type="button"
+        onClick={handleMinicardClick}
+        className={clsx(
+          'relative w-7 h-7 rounded flex items-center justify-center transition-all',
+          'hover:scale-110',
+          isInSelection && 'ring-2 ring-white',
+        )}
+        style={{ backgroundColor: bgColor }}
+        aria-label={t('editorCore.selectDrawing')}
+        aria-pressed={isInSelection}
+      >
+        <Icon className="h-3.5 w-3.5 text-white" />
+        <TypeIcon
+          className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-white opacity-80"
+          style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.5))' }}
+        />
+      </button>
+    );
+  };
 
   return (
     <div className="flex flex-col gap-2 p-3">
@@ -305,41 +386,35 @@ export function DrawingEditor({
         </div>
       )}
 
-      {/* Drawing Minicards - color-coded by type */}
-      {sortedDrawings.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1">
-          {sortedDrawings.map((drawing) => {
-            const Icon = getShapeIcon(drawing.shapeType);
-            const isSelected = selectedDrawingId === drawing.id;
-            // Blue for image annotations, green for video drawings
-            const bgColor = drawing.type === 'image'
-              ? 'var(--color-element-image)'
-              : 'var(--color-element-drawing)';
-            const TypeIcon = drawing.type === 'image' ? Image : Video;
-
-            return (
-              <button
-                key={drawing.id}
-                type="button"
-                onClick={() => onDrawingSelect?.(drawing.id)}
-                className={clsx(
-                  'relative w-7 h-7 rounded flex items-center justify-center transition-all',
-                  'hover:scale-110',
-                  isSelected && 'ring-2 ring-white'
-                )}
-                style={{ backgroundColor: bgColor }}
-                aria-label={t('editorCore.selectDrawing')}
-                aria-pressed={isSelected}
-              >
-                <Icon className="h-3.5 w-3.5 text-white" />
-                {/* Small type indicator in corner */}
-                <TypeIcon
-                  className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-white opacity-80"
-                  style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.5))' }}
-                />
-              </button>
-            );
-          })}
+      {/* Drawing Minicards - split into Video and Image sections */}
+      {(videoDrawings.length > 0 || imageDrawings.length > 0) && (
+        <div className="flex flex-col gap-2 mt-1">
+          {imageDrawings.length > 0 && (
+            <div data-testid="image-drawings-section">
+              <div className="flex items-center gap-1 mb-1">
+                <Image className="h-3 w-3 text-[var(--color-element-image)]" />
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {t('editorCore.imageDrawings', 'Image')}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {imageDrawings.map((drawing) => renderMinicard(drawing, 'image'))}
+              </div>
+            </div>
+          )}
+          {videoDrawings.length > 0 && (
+            <div data-testid="video-drawings-section">
+              <div className="flex items-center gap-1 mb-1">
+                <Video className="h-3 w-3 text-[var(--color-element-drawing)]" />
+                <span className="text-xs text-[var(--color-text-muted)]">
+                  {t('editorCore.videoDrawings', 'Video')}
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {videoDrawings.map((drawing) => renderMinicard(drawing, 'video'))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -351,36 +426,43 @@ export function DrawingEditor({
             ref={trackRef}
             className="relative h-6 bg-[var(--color-bg-surface)] rounded border border-[var(--color-border-base)]"
           >
-            {/* Drawing range bar - only when video drawing selected */}
-            {selectedDrawing?.type === 'video' && selectedDrawing.startFrame !== undefined && selectedDrawing.endFrame !== undefined && (
-              <>
-                <div
-                  className="absolute top-1 bottom-1 rounded-sm"
-                  style={{
-                    left: `${selectedDrawing.startFrame}%`,
-                    width: `${(selectedDrawing.endFrame ?? 0) - (selectedDrawing.startFrame ?? 0)}%`,
-                    backgroundColor: 'var(--color-element-drawing)',
-                    opacity: 0.6,
-                  }}
-                />
+            {/* Drawing range bar - supports multi-select combined range */}
+            {(() => {
+              if (selectedVideoDrawings.length === 0) return null;
 
-                {/* Start/End markers. When markers overlap, start is on top so user can drag it left */}
-                <TimelineMarker
-                  position={selectedDrawing.endFrame ?? 0}
-                  isDragging={isDragging === 'end'}
-                  zIndex={(selectedDrawing.endFrame ?? 0) - (selectedDrawing.startFrame ?? 0) < 5 ? 1 : 2}
-                  onMouseDown={handleMouseDown('end')}
-                  ariaLabel={t('editorCore.drawingEnd', 'End')}
-                />
-                <TimelineMarker
-                  position={selectedDrawing.startFrame ?? 0}
-                  isDragging={isDragging === 'start'}
-                  zIndex={(selectedDrawing.endFrame ?? 0) - (selectedDrawing.startFrame ?? 0) < 5 ? 2 : 1}
-                  onMouseDown={handleMouseDown('start')}
-                  ariaLabel={t('editorCore.drawingStart', 'Start')}
-                />
-              </>
-            )}
+              const combinedStart = Math.min(...selectedVideoDrawings.map((d) => d.startFrame ?? 0));
+              const combinedEnd = Math.max(...selectedVideoDrawings.map((d) => d.endFrame ?? 100));
+
+              return (
+                <>
+                  <div
+                    className="absolute top-1 bottom-1 rounded-sm"
+                    style={{
+                      left: `${combinedStart}%`,
+                      width: `${combinedEnd - combinedStart}%`,
+                      backgroundColor: 'var(--color-element-drawing)',
+                      opacity: 0.6,
+                    }}
+                  />
+
+                  {/* Start/End markers */}
+                  <TimelineMarker
+                    position={combinedEnd}
+                    isDragging={isDragging === 'end'}
+                    zIndex={combinedEnd - combinedStart < 5 ? 1 : 2}
+                    onMouseDown={handleMouseDown('end')}
+                    ariaLabel={t('editorCore.drawingEnd', 'End')}
+                  />
+                  <TimelineMarker
+                    position={combinedStart}
+                    isDragging={isDragging === 'start'}
+                    zIndex={combinedEnd - combinedStart < 5 ? 2 : 1}
+                    onMouseDown={handleMouseDown('start')}
+                    ariaLabel={t('editorCore.drawingStart', 'Start')}
+                  />
+                </>
+              );
+            })()}
           </div>
 
           {/* Time labels */}

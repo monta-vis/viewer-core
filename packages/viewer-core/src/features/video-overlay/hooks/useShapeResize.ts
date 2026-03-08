@@ -35,13 +35,57 @@ export interface ShapeResizeState {
   activeHandle: ShapeHandleType | null;
   /** Live coordinates during resize/move */
   liveCoords: ShapeCoords | null;
+  /** Live coordinates for all shapes during group move */
+  liveGroupCoords: ReadonlyMap<string, ShapeCoords> | null;
 }
 
 interface UseShapeResizeOptions<T extends ResizableShape> {
   /** Called when resize/move is complete */
   onResizeComplete?: (shapeId: string, updates: Partial<T>) => void;
+  /** Called when group move is complete */
+  onGroupMoveComplete?: (moves: Array<{ id: string; updates: Partial<T> }>) => void;
   /** Optional bounds to constrain resize/move operations (default: 0-100) */
   bounds?: Rectangle | null;
+}
+
+/**
+ * Clamp a group of shape coordinates to fit within container bounds,
+ * shifting all shapes uniformly if the group exceeds any boundary.
+ */
+function clampGroupToContainer(
+  groupCoords: Map<string, ShapeCoords>,
+  minBoundX: number,
+  minBoundY: number,
+  maxBoundX: number,
+  maxBoundY: number,
+): void {
+  let groupMinX = Infinity, groupMinY = Infinity;
+  let groupMaxX = -Infinity, groupMaxY = -Infinity;
+
+  for (const [, coords] of groupCoords) {
+    groupMinX = Math.min(groupMinX, coords.x1, coords.x2 ?? coords.x1);
+    groupMinY = Math.min(groupMinY, coords.y1, coords.y2 ?? coords.y1);
+    groupMaxX = Math.max(groupMaxX, coords.x1, coords.x2 ?? coords.x1);
+    groupMaxY = Math.max(groupMaxY, coords.y1, coords.y2 ?? coords.y1);
+  }
+
+  let adjustX = 0, adjustY = 0;
+  if (groupMinX < minBoundX) adjustX = minBoundX - groupMinX;
+  if (groupMaxX > maxBoundX) adjustX = maxBoundX - groupMaxX;
+  if (groupMinY < minBoundY) adjustY = minBoundY - groupMinY;
+  if (groupMaxY > maxBoundY) adjustY = maxBoundY - groupMaxY;
+
+  if (adjustX !== 0 || adjustY !== 0) {
+    for (const [id, coords] of groupCoords) {
+      groupCoords.set(id, {
+        x1: coords.x1 + adjustX,
+        y1: coords.y1 + adjustY,
+        x2: coords.x2 !== null ? coords.x2 + adjustX : null,
+        y2: coords.y2 !== null ? coords.y2 + adjustY : null,
+        radius: coords.radius,
+      });
+    }
+  }
 }
 
 /**
@@ -52,6 +96,7 @@ interface UseShapeResizeOptions<T extends ResizableShape> {
  */
 export function useShapeResize<T extends ResizableShape>({
   onResizeComplete,
+  onGroupMoveComplete,
   bounds,
 }: UseShapeResizeOptions<T> = {}) {
   const [state, setState] = useState<ShapeResizeState>({
@@ -59,6 +104,7 @@ export function useShapeResize<T extends ResizableShape>({
     resizingShapeId: null,
     activeHandle: null,
     liveCoords: null,
+    liveGroupCoords: null,
   });
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -67,6 +113,10 @@ export function useShapeResize<T extends ResizableShape>({
   const initialMousePosRef = useRef<{ x: number; y: number } | null>(null);
   // Store container aspect ratio for true pixel-square calculation
   const containerAspectRef = useRef<number>(1);
+  // Group move/resize refs
+  const groupInitialCoordsRef = useRef<Map<string, ShapeCoords> | null>(null);
+  const liveGroupCoordsRef = useRef<Map<string, ShapeCoords> | null>(null);
+  const groupInitialBBoxRef = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(null);
 
   const getRelativePosition = useCallback(
     (e: MouseEvent): { x: number; y: number } | null => {
@@ -128,19 +178,152 @@ export function useShapeResize<T extends ResizableShape>({
         isResizing: true,
         resizingShapeId: shape.id,
         activeHandle: handle,
-        liveCoords: liveCoordsRef.current,
+        liveCoords: null,
+        liveGroupCoords: null,
       });
     },
     [bounds]
+  );
+
+  const startGroupMove = useCallback(
+    (shapes: T[], primaryId: string, e: React.MouseEvent) => {
+      if (!containerRef.current) return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      initialMousePosRef.current = {
+        x: ((e.clientX - rect.left) / rect.width) * 100,
+        y: ((e.clientY - rect.top) / rect.height) * 100,
+      };
+
+      // Store initial coords for all shapes (transform to Container-Space if bounds)
+      const initialCoords = new Map<string, ShapeCoords>();
+      for (const shape of shapes) {
+        let x1 = shape.x1 ?? 0;
+        let y1 = shape.y1 ?? 0;
+        let x2 = shape.x2;
+        let y2 = shape.y2;
+
+        if (bounds) {
+          x1 = localSpaceToContainer(x1, bounds.x, bounds.width);
+          y1 = localSpaceToContainer(y1, bounds.y, bounds.height);
+          if (x2 !== null) x2 = localSpaceToContainer(x2, bounds.x, bounds.width);
+          if (y2 !== null) y2 = localSpaceToContainer(y2, bounds.y, bounds.height);
+        }
+
+        initialCoords.set(shape.id, { x1, y1, x2, y2, radius: shape.radius ?? null });
+      }
+
+      groupInitialCoordsRef.current = initialCoords;
+      liveGroupCoordsRef.current = new Map(initialCoords);
+
+      // Use the primary shape for single-shape compat fields
+      const primaryShape = shapes.find((s) => s.id === primaryId) ?? shapes[0];
+      initialShapeRef.current = { ...primaryShape } as T;
+
+      setState({
+        isResizing: true,
+        resizingShapeId: primaryId,
+        activeHandle: 'move',
+        liveCoords: null,
+        liveGroupCoords: null,
+      });
+    },
+    [bounds],
+  );
+
+  const startGroupResize = useCallback(
+    (shapes: T[], primaryId: string, handle: ShapeHandleType, e: React.MouseEvent) => {
+      if (!containerRef.current || handle === 'move' || handle === 'start' || handle === 'end') return;
+
+      const rect = containerRef.current.getBoundingClientRect();
+      initialMousePosRef.current = {
+        x: ((e.clientX - rect.left) / rect.width) * 100,
+        y: ((e.clientY - rect.top) / rect.height) * 100,
+      };
+
+      // Capture container aspect ratio
+      containerAspectRef.current = containerRef.current.clientWidth / containerRef.current.clientHeight;
+
+      // Store initial coords for all shapes (transform to Container-Space if bounds)
+      const initialCoords = new Map<string, ShapeCoords>();
+      let bboxMinX = Infinity, bboxMinY = Infinity;
+      let bboxMaxX = -Infinity, bboxMaxY = -Infinity;
+
+      for (const shape of shapes) {
+        let x1 = shape.x1 ?? 0;
+        let y1 = shape.y1 ?? 0;
+        let x2 = shape.x2;
+        let y2 = shape.y2;
+
+        if (bounds) {
+          x1 = localSpaceToContainer(x1, bounds.x, bounds.width);
+          y1 = localSpaceToContainer(y1, bounds.y, bounds.height);
+          if (x2 !== null) x2 = localSpaceToContainer(x2, bounds.x, bounds.width);
+          if (y2 !== null) y2 = localSpaceToContainer(y2, bounds.y, bounds.height);
+        }
+
+        initialCoords.set(shape.id, { x1, y1, x2, y2, radius: shape.radius ?? null });
+
+        // Text shapes excluded from bounding box computation
+        if (shape.type === 'text') continue;
+
+        bboxMinX = Math.min(bboxMinX, x1, x2 ?? x1);
+        bboxMinY = Math.min(bboxMinY, y1, y2 ?? y1);
+        bboxMaxX = Math.max(bboxMaxX, x1, x2 ?? x1);
+        bboxMaxY = Math.max(bboxMaxY, y1, y2 ?? y1);
+      }
+
+      groupInitialCoordsRef.current = initialCoords;
+      liveGroupCoordsRef.current = new Map(initialCoords);
+
+      // Store group bounding box (only non-text shapes)
+      if (bboxMinX !== Infinity) {
+        groupInitialBBoxRef.current = { minX: bboxMinX, minY: bboxMinY, maxX: bboxMaxX, maxY: bboxMaxY };
+      } else {
+        // All text shapes — no-op resize, treat as group move
+        groupInitialBBoxRef.current = null;
+      }
+
+      const primaryShape = shapes.find((s) => s.id === primaryId) ?? shapes[0];
+      initialShapeRef.current = { ...primaryShape } as T;
+
+      setState({
+        isResizing: true,
+        resizingShapeId: primaryId,
+        activeHandle: handle,
+        liveCoords: null,
+        liveGroupCoords: null,
+      });
+    },
+    [bounds],
   );
 
   // RAF-throttled state update
   const rafIdRef = useRef<number | null>(null);
 
   const flushUpdate = useCallback(() => {
-    if (liveCoordsRef.current) {
-      // When bounds is provided, transform Container-Space liveCoords back to Local-Space
-      // so the rendering layer can apply its normal transformation
+    if (liveGroupCoordsRef.current) {
+      // Group move mode: transform all coords back to Local-Space
+      const groupCoords = new Map<string, ShapeCoords>();
+      for (const [id, coords] of liveGroupCoordsRef.current) {
+        if (bounds) {
+          groupCoords.set(id, {
+            x1: containerToLocalSpace(coords.x1, bounds.x, bounds.width),
+            y1: containerToLocalSpace(coords.y1, bounds.y, bounds.height),
+            x2: coords.x2 !== null ? containerToLocalSpace(coords.x2, bounds.x, bounds.width) : null,
+            y2: coords.y2 !== null ? containerToLocalSpace(coords.y2, bounds.y, bounds.height) : null,
+            radius: coords.radius,
+          });
+        } else {
+          groupCoords.set(id, { ...coords });
+        }
+      }
+      setState((prev) => ({
+        ...prev,
+        liveGroupCoords: groupCoords,
+      }));
+    } else if (liveCoordsRef.current) {
+      // Single shape mode
       let coords = { ...liveCoordsRef.current };
 
       if (bounds) {
@@ -168,9 +351,6 @@ export function useShapeResize<T extends ResizableShape>({
       const pos = getRelativePosition(e);
       if (!pos) return;
 
-      const shape = initialShapeRef.current;
-      const handle = state.activeHandle;
-
       // Calculate bounds - use provided bounds or fall back to container (0-100)
       const minBoundX = bounds?.x ?? 0;
       const minBoundY = bounds?.y ?? 0;
@@ -180,6 +360,100 @@ export function useShapeResize<T extends ResizableShape>({
       // Clamp position to bounds
       const clampedX = Math.max(minBoundX, Math.min(maxBoundX, pos.x));
       const clampedY = Math.max(minBoundY, Math.min(maxBoundY, pos.y));
+
+      // GROUP MODE (move or resize)
+      if (groupInitialCoordsRef.current && initialMousePosRef.current) {
+        // GROUP RESIZE MODE
+        if (groupInitialBBoxRef.current && state.activeHandle !== 'move') {
+          const MIN_GROUP_SCALE = 0.05;
+          const bbox = groupInitialBBoxRef.current;
+          const handle = state.activeHandle;
+
+          // Determine anchor corner (opposite of dragged handle)
+          let anchorX: number, anchorY: number;
+          let edgeX: number, edgeY: number;
+
+          // Which axes does this handle affect?
+          let scalesX = true, scalesY = true;
+
+          switch (handle) {
+            case 'nw': anchorX = bbox.maxX; anchorY = bbox.maxY; edgeX = bbox.minX; edgeY = bbox.minY; break;
+            case 'ne': anchorX = bbox.minX; anchorY = bbox.maxY; edgeX = bbox.maxX; edgeY = bbox.minY; break;
+            case 'sw': anchorX = bbox.maxX; anchorY = bbox.minY; edgeX = bbox.minX; edgeY = bbox.maxY; break;
+            case 'se': anchorX = bbox.minX; anchorY = bbox.minY; edgeX = bbox.maxX; edgeY = bbox.maxY; break;
+            case 'n':  anchorX = bbox.minX; anchorY = bbox.maxY; edgeX = bbox.minX; edgeY = bbox.minY; scalesX = false; break;
+            case 's':  anchorX = bbox.minX; anchorY = bbox.minY; edgeX = bbox.minX; edgeY = bbox.maxY; scalesX = false; break;
+            case 'w':  anchorX = bbox.maxX; anchorY = bbox.minY; edgeX = bbox.minX; edgeY = bbox.minY; scalesY = false; break;
+            case 'e':  anchorX = bbox.minX; anchorY = bbox.minY; edgeX = bbox.maxX; edgeY = bbox.minY; scalesY = false; break;
+            default: return;
+          }
+
+          // Compute scale factors
+          const rangeX = edgeX - anchorX;
+          const rangeY = edgeY - anchorY;
+
+          let scaleX = scalesX && rangeX !== 0 ? (clampedX - anchorX) / rangeX : 1;
+          let scaleY = scalesY && rangeY !== 0 ? (clampedY - anchorY) / rangeY : 1;
+
+          // Clamp to minimum scale
+          if (scalesX) scaleX = Math.max(MIN_GROUP_SCALE, scaleX);
+          if (scalesY) scaleY = Math.max(MIN_GROUP_SCALE, scaleY);
+
+          // Default = uniform scaling (fixed aspect ratio) for corner handles
+          // Shift key = free resizing (independent X/Y scaling)
+          const isCornerHandle = handle === 'nw' || handle === 'ne' || handle === 'se' || handle === 'sw';
+          if (!e.shiftKey && isCornerHandle) {
+            const uniformScale = Math.max(scaleX, scaleY);
+            scaleX = uniformScale;
+            scaleY = uniformScale;
+          }
+
+          // Apply proportional scaling to each shape
+          const newGroupCoords = new Map<string, ShapeCoords>();
+
+          for (const [id, initial] of groupInitialCoordsRef.current) {
+            const nx1 = anchorX + (initial.x1 - anchorX) * scaleX;
+            const ny1 = anchorY + (initial.y1 - anchorY) * scaleY;
+            const nx2 = initial.x2 !== null ? anchorX + (initial.x2 - anchorX) * scaleX : null;
+            const ny2 = initial.y2 !== null ? anchorY + (initial.y2 - anchorY) * scaleY : null;
+
+            newGroupCoords.set(id, { x1: nx1, y1: ny1, x2: nx2, y2: ny2, radius: initial.radius });
+          }
+
+          // Clamp group to container bounds
+          clampGroupToContainer(newGroupCoords, minBoundX, minBoundY, maxBoundX, maxBoundY);
+
+          liveGroupCoordsRef.current = newGroupCoords;
+        } else {
+          // GROUP MOVE MODE
+          const deltaX = clampedX - initialMousePosRef.current.x;
+          const deltaY = clampedY - initialMousePosRef.current.y;
+
+          const newGroupCoords = new Map<string, ShapeCoords>();
+
+          for (const [id, initial] of groupInitialCoordsRef.current) {
+            const nx1 = initial.x1 + deltaX;
+            const ny1 = initial.y1 + deltaY;
+            const nx2 = initial.x2 !== null ? initial.x2 + deltaX : null;
+            const ny2 = initial.y2 !== null ? initial.y2 + deltaY : null;
+
+            newGroupCoords.set(id, { x1: nx1, y1: ny1, x2: nx2, y2: ny2, radius: initial.radius });
+          }
+
+          clampGroupToContainer(newGroupCoords, minBoundX, minBoundY, maxBoundX, maxBoundY);
+
+          liveGroupCoordsRef.current = newGroupCoords;
+        }
+
+        if (rafIdRef.current === null) {
+          rafIdRef.current = requestAnimationFrame(flushUpdate);
+        }
+        return;
+      }
+
+      // SINGLE SHAPE MODE
+      const shape = initialShapeRef.current;
+      const handle = state.activeHandle;
 
       const newCoords = { ...liveCoordsRef.current! };
 
@@ -394,41 +668,63 @@ export function useShapeResize<T extends ResizableShape>({
       rafIdRef.current = null;
     }
 
-    if (state.isResizing && state.resizingShapeId && liveCoordsRef.current) {
-      const coords = liveCoordsRef.current;
+    if (state.isResizing) {
+      // GROUP MOVE MODE
+      if (groupInitialCoordsRef.current && liveGroupCoordsRef.current) {
+        const moves: Array<{ id: string; updates: Partial<T> }> = [];
 
-      // When bounds is provided, transform Container-Space (0-100%) back to Local-Space (0-1)
-      let x1 = coords.x1;
-      let y1 = coords.y1;
-      let x2 = coords.x2;
-      let y2 = coords.y2;
+        for (const [id, coords] of liveGroupCoordsRef.current) {
+          let x1 = coords.x1;
+          let y1 = coords.y1;
+          let x2 = coords.x2;
+          let y2 = coords.y2;
 
-      if (bounds) {
-        x1 = containerToLocalSpace(x1, bounds.x, bounds.width);
-        y1 = containerToLocalSpace(y1, bounds.y, bounds.height);
-        if (x2 !== null) x2 = containerToLocalSpace(x2, bounds.x, bounds.width);
-        if (y2 !== null) y2 = containerToLocalSpace(y2, bounds.y, bounds.height);
+          if (bounds) {
+            x1 = Math.max(0, Math.min(1, containerToLocalSpace(x1, bounds.x, bounds.width)));
+            y1 = Math.max(0, Math.min(1, containerToLocalSpace(y1, bounds.y, bounds.height)));
+            if (x2 !== null) x2 = Math.max(0, Math.min(1, containerToLocalSpace(x2, bounds.x, bounds.width)));
+            if (y2 !== null) y2 = Math.max(0, Math.min(1, containerToLocalSpace(y2, bounds.y, bounds.height)));
+          }
 
-        // Clamp to Local-Space bounds (0-1)
-        x1 = Math.max(0, Math.min(1, x1));
-        y1 = Math.max(0, Math.min(1, y1));
-        if (x2 !== null) x2 = Math.max(0, Math.min(1, x2));
-        if (y2 !== null) y2 = Math.max(0, Math.min(1, y2));
+          moves.push({
+            id,
+            updates: { x1, y1, x2, y2 } as Partial<T>,
+          });
+        }
+
+        onGroupMoveComplete?.(moves);
+
+        groupInitialCoordsRef.current = null;
+        liveGroupCoordsRef.current = null;
       }
+      // SINGLE SHAPE MODE
+      else if (state.resizingShapeId && liveCoordsRef.current) {
+        const coords = liveCoordsRef.current;
 
-      const updates: Partial<T> = {
-        x1,
-        y1,
-        x2,
-        y2,
-      } as Partial<T>;
+        let x1 = coords.x1;
+        let y1 = coords.y1;
+        let x2 = coords.x2;
+        let y2 = coords.y2;
 
-      // Include radius if it was present
-      if (coords.radius !== undefined) {
-        (updates as Record<string, unknown>).radius = coords.radius;
+        if (bounds) {
+          x1 = containerToLocalSpace(x1, bounds.x, bounds.width);
+          y1 = containerToLocalSpace(y1, bounds.y, bounds.height);
+          if (x2 !== null) x2 = containerToLocalSpace(x2, bounds.x, bounds.width);
+          if (y2 !== null) y2 = containerToLocalSpace(y2, bounds.y, bounds.height);
+
+          x1 = Math.max(0, Math.min(1, x1));
+          y1 = Math.max(0, Math.min(1, y1));
+          if (x2 !== null) x2 = Math.max(0, Math.min(1, x2));
+          if (y2 !== null) y2 = Math.max(0, Math.min(1, y2));
+        }
+
+        const updates: Partial<T> = { x1, y1, x2, y2 } as Partial<T>;
+        if (coords.radius !== undefined) {
+          (updates as Record<string, unknown>).radius = coords.radius;
+        }
+
+        onResizeComplete?.(state.resizingShapeId, updates);
       }
-
-      onResizeComplete?.(state.resizingShapeId, updates);
     }
 
     setState({
@@ -436,10 +732,14 @@ export function useShapeResize<T extends ResizableShape>({
       resizingShapeId: null,
       activeHandle: null,
       liveCoords: null,
+      liveGroupCoords: null,
     });
     initialShapeRef.current = null;
     liveCoordsRef.current = null;
-  }, [state.isResizing, state.resizingShapeId, onResizeComplete, bounds]);
+    groupInitialCoordsRef.current = null;
+    liveGroupCoordsRef.current = null;
+    groupInitialBBoxRef.current = null;
+  }, [state.isResizing, state.resizingShapeId, onResizeComplete, onGroupMoveComplete, bounds]);
 
   const cancelResize = useCallback(() => {
     // Cancel any pending RAF
@@ -453,22 +753,18 @@ export function useShapeResize<T extends ResizableShape>({
       resizingShapeId: null,
       activeHandle: null,
       liveCoords: null,
+      liveGroupCoords: null,
     });
     initialShapeRef.current = null;
     liveCoordsRef.current = null;
+    groupInitialCoordsRef.current = null;
+    liveGroupCoordsRef.current = null;
+    groupInitialBBoxRef.current = null;
   }, []);
 
   // Global mouse event listeners during resize
   useEffect(() => {
     if (!state.isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      updateResize(e);
-    };
-
-    const handleMouseUp = () => {
-      finishResize();
-    };
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -476,13 +772,13 @@ export function useShapeResize<T extends ResizableShape>({
       }
     };
 
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mousemove', updateResize);
+    window.addEventListener('mouseup', finishResize);
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mousemove', updateResize);
+      window.removeEventListener('mouseup', finishResize);
       window.removeEventListener('keydown', handleKeyDown);
     };
   }, [state.isResizing, updateResize, finishResize, cancelResize]);
@@ -495,6 +791,8 @@ export function useShapeResize<T extends ResizableShape>({
     ...state,
     containerRef: setContainerRef,
     startResize,
+    startGroupMove,
+    startGroupResize,
     cancelResize,
   };
 }

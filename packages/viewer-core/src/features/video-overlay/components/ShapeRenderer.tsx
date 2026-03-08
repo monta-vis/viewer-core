@@ -30,9 +30,14 @@ interface ShapeRendererProps<T extends ShapeData> {
   containerWidth: number;
   containerHeight: number;
   isSelected?: boolean;
+  /**
+   * Selection mode: 'primary' shows full resize handles, 'secondary' shows move-only highlight.
+   * Defaults to 'primary' for backward compatibility.
+   */
+  selectionMode?: 'primary' | 'secondary';
   /** When true, show edge midpoint handles (n, s, e, w) for free resize */
   showEdgeHandles?: boolean;
-  onClick?: () => void;
+  onClick?: (() => void) | ((e: React.MouseEvent) => void);
   onHandleMouseDown?: (handle: ShapeHandleType, e: React.MouseEvent) => void;
   /** When true, disable all pointer events to allow drawing through shapes */
   isDrawModeActive?: boolean;
@@ -292,6 +297,7 @@ export function ShapeRenderer<T extends ShapeData>({
   containerWidth,
   containerHeight,
   isSelected,
+  selectionMode = 'primary',
   showEdgeHandles,
   onClick,
   onHandleMouseDown,
@@ -299,6 +305,8 @@ export function ShapeRenderer<T extends ShapeData>({
   textScaleWidth,
   onDoubleClick,
 }: ShapeRendererProps<T>) {
+  // Secondary selection: show highlight but no resize handles
+  const showHandles = isSelected && selectionMode === 'primary';
   // Skip rendering if required coordinates are missing
   if (shape.x1 === null || shape.y1 === null) {
     return null;
@@ -308,16 +316,24 @@ export function ShapeRenderer<T extends ShapeData>({
   const isLight = shape.color === 'white';
   const isColored = shape.color === 'red' || shape.color === 'teal';
 
-  const strokeColor = isLight
-    ? 'rgba(255, 255, 255, 0.80)'
-    : isColored
-      ? getShapeColorValue(shape.color)
-      : 'rgba(30, 30, 30, 0.80)';
+  let strokeColor: string;
+  if (isLight) {
+    strokeColor = 'rgba(255, 255, 255, 0.80)';
+  } else if (isColored) {
+    strokeColor = getShapeColorValue(shape.color);
+  } else {
+    strokeColor = 'rgba(30, 30, 30, 0.80)';
+  }
 
   // Text annotations: colored uses stroke color as bg; white gets light bg + dark text; black gets dark bg
-  const textBgColor = isColored
-    ? strokeColor
-    : isLight ? 'rgba(255, 255, 255, 0.80)' : 'rgba(30, 30, 30, 0.80)';
+  let textBgColor: string;
+  if (isColored) {
+    textBgColor = strokeColor;
+  } else if (isLight) {
+    textBgColor = 'rgba(255, 255, 255, 0.80)';
+  } else {
+    textBgColor = 'rgba(30, 30, 30, 0.80)';
+  }
   const textColor = isLight ? 'black' : 'white';
 
   // Light and colored strokes need a drop-shadow for contrast on any background
@@ -370,7 +386,7 @@ export function ShapeRenderer<T extends ShapeData>({
           y2={y2}
           commonProps={commonProps}
           hitAreaProps={hitAreaProps}
-          isSelected={isSelected}
+          isSelected={showHandles}
           onHandleMouseDown={onHandleMouseDown}
         />
       );
@@ -384,7 +400,7 @@ export function ShapeRenderer<T extends ShapeData>({
           y2={y2}
           commonProps={commonProps}
           hitAreaProps={hitAreaProps}
-          isSelected={isSelected}
+          isSelected={showHandles}
           showEdgeHandles={showEdgeHandles}
           onHandleMouseDown={onHandleMouseDown}
         />
@@ -399,7 +415,7 @@ export function ShapeRenderer<T extends ShapeData>({
           y2={y2}
           commonProps={commonProps}
           hitAreaProps={hitAreaProps}
-          isSelected={isSelected}
+          isSelected={showHandles}
           showEdgeHandles={showEdgeHandles}
           onHandleMouseDown={onHandleMouseDown}
         />

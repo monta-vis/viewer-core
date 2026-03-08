@@ -15,6 +15,7 @@ import {
   useDrawingResize,
   type ViewportKeyframeRow,
   type DrawingRow,
+  applyLiveCoords,
 } from '@monta-vis/viewer-core';
 import { MediaEditDialog } from '../MediaEditDialog';
 import { useDrawingDeleteKey } from '../../hooks/useDrawingDeleteKey';
@@ -436,21 +437,34 @@ function VideoEditorViewMode({
 
   // Drawing resize hook (declared early so containerRef setter is available)
   // Mirror ImageEditDialog pattern: also update x/y for text shapes
-  const handleResizeComplete = useCallback(
-    (drawingId: string, updates: Partial<DrawingRow>) => {
+  const applyTextCoordSync = useCallback(
+    (id: string, updates: Partial<DrawingRow>) => {
       const finalUpdates: Partial<DrawingRow> = { ...updates };
-      const drawing = drawings[drawingId];
+      const drawing = drawings[id];
       if (drawing?.type === 'text' && updates.x1 != null) {
         finalUpdates.x = updates.x1;
         finalUpdates.y = updates.y1;
       }
-      onUpdateDrawing(drawingId, finalUpdates);
+      onUpdateDrawing(id, finalUpdates);
     },
     [drawings, onUpdateDrawing],
   );
 
+  const handleResizeComplete = applyTextCoordSync;
+
+  // Handle group move completion: update each drawing
+  const handleGroupMoveComplete = useCallback(
+    (moves: Array<{ id: string; updates: Partial<DrawingRow> }>) => {
+      for (const { id, updates } of moves) {
+        applyTextCoordSync(id, updates);
+      }
+    },
+    [applyTextCoordSync],
+  );
+
   const drawingResize = useDrawingResize({
     onResizeComplete: handleResizeComplete,
+    onGroupMoveComplete: handleGroupMoveComplete,
     bounds: FULL_BOUNDS,
   });
 
@@ -586,32 +600,19 @@ function VideoEditorViewMode({
     };
   }, [annotationDrawingHook.isDrawing, annotationDrawingHook.handleMouseMove, annotationDrawingHook.handleMouseUp]);
 
-  // Apply live coords during resize for real-time visual feedback (matches ImageOverlay)
-  const drawingsWithLiveCoords = useMemo(() => {
-    if (!drawingResize.isResizing || !drawingResize.liveCoords) {
-      return videoDrawing.visibleDrawings;
-    }
-    return videoDrawing.visibleDrawings.map((drawing) => {
-      if (drawing.id === drawingResize.resizingDrawingId) {
-        const updated = {
-          ...drawing,
-          x1: drawingResize.liveCoords!.x1,
-          y1: drawingResize.liveCoords!.y1,
-          x2: drawingResize.liveCoords!.x2,
-          y2: drawingResize.liveCoords!.y2,
-        };
-        if (drawing.type === 'text') {
-          updated.x = drawingResize.liveCoords!.x1;
-          updated.y = drawingResize.liveCoords!.y1;
-        }
-        return updated;
-      }
-      return drawing;
-    });
-  }, [videoDrawing.visibleDrawings, drawingResize.isResizing, drawingResize.liveCoords, drawingResize.resizingDrawingId]);
+  // Apply live coords during resize for real-time visual feedback
+  const drawingsWithLiveCoords = useMemo(
+    () => applyLiveCoords(videoDrawing.visibleDrawings, {
+      isResizing: drawingResize.isResizing,
+      liveGroupCoords: drawingResize.liveGroupCoords,
+      liveCoords: drawingResize.liveCoords,
+      resizingShapeId: drawingResize.resizingDrawingId,
+    }),
+    [videoDrawing.visibleDrawings, drawingResize.isResizing, drawingResize.liveCoords, drawingResize.liveGroupCoords, drawingResize.resizingDrawingId],
+  );
 
-  // Delete key handler
-  useDrawingDeleteKey(open, videoDrawing.selectedDrawingId, videoDrawing.handleDrawingDelete);
+  // Delete key handler (multi-select aware)
+  useDrawingDeleteKey(open, videoDrawing.selectedDrawingId, videoDrawing.handleDrawingDelete, videoDrawing.selectedDrawingIds);
 
   // Seek by percent
   const handleSeekPercent = useCallback(
@@ -632,31 +633,53 @@ function VideoEditorViewMode({
     [handleSeekPercent],
   );
 
-  // Handle drawing handle mouse down for resize
+  // Handle drawing handle mouse down for resize (group move aware)
   const handleDrawingHandleMouseDown = useCallback(
     (drawingId: string, handle: string, e: React.MouseEvent) => {
       const drawing = drawings[drawingId];
       if (!drawing) return;
       playback.pause();
-      drawingResize.startResize(drawing, handle as Parameters<typeof drawingResize.startResize>[1], e);
+
+      // Group operations: if the shape is part of a multi-selection
+      if (videoDrawing.selectedDrawingIds.size > 1 && videoDrawing.selectedDrawingIds.has(drawingId)) {
+        const selectedDrawings = videoDrawing.visibleDrawings.filter(
+          (d) => videoDrawing.selectedDrawingIds.has(d.id),
+        );
+        if (handle === 'move') {
+          drawingResize.startGroupMove(selectedDrawings, drawingId, e);
+        } else {
+          drawingResize.startGroupResize(selectedDrawings, drawingId, handle as Parameters<typeof drawingResize.startGroupResize>[2], e);
+        }
+      } else {
+        drawingResize.startResize(drawing, handle as Parameters<typeof drawingResize.startResize>[1], e);
+      }
     },
-    [drawings, playback.pause, drawingResize.startResize],
+    [drawings, playback.pause, drawingResize.startResize, drawingResize.startGroupMove, drawingResize.startGroupResize, videoDrawing.selectedDrawingIds, videoDrawing.visibleDrawings],
   );
 
-  // Handle drawing click on overlay
+  // Handle drawing click on overlay (multi-select aware)
   const handleDrawingClick = useCallback(
     (id: string | null) => {
       if (id) {
-        videoDrawing.handleDrawingSelect(id);
+        videoDrawing.handleDrawingMultiSelect(id, null);
       } else {
         videoDrawing.deselectDrawing();
       }
     },
-    [videoDrawing.handleDrawingSelect, videoDrawing.deselectDrawing],
+    [videoDrawing.handleDrawingMultiSelect, videoDrawing.deselectDrawing],
   );
 
-  // Handle double-click on text drawing to edit
-  const handleDrawingDoubleClick = videoDrawing.handleTextEdit;
+  // Handle drawing click with event (for canvas multi-select)
+  const handleDrawingClickWithEvent = useCallback(
+    (id: string, e: React.MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        videoDrawing.handleDrawingMultiSelect(id, 'ctrl');
+      } else {
+        videoDrawing.handleDrawingMultiSelect(id, null);
+      }
+    },
+    [videoDrawing.handleDrawingMultiSelect],
+  );
 
   return (
     <MediaEditDialog
@@ -672,6 +695,8 @@ function VideoEditorViewMode({
           drawings={videoDrawing.drawingCards}
           selectedDrawingId={videoDrawing.selectedDrawingId}
           onDrawingSelect={videoDrawing.handleDrawingSelect}
+          selectedDrawingIds={videoDrawing.selectedDrawingIds}
+          onDrawingMultiSelect={videoDrawing.handleDrawingMultiSelect}
           selectedDrawingFontSize={videoDrawing.selectedDrawingFontSize}
           onFontSizeSelect={videoDrawing.handleDrawingFontSizeSelect}
           onDrawingFrameUpdate={videoDrawing.handleDrawingFrameUpdate}
@@ -738,10 +763,12 @@ function VideoEditorViewMode({
                   containerWidth={contentArea.width}
                   containerHeight={contentArea.height}
                   selectedId={videoDrawing.selectedDrawingId}
+                  selectedIds={videoDrawing.selectedDrawingIds}
                   onSelect={handleDrawingClick}
+                  onSelectWithEvent={handleDrawingClickWithEvent}
                   onDeselect={videoDrawing.deselectDrawing}
                   onHandleMouseDown={handleDrawingHandleMouseDown}
-                  onDoubleClick={handleDrawingDoubleClick}
+                  onDoubleClick={videoDrawing.handleTextEdit}
                   bounds={FULL_BOUNDS}
                 />
               </div>
