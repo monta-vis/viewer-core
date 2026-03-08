@@ -10,7 +10,7 @@ import type { DrawingCardData } from '../components/DrawingEditor';
 import { useDrawingState } from './useDrawingState';
 
 export interface UseImageDrawingProps {
-  substepImageId: string | null;
+  videoFrameAreaId: string | null;
   versionId: string;
   /** All drawings in the store (keyed by id) */
   drawings: Record<string, DrawingRow>;
@@ -28,10 +28,10 @@ export interface UseImageDrawingProps {
  * No video drawings, no frame ranges, no timeline.
  *
  * Owns: drawingTool, drawingColor, selectedDrawingId, textInputState
- * Derives: annotations (filtered by substepImageId), drawingCards, isDrawingMode
+ * Derives: annotations (filtered by videoFrameAreaId), drawingCards, isDrawingMode
  */
 export function useImageDrawing({
-  substepImageId,
+  videoFrameAreaId,
   versionId,
   drawings,
   addDrawing,
@@ -50,11 +50,11 @@ export function useImageDrawing({
 
   // Filter drawings for current substep image
   const annotations = useMemo(() => {
-    if (!substepImageId) return [];
+    if (!videoFrameAreaId) return [];
     return Object.values(drawings).filter(
-      (d) => d.substepImageId === substepImageId
+      (d) => d.videoFrameAreaId === videoFrameAreaId
     );
-  }, [drawings, substepImageId]);
+  }, [drawings, videoFrameAreaId]);
 
   const annotationsLengthRef = useRef(0);
   annotationsLengthRef.current = annotations.length;
@@ -71,11 +71,11 @@ export function useImageDrawing({
 
   const handleShapeDrawn = useCallback(
     (shape: DrawnShape) => {
-      if (!substepImageId) return;
+      if (!videoFrameAreaId) return;
       const newDrawing: DrawingRow = {
         id: uuid(),
         versionId,
-        substepImageId,
+        videoFrameAreaId,
         substepId: null,
         startFrame: null,
         endFrame: null,
@@ -96,7 +96,7 @@ export function useImageDrawing({
       addDrawing(newDrawing);
       shared.setSelectedDrawingId(newDrawing.id);
     },
-    [substepImageId, versionId, addDrawing, shared.setSelectedDrawingId]
+    [videoFrameAreaId, versionId, addDrawing, shared.setSelectedDrawingId]
   );
 
   const drawingsRef = useRef(drawings);
@@ -118,7 +118,7 @@ export function useImageDrawing({
   }, []);
 
   const handleTextInput = useCallback((position: Point) => {
-    if (!substepImageId) return;
+    if (!videoFrameAreaId) return;
 
     // Transform from container space (0-100%) to local space (0-1)
     const bounds = areaBoundsRef.current;
@@ -133,7 +133,7 @@ export function useImageDrawing({
     const newDrawing: DrawingRow = {
       id: newId,
       versionId,
-      substepImageId,
+      videoFrameAreaId,
       substepId: null,
       startFrame: null,
       endFrame: null,
@@ -161,7 +161,7 @@ export function useImageDrawing({
       initialFontSize: 5,
       editingDrawingId: newId,
     });
-  }, [substepImageId, versionId, shared.drawingColor, addDrawing, shared.setSelectedDrawingId]);
+  }, [videoFrameAreaId, versionId, shared.drawingColor, addDrawing, shared.setSelectedDrawingId]);
 
   const handleTextSubmit = useCallback(
     (text: string, fontSize: number) => {

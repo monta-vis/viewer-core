@@ -1,14 +1,14 @@
 import type { DrawingRow } from '@/features/instruction';
 import { isImageDrawing, isVideoDrawing } from '@/features/instruction';
 
-/** Get image drawings that belong to a specific substep image */
+/** Get image drawings that belong to a specific video frame area */
 export function getImageDrawings(
   drawings: Record<string, DrawingRow>,
-  substepImageId: string | null,
+  videoFrameAreaId: string | null,
 ): DrawingRow[] {
-  if (!substepImageId) return [];
+  if (!videoFrameAreaId) return [];
   return Object.values(drawings).filter(
-    (d) => isImageDrawing(d) && d.substepImageId === substepImageId,
+    (d) => isImageDrawing(d) && d.videoFrameAreaId === videoFrameAreaId,
   );
 }
 

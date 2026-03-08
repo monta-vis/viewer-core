@@ -35,6 +35,8 @@ vi.mock('../context', () => ({
     videoFrameAreas: {},
     notes: {},
     partTools: {},
+    assemblies: {},
+    partToolVideoFrameAreas: {},
     instruction: { id: 'i1', title: 'Test' },
   }),
 }));

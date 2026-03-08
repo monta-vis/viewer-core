@@ -697,6 +697,14 @@ export function ViewPage() {
 
       if (result.success && result.vfaId) {
         const store = useEditorStore.getState();
+
+        // Remove drawings that were deleted by the backend
+        if (result.deletedDrawingIds?.length) {
+          for (const drawingId of result.deletedDrawingIds) {
+            store.deleteDrawing(drawingId);
+          }
+        }
+
         // Remove old substep image rows before adding new ones
         const substep = store.data?.substeps?.[substepId];
         if (substep) {
@@ -801,8 +809,11 @@ export function ViewPage() {
   const renderEditPopover = useCallback(
     (props: Parameters<typeof SubstepEditPopover>[0] & { substepId?: string }) => {
       const state = useEditorStore.getState();
-      const substepImageId = props.substepId
+      const firstImageRowId = props.substepId
         ? state.data?.substeps?.[props.substepId]?.imageRowIds?.[0] ?? null
+        : null;
+      const videoFrameAreaId = firstImageRowId
+        ? state.data?.substepImages?.[firstImageRowId]?.videoFrameAreaId ?? null
         : null;
 
       return (
@@ -815,7 +826,7 @@ export function ViewPage() {
           getPartToolImages={getPartToolImages}
           imageCallbacks={imageCallbacks}
           onOpenPartToolList={onOpenPartToolList}
-          substepImageId={substepImageId}
+          videoFrameAreaId={videoFrameAreaId}
           versionId={state.data?.currentVersionId ?? ''}
           drawings={state.data?.drawings ?? {}}
           onAddDrawing={state.addDrawing}

@@ -199,7 +199,7 @@ function makeDataWithDrawings(): InstructionData {
         id: 'draw-1', type: 'rectangle', color: 'red', strokeWidth: 2,
         x1: 0.1, y1: 0.1, x2: 0.5, y2: 0.5,
         x: null, y: null, content: null, fontSize: null, points: null,
-        substepImageId: 'img-row-1', videoSectionId: null,
+        videoFrameAreaId: 'vfa-1', videoSectionId: null,
       },
     } as Record<string, never>,
     coverImageAreaId: null, // No cover image to simplify test

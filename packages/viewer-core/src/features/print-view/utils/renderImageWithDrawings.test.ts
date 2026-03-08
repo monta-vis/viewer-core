@@ -5,7 +5,7 @@ import type { DrawingRow } from '@/features/instruction';
 const mockDrawing: DrawingRow = {
   id: 'd-1',
   versionId: 'v1',
-  substepImageId: 'img-1',
+  videoFrameAreaId: 'img-1',
   substepId: 's1',
   startFrame: null,
   endFrame: null,

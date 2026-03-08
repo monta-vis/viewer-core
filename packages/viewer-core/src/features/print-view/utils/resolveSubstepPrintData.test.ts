@@ -59,7 +59,7 @@ function makeData(overrides: Partial<InstructionData> = {}): InstructionData {
     partToolVideoFrameAreas: {},
     drawings: {
       'd-1': {
-        id: 'd-1', versionId: 'v1', substepImageId: 'img-1', substepId: 's1',
+        id: 'd-1', versionId: 'v1', videoFrameAreaId: 'vfa-1', substepId: 's1',
         startFrame: null, endFrame: null, type: 'arrow', color: 'red',
         strokeWidth: 2, x1: 0.1, y1: 0.2, x2: 0.3, y2: 0.4,
         x: null, y: null, content: null, fontSize: null, points: null, order: 0,

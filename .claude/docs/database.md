@@ -162,7 +162,7 @@ Media files: `media/frames/{id}/image.jpg` (+ `image_blurred.*`)
 |---|---|---|
 | id | TEXT PK | UUID |
 | instruction_id | TEXT | FK -> instructions.id, nullable |
-| substep_image_id | TEXT | FK -> substep_images.id, nullable |
+| video_frame_area_id | TEXT | FK -> video_frame_areas.id ON DELETE CASCADE, nullable |
 | substep_id | TEXT | FK -> substeps.id, nullable |
 | start_frame | INTEGER | Nullable |
 | end_frame | INTEGER | Nullable |

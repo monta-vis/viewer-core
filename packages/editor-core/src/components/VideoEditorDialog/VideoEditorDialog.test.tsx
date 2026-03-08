@@ -232,7 +232,7 @@ const viewVideoData = {
 const sampleDrawing: DrawingRow = {
   id: 'draw-1',
   versionId: 'v1',
-  substepImageId: null,
+  videoFrameAreaId: null,
   substepId: 'sub-1',
   startFrame: 0,
   endFrame: 100,

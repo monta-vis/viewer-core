@@ -108,8 +108,11 @@ export const de = {
     filterByPartTool: 'Nach Teil oder Werkzeug filtern',
     assembly: 'Baugruppe',
     nSteps: '{{count}} Schritte',
+    nStep: '{{count}} Schritt',
     nParts: '{{count}} Teile',
+    nPart: '{{count}} Teil',
     nTools: '{{count}} Werkzeuge',
+    nTool: '{{count}} Werkzeug',
     filterByAssembly: 'Nach Baugruppe filtern',
   },
   editorCore: {

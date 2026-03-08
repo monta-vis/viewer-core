@@ -272,21 +272,20 @@ describe('SubstepCard — Enter key when edit popover is open', () => {
 // noteIconLabels → NoteCard iconLabel prop
 // ============================================================
 describe('SubstepCard — noteIconLabels', () => {
-  it('NoteCard img receives title from noteIconLabels map', () => {
+  it('NoteCard img receives alt from category and Tooltip from noteIconLabels map', () => {
     const noteIconLabels = { 'W001-Allgemeines-Warnzeichen.png': 'General Warning' };
     render(<SubstepCard {...baseProps} noteIconLabels={noteIconLabels} />);
-    // The NoteCard img should have title="General Warning"
     const imgs = screen.getAllByRole('img');
-    // Find the note card img (inside the note card area)
-    const noteImg = imgs.find(img => img.getAttribute('title') === 'General Warning');
+    // NoteCard uses alt={categoryLabel} on the img element
+    const noteImg = imgs.find(img => img.getAttribute('alt') === 'Warnzeichen');
     expect(noteImg).toBeTruthy();
   });
 
-  it('NoteCard img falls back to categoryLabel when noteIconLabels not provided', () => {
+  it('NoteCard img has alt=categoryLabel when noteIconLabels not provided', () => {
     render(<SubstepCard {...baseProps} />);
     const imgs = screen.getAllByRole('img');
-    // Without noteIconLabels, the NoteCard should use categoryLabel as title
-    const noteImg = imgs.find(img => img.getAttribute('title') === 'Warnzeichen');
+    // NoteCard uses alt={categoryLabel} on the img element
+    const noteImg = imgs.find(img => img.getAttribute('alt') === 'Warnzeichen');
     expect(noteImg).toBeTruthy();
   });
 });

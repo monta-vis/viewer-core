@@ -5,7 +5,7 @@ import type { DrawingRow } from '@monta-vis/viewer-core';
 
 describe('useImageDrawing', () => {
   const defaultProps = {
-    substepImageId: 'img-1',
+    videoFrameAreaId: 'img-1',
     versionId: 'v-1',
     drawings: {} as Record<string, DrawingRow>,
     addDrawing: vi.fn(),
@@ -67,7 +67,7 @@ describe('useImageDrawing', () => {
 
     expect(addDrawing).toHaveBeenCalledTimes(1);
     const created = addDrawing.mock.calls[0][0] as DrawingRow;
-    expect(created.substepImageId).toBe('img-1');
+    expect(created.videoFrameAreaId).toBe('img-1');
     expect(created.versionId).toBe('v-1');
     expect(created.type).toBe('arrow');
     expect(created.x1).toBe(0.1);
@@ -79,17 +79,17 @@ describe('useImageDrawing', () => {
     expect(created.endFrame).toBeNull();
   });
 
-  it('filters annotations by substepImageId', () => {
+  it('filters annotations by videoFrameAreaId', () => {
     const drawings: Record<string, DrawingRow> = {
       'd1': {
-        id: 'd1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 'd1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'arrow', color: 'black', strokeWidth: 2,
         x1: 0, y1: 0, x2: 1, y2: 1,
         x: null, y: null, content: null, fontSize: null, points: null, order: 0,
       },
       'd2': {
-        id: 'd2', versionId: 'v-1', substepImageId: 'img-2', // different image
+        id: 'd2', versionId: 'v-1', videoFrameAreaId: 'img-2', // different image
         substepId: null, startFrame: null, endFrame: null,
         type: 'circle', color: 'white', strokeWidth: 2,
         x1: 0, y1: 0, x2: 1, y2: 1,
@@ -124,7 +124,7 @@ describe('useImageDrawing', () => {
     const updateDrawing = vi.fn();
     const drawings: Record<string, DrawingRow> = {
       'd1': {
-        id: 'd1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 'd1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'arrow', color: 'black', strokeWidth: 2,
         x1: 0, y1: 0, x2: 1, y2: 1,
@@ -142,7 +142,7 @@ describe('useImageDrawing', () => {
   it('single click selects text drawing without opening text editing', () => {
     const drawings: Record<string, DrawingRow> = {
       't1': {
-        id: 't1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 't1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'text', color: 'black', strokeWidth: 2,
         x1: 0.3, y1: 0.4, x2: null, y2: null,
@@ -162,7 +162,7 @@ describe('useImageDrawing', () => {
   it('double-click opens text editing with editingDrawingId', () => {
     const drawings: Record<string, DrawingRow> = {
       't1': {
-        id: 't1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 't1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'text', color: 'black', strokeWidth: 2,
         x1: 0.3, y1: 0.4, x2: null, y2: null,
@@ -184,7 +184,7 @@ describe('useImageDrawing', () => {
   it('double-click does nothing for non-text drawings', () => {
     const drawings: Record<string, DrawingRow> = {
       'a1': {
-        id: 'a1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 'a1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'arrow', color: 'black', strokeWidth: 2,
         x1: 0, y1: 0, x2: 1, y2: 1,
@@ -203,7 +203,7 @@ describe('useImageDrawing', () => {
   it('deselectDrawing closes text popup', () => {
     const drawings: Record<string, DrawingRow> = {
       't1': {
-        id: 't1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 't1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'text', color: 'black', strokeWidth: 2,
         x1: 0.3, y1: 0.4, x2: null, y2: null,
@@ -229,7 +229,7 @@ describe('useImageDrawing', () => {
     const addDrawing = vi.fn();
     const drawings: Record<string, DrawingRow> = {
       't1': {
-        id: 't1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 't1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'text', color: 'black', strokeWidth: 2,
         x1: 0.3, y1: 0.4, x2: null, y2: null,
@@ -276,7 +276,7 @@ describe('useImageDrawing', () => {
   it('returns drawingCards from annotations', () => {
     const drawings: Record<string, DrawingRow> = {
       'd1': {
-        id: 'd1', versionId: 'v-1', substepImageId: 'img-1',
+        id: 'd1', versionId: 'v-1', videoFrameAreaId: 'img-1',
         substepId: null, startFrame: null, endFrame: null,
         type: 'arrow', color: 'black', strokeWidth: 2,
         x1: 0, y1: 0, x2: 1, y2: 1,

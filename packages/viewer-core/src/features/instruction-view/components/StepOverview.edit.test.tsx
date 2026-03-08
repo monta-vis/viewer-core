@@ -25,6 +25,7 @@ vi.mock('../context', () => ({
     substepImages: {},
     videoFrameAreas: {},
     videos: {},
+    partTools: {},
     assemblies: {
       'asm-1': {
         id: 'asm-1', versionId: 'v1', instructionId: 'i1',
@@ -70,6 +71,7 @@ const mockWithUnassigned = () => ({
     substepImages: {},
     videoFrameAreas: {},
     videos: {},
+    partTools: {},
     assemblies: {
       'asm-1': {
         id: 'asm-1', versionId: 'v1', instructionId: 'i1',

@@ -197,7 +197,7 @@ describe('PartsDrawer', () => {
     const { rerender } = render(<PartsDrawer {...defaultProps} isOpen={true} />);
 
     // 2. Click a part card to open detail modal
-    const partCard = screen.getByText('Steel Bolt').closest('button')!;
+    const partCard = screen.getByText('Steel Bolt').closest('[role="button"]')!;
     fireEvent.click(partCard);
 
     // Detail modal should be visible

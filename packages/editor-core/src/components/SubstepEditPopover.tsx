@@ -82,8 +82,8 @@ export interface SubstepEditPopoverProps {
   allPartTools?: PartToolRow[];
   /** Opens the instruction-wide PartTool list editor (PartToolListPanel). */
   onOpenPartToolList?: () => void;
-  /** SubstepImage ID for drawing annotations */
-  substepImageId?: string | null;
+  /** VideoFrameArea ID for drawing annotations */
+  videoFrameAreaId?: string | null;
   /** Version ID for drawing annotations */
   versionId?: string;
   /** All drawings keyed by ID (for ImageEditDialog) */
@@ -192,7 +192,7 @@ export function SubstepEditPopover({
   onUploadSubstepImage,
   allPartTools,
   onOpenPartToolList,
-  substepImageId,
+  videoFrameAreaId,
   versionId = '',
   drawings = {},
   onAddDrawing,
@@ -647,7 +647,7 @@ export function SubstepEditPopover({
                             open={imageEditDialogOpen}
                             onClose={() => setImageEditDialogOpen(false)}
                             imageSrc={imageUrl}
-                            substepImageId={substepImageId ?? null}
+                            videoFrameAreaId={videoFrameAreaId ?? null}
                             versionId={versionId}
                             drawings={drawings}
                             onAddDrawing={onAddDrawing}

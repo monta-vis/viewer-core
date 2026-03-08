@@ -106,8 +106,11 @@ export const en = {
     filterByPartTool: 'Filter by part or tool',
     assembly: 'Assembly',
     nSteps: '{{count}} Steps',
+    nStep: '{{count}} Step',
     nParts: '{{count}} Parts',
+    nPart: '{{count}} Part',
     nTools: '{{count}} Tools',
+    nTool: '{{count}} Tool',
     filterByAssembly: 'Filter by assembly',
   },
   editorCore: {

@@ -1062,6 +1062,7 @@ describe('useEditorStore - Extended Tests', () => {
           contentAspectRatio: null,
           localPath: null,
           fps: null,
+          viewportKeyframeIds: [],
         },
       };
 
@@ -1093,6 +1094,7 @@ describe('useEditorStore - Extended Tests', () => {
           contentAspectRatio: null,
           localPath: null,
           fps: null,
+          viewportKeyframeIds: [],
         },
       };
 
@@ -1257,7 +1259,7 @@ describe('useEditorStore - Extended Tests', () => {
   });
 
   describe('ViewportKeyframes CRUD', () => {
-    it('addViewportKeyframe adds keyframe and updates video reference', () => {
+    it('addViewportKeyframe adds keyframe and updates section reference', () => {
       const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
       mockData.videos = {
@@ -1272,8 +1274,20 @@ describe('useEditorStore - Extended Tests', () => {
           proxyStatus: 'Pending',
           width: 1920,
           height: 1080,
-          sectionIds: [],
+          sectionIds: ['section-1'],
           frameAreaIds: [],
+        },
+      };
+      mockData.videoSections = {
+        'section-1': {
+          id: 'section-1',
+          versionId: 'ver-1',
+          videoId: 'video-1',
+          startFrame: 0,
+          endFrame: 100,
+          contentAspectRatio: null,
+          localPath: null,
+          fps: null,
           viewportKeyframeIds: [],
         },
       };
@@ -1284,7 +1298,7 @@ describe('useEditorStore - Extended Tests', () => {
 
       const newKeyframe = {
         id: 'kf-1',
-        videoId: 'video-1',
+        videoSectionId: 'section-1',
         versionId: 'ver-1',
         frameNumber: 0,
         x: 0,
@@ -1298,7 +1312,7 @@ describe('useEditorStore - Extended Tests', () => {
       });
 
       expect(result.current.data?.viewportKeyframes['kf-1']).toEqual(newKeyframe);
-      expect(result.current.data?.videos['video-1'].viewportKeyframeIds).toContain('kf-1');
+      expect(result.current.data?.videoSections['section-1'].viewportKeyframeIds).toContain('kf-1');
     });
 
     it('deleteViewportKeyframe removes keyframe but not frame 0', () => {
@@ -1316,15 +1330,27 @@ describe('useEditorStore - Extended Tests', () => {
           proxyStatus: 'Pending',
           width: 1920,
           height: 1080,
-          sectionIds: [],
+          sectionIds: ['section-1'],
           frameAreaIds: [],
+        },
+      };
+      mockData.videoSections = {
+        'section-1': {
+          id: 'section-1',
+          versionId: 'ver-1',
+          videoId: 'video-1',
+          startFrame: 0,
+          endFrame: 100,
+          contentAspectRatio: null,
+          localPath: null,
+          fps: null,
           viewportKeyframeIds: ['kf-0', 'kf-50'],
         },
       };
       mockData.viewportKeyframes = {
         'kf-0': {
           id: 'kf-0',
-          videoId: 'video-1',
+          videoSectionId: 'section-1',
           versionId: 'ver-1',
           frameNumber: 0,
           x: 0,
@@ -1334,7 +1360,7 @@ describe('useEditorStore - Extended Tests', () => {
         },
         'kf-50': {
           id: 'kf-50',
-          videoId: 'video-1',
+          videoSectionId: 'section-1',
           versionId: 'ver-1',
           frameNumber: 50,
           x: 100,
@@ -1359,7 +1385,7 @@ describe('useEditorStore - Extended Tests', () => {
         result.current.deleteViewportKeyframe('kf-50');
       });
       expect(result.current.data?.viewportKeyframes['kf-50']).toBeUndefined();
-      expect(result.current.data?.videos['video-1'].viewportKeyframeIds).not.toContain('kf-50');
+      expect(result.current.data?.videoSections['section-1'].viewportKeyframeIds).not.toContain('kf-50');
     });
   });
 
@@ -1375,7 +1401,7 @@ describe('useEditorStore - Extended Tests', () => {
       const newDrawing = {
         id: 'draw-1',
         versionId: 'ver-1',
-        substepImageId: 'img-row-1',
+        videoFrameAreaId: 'img-row-1',
         substepId: 'substep-1',
         startFrame: 0,
         endFrame: 100,
@@ -1408,7 +1434,7 @@ describe('useEditorStore - Extended Tests', () => {
         'draw-1': {
           id: 'draw-1',
           versionId: 'ver-1',
-          substepImageId: 'img-row-1',
+          videoFrameAreaId: 'img-row-1',
           substepId: 'substep-1',
           startFrame: 0,
           endFrame: 100,
@@ -1966,7 +1992,7 @@ describe('useEditorStore - Extended Tests', () => {
       const mockData = createMockInstructionData();
       mockData.drawings = {
         'd-1': {
-          id: 'd-1', versionId: 'ver-1', substepImageId: 'si-1', substepId: 's-1',
+          id: 'd-1', versionId: 'ver-1', videoFrameAreaId: 'si-1', substepId: 's-1',
           startFrame: 0, endFrame: 100, type: 'Rectangle', color: '#FF0000', strokeWidth: 2,
           x1: 0, y1: 0, x2: 100, y2: 100, x: null, y: null, content: null, fontSize: null, points: null, order: 0
         },

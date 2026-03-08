@@ -168,7 +168,7 @@ export interface SnapshotPartTool {
 export interface SnapshotDrawing {
   id: string;
   instruction_id: string | null;
-  substep_image_id: string | null;
+  video_frame_area_id: string | null;
   substep_id: string | null;
   start_frame: number | null;
   end_frame: number | null;

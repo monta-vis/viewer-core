@@ -269,7 +269,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
       Object.values(snapshot.drawings).map(d => [d.id, {
         id: d.id,
         versionId,
-        substepImageId: d.substep_image_id,
+        videoFrameAreaId: d.video_frame_area_id,
         substepId: d.substep_id,
         startFrame: d.start_frame,
         endFrame: d.end_frame,

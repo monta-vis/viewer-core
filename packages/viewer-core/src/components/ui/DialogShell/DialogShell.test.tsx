@@ -98,9 +98,9 @@ describe('DialogShell', () => {
     expect(backdrop.className).toContain('backdrop-blur-sm');
   });
 
-  it('does not apply blur class by default', () => {
+  it('does not apply blur class when blur=false', () => {
     render(
-      <DialogShell {...defaultProps}>
+      <DialogShell {...defaultProps} blur={false}>
         <p>No blur</p>
       </DialogShell>,
     );

@@ -52,7 +52,7 @@ export function useVideoDrawing({
   const substepDrawings = useMemo(() => {
     if (!substepId) return [];
     return Object.values(drawings).filter(
-      (d) => d.substepId === substepId && d.substepImageId === null,
+      (d) => d.substepId === substepId && d.videoFrameAreaId === null,
     );
   }, [drawings, substepId]);
 
@@ -96,7 +96,7 @@ export function useVideoDrawing({
       const newDrawing: DrawingRow = {
         id: uuid(),
         versionId,
-        substepImageId: null,
+        videoFrameAreaId: null,
         substepId,
         startFrame: startPercent,
         endFrame: 100,

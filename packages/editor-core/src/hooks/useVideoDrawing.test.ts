@@ -7,7 +7,7 @@ function makeDrawing(overrides: Partial<DrawingRow> = {}): DrawingRow {
   return {
     id: 'draw-1',
     versionId: 'v1',
-    substepImageId: null,
+    videoFrameAreaId: null,
     substepId: 'sub-1',
     startFrame: 20,
     endFrame: 80,
@@ -40,9 +40,9 @@ describe('useVideoDrawing', () => {
   };
 
   it('filters drawings by substepId, ignoring image drawings', () => {
-    const videoDrawing = makeDrawing({ id: 'd1', substepId: 'sub-1', substepImageId: null });
-    const imageDrawing = makeDrawing({ id: 'd2', substepId: null, substepImageId: 'img-1', startFrame: null, endFrame: null });
-    const otherSubstep = makeDrawing({ id: 'd3', substepId: 'sub-2', substepImageId: null });
+    const videoDrawing = makeDrawing({ id: 'd1', substepId: 'sub-1', videoFrameAreaId: null });
+    const imageDrawing = makeDrawing({ id: 'd2', substepId: null, videoFrameAreaId: 'img-1', startFrame: null, endFrame: null });
+    const otherSubstep = makeDrawing({ id: 'd3', substepId: 'sub-2', videoFrameAreaId: null });
 
     const { result } = renderHook(() =>
       useVideoDrawing({
@@ -81,7 +81,7 @@ describe('useVideoDrawing', () => {
     expect(created.startFrame).toBe(99);
     expect(created.endFrame).toBe(100);
     expect(created.substepId).toBe('sub-1');
-    expect(created.substepImageId).toBeNull();
+    expect(created.videoFrameAreaId).toBeNull();
   });
 
   it('manages tool/color/selection state', () => {

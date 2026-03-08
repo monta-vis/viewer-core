@@ -108,8 +108,11 @@ export const pt = {
     filterByPartTool: 'Filtrar por peça ou ferramenta',
     assembly: 'Montagem',
     nSteps: '{{count}} Passos',
+    nStep: '{{count}} Passo',
     nParts: '{{count}} Peças',
+    nPart: '{{count}} Peça',
     nTools: '{{count}} Ferramentas',
+    nTool: '{{count}} Ferramenta',
     filterByAssembly: 'Filtrar por montagem',
   },
   editorCore: {

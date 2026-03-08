@@ -244,7 +244,8 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
   const drawings: InstructionSnapshot['drawings'] = {};
   for (const row of (data.drawings || [])) {
     const r = row as {
-      id: string; instruction_id: string | null; substep_image_id: string | null;
+      id: string; instruction_id: string | null;
+      video_frame_area_id: string | null;
       substep_id: string | null; start_frame: number | null; end_frame: number | null;
       type: string; color: string; stroke_width: number | null;
       x1: number | null; y1: number | null; x2: number | null; y2: number | null;
@@ -254,7 +255,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
     drawings[r.id] = {
       id: r.id,
       instruction_id: r.instruction_id,
-      substep_image_id: r.substep_image_id,
+      video_frame_area_id: r.video_frame_area_id,
       substep_id: r.substep_id,
       start_frame: r.start_frame,
       end_frame: r.end_frame,

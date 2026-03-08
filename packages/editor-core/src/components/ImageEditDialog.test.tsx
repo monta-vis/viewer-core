@@ -14,7 +14,7 @@ describe('ImageEditDialog', () => {
     open: true,
     onClose: vi.fn(),
     imageSrc: 'test-image.jpg',
-    substepImageId: 'img-1',
+    videoFrameAreaId: 'img-1',
     versionId: 'v-1',
     drawings: {},
     onAddDrawing: vi.fn(),

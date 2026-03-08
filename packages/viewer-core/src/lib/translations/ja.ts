@@ -108,8 +108,11 @@ export const ja = {
     filterByPartTool: '部品または工具でフィルター',
     assembly: 'アセンブリ',
     nSteps: '{{count}} ステップ',
+    nStep: '{{count}} ステップ',
     nParts: '{{count}} 部品',
+    nPart: '{{count}} 部品',
     nTools: '{{count}} 工具',
+    nTool: '{{count}} 工具',
     filterByAssembly: 'アセンブリで絞り込み',
   },
   editorCore: {

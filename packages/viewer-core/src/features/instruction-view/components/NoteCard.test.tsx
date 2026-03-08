@@ -39,7 +39,8 @@ describe('NoteCard icon stability', () => {
 
   it('icon button is in-flow with flex-shrink-0 and fixed w-14 h-14', () => {
     const { rerender } = render(<NoteCard {...baseProps} isExpanded={true} />);
-    const btn = screen.getByRole('button', { name: /Warnzeichen/ });
+    const btns = screen.getAllByRole('button', { name: /Warnzeichen/ });
+    const btn = btns.find(b => b.tagName === 'BUTTON')!;
     expect(btn.className).toContain('flex-shrink-0');
     expect(btn.className).toContain('w-14');
     expect(btn.className).toContain('h-14');
@@ -52,10 +53,9 @@ describe('NoteCard icon stability', () => {
     expect(btn.className).not.toContain('absolute');
   });
 
-  it('text badge gets its own bg/border/backdrop-blur when expanded', () => {
+  it('text badge gets its own border and rounded-r-lg when expanded', () => {
     render(<NoteCard {...baseProps} isExpanded={true} />);
     const textBadge = screen.getByText('Caution').closest('[role="button"]')!;
-    expect(textBadge.className).toContain('backdrop-blur-md');
     expect(textBadge.className).toContain('border-2');
     expect(textBadge.className).toContain('rounded-r-lg');
   });
@@ -80,7 +80,8 @@ describe('NoteCard icon stability', () => {
 
   it('icon button does not have border or bg styles (only text badge does)', () => {
     render(<NoteCard {...baseProps} isExpanded={true} />);
-    const btn = screen.getByRole('button', { name: /Warnzeichen/ });
+    const btns = screen.getAllByRole('button', { name: /Warnzeichen/ });
+    const btn = btns.find(b => b.tagName === 'BUTTON')!;
     expect(btn.className).not.toContain('border-2');
     expect(btn.className).not.toContain('backdrop-blur-md');
   });
@@ -196,7 +197,9 @@ describe('NoteCard click behavior', () => {
 
   it('calls onToggle when icon button is clicked', () => {
     render(<NoteCard {...clickProps} />);
-    fireEvent.click(screen.getByRole('button', { name: /Warnzeichen/ }));
+    const btns = screen.getAllByRole('button', { name: /Warnzeichen/ });
+    const iconBtn = btns.find(b => b.tagName === 'BUTTON')!;
+    fireEvent.click(iconBtn);
     expect(clickProps.onToggle).toHaveBeenCalledTimes(1);
   });
 

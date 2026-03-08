@@ -17,7 +17,7 @@ describe('LogoSpinner', () => {
 
   it('has default aria-label of Loading', () => {
     render(<LogoSpinner />);
-    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Loading');
+    expect(screen.getByRole('status')).toHaveAttribute('aria-label', 'Loading...');
   });
 
   it('uses custom label when provided', () => {

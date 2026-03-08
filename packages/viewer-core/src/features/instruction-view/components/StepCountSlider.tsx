@@ -82,7 +82,9 @@ export function StepCountSlider({
           className="text-xs uppercase tracking-wider text-[var(--color-text-muted)] font-medium"
           data-testid="step-count-row1"
         >
-          {t('instructionView.steps', 'Steps')}
+          {value === 1 && !isAll
+            ? t('instructionView.step', 'Step')
+            : t('instructionView.steps', 'Steps')}
         </span>
 
         {/* Hero step range — large, clickable, Montavis cyan */}
@@ -94,7 +96,6 @@ export function StepCountSlider({
         >
           <span
             className="text-xl font-bold tabular-nums whitespace-nowrap tracking-tight text-[var(--color-secondary)] group-hover:text-[var(--color-secondary-hover)] transition-colors"
-            style={{ textShadow: '0 0 0.75rem color-mix(in srgb, var(--color-secondary) 35%, transparent)' }}
           >
             {countDisplay}
           </span>

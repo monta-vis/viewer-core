@@ -112,17 +112,14 @@ export function PartsDrawer({
   useEffect(() => {
     const el = filterRef.current;
     if (!el) return;
-    // Block wheel/trackpad scroll over filter area
     const preventWheel = (e: WheelEvent) => e.preventDefault();
     el.addEventListener('wheel', preventWheel, { passive: false });
-    // Block drag-scroll: disable parent overflow while pointer is down
+    // Disable parent overflow while pointer is down on filter area
     const lockScroll = () => {
       if (!scrollRef.current) return;
       scrollRef.current.style.overflowX = 'hidden';
       const unlock = () => {
         if (scrollRef.current) scrollRef.current.style.overflowX = '';
-        window.removeEventListener('pointerup', unlock);
-        window.removeEventListener('pointercancel', unlock);
       };
       window.addEventListener('pointerup', unlock, { once: true });
       window.addEventListener('pointercancel', unlock, { once: true });
@@ -136,6 +133,11 @@ export function PartsDrawer({
 
   // Sliding window: selectedCount determines how many steps to show from currentStepNumber
   const [selectedCount, setSelectedCount] = useState<number | 'all' | 'assembly'>(loadStepCountPreference);
+
+  function applyStepCount(value: number | 'all' | 'assembly'): void {
+    setSelectedCount(value);
+    saveStepCountPreference(value);
+  }
 
   // Track previous isOpen to detect opening transition
   const [prevIsOpen, setPrevIsOpen] = useState(false);
@@ -195,7 +197,6 @@ export function PartsDrawer({
 
   const allItems = useMemo(() => [...tools, ...parts], [tools, parts]);
 
-  // Check active filter modes
   const isAllMode = selectedCount === 'all';
   const isAssemblyMode = selectedCount === 'assembly';
 
@@ -226,29 +227,9 @@ export function PartsDrawer({
                   hasMultipleAssemblies={hasMultipleAssemblies}
                   currentStepNumber={startStep}
                   totalSteps={totalSteps}
-                  onChange={(val) => {
-                    // Moving the slider clears assembly/all switches
-                    setSelectedCount(val);
-                    saveStepCountPreference(val);
-                  }}
-                  onAllChange={(checked) => {
-                    if (checked) {
-                      setSelectedCount('all');
-                      saveStepCountPreference('all');
-                    } else {
-                      setSelectedCount(1);
-                      saveStepCountPreference(1);
-                    }
-                  }}
-                  onAssemblyChange={(checked) => {
-                    if (checked) {
-                      setSelectedCount('assembly');
-                      saveStepCountPreference('assembly');
-                    } else {
-                      setSelectedCount(1);
-                      saveStepCountPreference(1);
-                    }
-                  }}
+                  onChange={applyStepCount}
+                  onAllChange={(checked) => applyStepCount(checked ? 'all' : 1)}
+                  onAssemblyChange={(checked) => applyStepCount(checked ? 'assembly' : 1)}
                   onNumberClick={() => setFilterModalOpen(true)}
                 />
               </div>
@@ -310,26 +291,13 @@ export function PartsDrawer({
           inputType="number"
           suggestions={stepCountSuggestions}
           onSelect={(id) => {
-            if (id === 'all') {
-              setSelectedCount('all');
-              saveStepCountPreference('all');
-            } else {
-              const num = parseInt(id, 10);
-              setSelectedCount(num);
-              saveStepCountPreference(num);
-            }
+            applyStepCount(id === 'all' ? 'all' : parseInt(id, 10));
             setFilterModalOpen(false);
           }}
           onConfirm={(val) => {
             const num = parseInt(val, 10);
             if (!isNaN(num) && num >= 1) {
-              if (num >= totalSteps) {
-                setSelectedCount('all');
-                saveStepCountPreference('all');
-              } else {
-                setSelectedCount(num);
-                saveStepCountPreference(num);
-              }
+              applyStepCount(num >= totalSteps ? 'all' : num);
             }
             setFilterModalOpen(false);
           }}

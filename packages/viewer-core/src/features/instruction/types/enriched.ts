@@ -230,15 +230,15 @@ export interface PartToolVideoFrameAreaRow {
  * Drawing on a substep image or video section.
  *
  * Two types:
- * - Image Drawing: substepImageId is set (static image)
+ * - Image Drawing: videoFrameAreaId is set (static image)
  * - Video Drawing: substepId + startFrame + endFrame are set (video section)
  */
 export interface DrawingRow {
   id: string;
   versionId: string;
 
-  // For Image Drawings (one of these must be set)
-  substepImageId: string | null;
+  // For Image Drawings — references the VFA that owns the image
+  videoFrameAreaId: string | null;
 
   // For Video Drawings
   substepId: string | null;
@@ -263,7 +263,7 @@ export interface DrawingRow {
 
 // Helper functions to distinguish drawing types
 export function isImageDrawing(d: DrawingRow): boolean {
-  return d.substepImageId !== null;
+  return d.videoFrameAreaId !== null;
 }
 
 export function isVideoDrawing(d: DrawingRow): boolean {

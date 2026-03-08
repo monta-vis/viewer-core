@@ -108,8 +108,11 @@ export const ko = {
     filterByPartTool: '부품 또는 도구로 필터',
     assembly: '어셈블리',
     nSteps: '{{count}} 단계',
+    nStep: '{{count}} 단계',
     nParts: '{{count}} 부품',
+    nPart: '{{count}} 부품',
     nTools: '{{count}} 도구',
+    nTool: '{{count}} 도구',
     filterByAssembly: '조립별 필터',
   },
   editorCore: {

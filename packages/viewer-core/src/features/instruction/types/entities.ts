@@ -153,7 +153,7 @@ export interface Comment {
 
 export interface Drawing {
   id: string;
-  substepImageId: string;
+  videoFrameAreaId: string;
   versionId: string;
   type: string;
   color: string;

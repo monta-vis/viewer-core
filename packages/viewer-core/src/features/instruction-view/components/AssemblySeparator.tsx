@@ -30,13 +30,15 @@ export function AssemblySeparator({ title, stepCount, partCount, toolCount, onPa
       {/* Content row */}
       <div className="flex items-center justify-between px-2 py-3">
         <div className="flex items-center gap-2">
-          <AssemblyIcon className="w-5 h-5 text-[var(--color-secondary)]" />
+          <AssemblyIcon className="w-7 h-7 text-[var(--color-secondary)]" />
           <div className="flex flex-col">
             <span className="text-base font-semibold text-[var(--color-text-base)]">
               {title}
             </span>
             <span className="text-xs text-[var(--color-text-muted)]">
-              {t('instructionView.nSteps', '{{count}} Steps', { count: stepCount })}
+              {stepCount === 1
+                ? t('instructionView.nStep', '{{count}} Step', { count: stepCount })
+                : t('instructionView.nSteps', '{{count}} Steps', { count: stepCount })}
             </span>
           </div>
         </div>

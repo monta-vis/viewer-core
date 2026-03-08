@@ -108,8 +108,11 @@ export const nl = {
     filterByPartTool: 'Filteren op onderdeel of gereedschap',
     assembly: 'Assemblage',
     nSteps: '{{count}} Stappen',
+    nStep: '{{count}} Stap',
     nParts: '{{count}} Onderdelen',
+    nPart: '{{count}} Onderdeel',
     nTools: '{{count}} Gereedschap',
+    nTool: '{{count}} Gereedschap',
     filterByAssembly: 'Filteren op assemblage',
   },
   editorCore: {

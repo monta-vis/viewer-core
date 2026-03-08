@@ -481,6 +481,29 @@ export const SubstepCard = memo(function SubstepCard({
     };
   }, [isPlayingInline, closeInlinePlayback]);
 
+  // Pause video when card scrolls out of view, resume when it returns
+  useEffect(() => {
+    const el = imageAreaRef.current;
+    const video = videoRef.current;
+    if (!isPlayingInline || !el || !video) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) {
+          video.pause();
+        } else if (video.paused && video.currentTime > 0) {
+          video.play().catch((err) => {
+            console.error('[SubstepCard] Failed to resume video playback:', err);
+          });
+        }
+      },
+      { threshold: 0 },
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [isPlayingInline]);
+
   // Sort notes by safety icon category priority (or legacy level priority)
   const sortedNotes = useMemo(() => {
     return [...notes].sort((a, b) =>

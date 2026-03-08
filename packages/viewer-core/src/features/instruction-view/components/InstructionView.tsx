@@ -447,9 +447,9 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
     const imageMap = new Map<string, DrawingRow[]>();
     const videoMap = new Map<string, DrawingRow[]>();
     for (const d of Object.values(data.drawings)) {
-      if (isImageDrawing(d) && d.substepImageId) {
-        const arr = imageMap.get(d.substepImageId);
-        if (arr) arr.push(d); else imageMap.set(d.substepImageId, [d]);
+      if (isImageDrawing(d) && d.videoFrameAreaId) {
+        const arr = imageMap.get(d.videoFrameAreaId);
+        if (arr) arr.push(d); else imageMap.set(d.videoFrameAreaId, [d]);
       } else if (isVideoDrawing(d) && d.substepId) {
         const arr = videoMap.get(d.substepId);
         if (arr) arr.push(d); else videoMap.set(d.substepId, [d]);
@@ -918,8 +918,8 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
 
                       const tutorials = tutorialDisplayMap.get(substep.id) ?? [];
 
-                      const substepImageId = imageRow?.id ?? null;
-                      const imgDrawings = substepImageId ? (drawingMaps.image.get(substepImageId) ?? EMPTY_DRAWINGS) : EMPTY_DRAWINGS;
+                      const imageVfaId = imageRow?.videoFrameAreaId ?? null;
+                      const imgDrawings = imageVfaId ? (drawingMaps.image.get(imageVfaId) ?? EMPTY_DRAWINGS) : EMPTY_DRAWINGS;
                       const vidDrawings = drawingMaps.video.get(substep.id) ?? EMPTY_DRAWINGS;
 
                       return (

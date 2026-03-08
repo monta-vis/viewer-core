@@ -66,6 +66,7 @@ export interface VideoUploadArgs {
 export interface SubstepImageUploadResult extends PersistenceResult {
   vfaId?: string;
   substepImageId?: string;
+  deletedDrawingIds?: string[];
 }
 
 export interface PersistenceAdapter {

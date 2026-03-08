@@ -67,8 +67,8 @@ describe('PartToolSearchBar', () => {
       />,
     );
     fireEvent.focus(screen.getByPlaceholderText('Search parts & tools...'));
-    const buttons = screen.getAllByRole('button');
-    expect(buttons).toHaveLength(10);
+    const options = screen.getAllByRole('option');
+    expect(options).toHaveLength(10);
   });
 
   it('shows fuzzy-matched results when typing', () => {

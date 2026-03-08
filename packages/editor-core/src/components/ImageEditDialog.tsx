@@ -25,7 +25,7 @@ export interface ImageEditDialogProps {
   area?: AreaData | null;
   onAreaUpdate?: (areaId: string, rect: Rectangle) => void;
   /** Drawing data + callbacks */
-  substepImageId: string | null;
+  videoFrameAreaId: string | null;
   versionId: string;
   drawings: Record<string, DrawingRow>;
   onAddDrawing: (drawing: DrawingRow) => void;
@@ -60,7 +60,7 @@ export function ImageEditDialog({
   imageSrc,
   area,
   onAreaUpdate,
-  substepImageId,
+  videoFrameAreaId,
   versionId,
   drawings,
   onAddDrawing,
@@ -74,7 +74,7 @@ export function ImageEditDialog({
 
   // Drawing state management
   const imageDrawing = useImageDrawing({
-    substepImageId,
+    videoFrameAreaId,
     versionId,
     drawings,
     addDrawing: onAddDrawing,

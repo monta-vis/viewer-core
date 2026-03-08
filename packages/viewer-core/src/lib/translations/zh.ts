@@ -108,8 +108,11 @@ export const zh = {
     filterByPartTool: '按零件或工具筛选',
     assembly: '组件',
     nSteps: '{{count}} 步骤',
+    nStep: '{{count}} 步骤',
     nParts: '{{count}} 零件',
+    nPart: '{{count}} 零件',
     nTools: '{{count}} 工具',
+    nTool: '{{count}} 工具',
     filterByAssembly: '按组件筛选',
   },
   editorCore: {

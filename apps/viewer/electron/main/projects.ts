@@ -276,6 +276,74 @@ export function getProjectData(folderName: string): ElectronProjectData {
     }
   }
 
+  // Migrate drawings: add video_frame_area_id (with ON DELETE CASCADE), drop substep_image_id
+  {
+    const migDb = new Database(dbPath);
+    migDb.pragma("foreign_keys = OFF");
+    try {
+      const drawingCols = migDb.pragma("table_info(drawings)") as Array<{ name: string; type: string; notnull: number; dflt_value: string | null }>;
+      const hasSubstepImageId = drawingCols.some(c => c.name === "substep_image_id");
+      const hasVfaId = drawingCols.some(c => c.name === "video_frame_area_id");
+
+      if (!hasVfaId) {
+        // First add the column and populate from substep_images join
+        migDb.exec("ALTER TABLE drawings ADD COLUMN video_frame_area_id TEXT REFERENCES video_frame_areas(id)");
+        migDb.exec(`UPDATE drawings SET video_frame_area_id = (
+          SELECT si.video_frame_area_id FROM substep_images si WHERE si.id = drawings.substep_image_id
+        ) WHERE substep_image_id IS NOT NULL AND video_frame_area_id IS NULL`);
+      }
+
+      if (hasSubstepImageId) {
+        // Recreate table without substep_image_id, with PK on id and ON DELETE CASCADE on video_frame_area_id.
+        // Re-read columns after potential ALTER TABLE so video_frame_area_id is included.
+        const currentCols = migDb.pragma("table_info(drawings)") as Array<{ name: string; type: string; notnull: number; dflt_value: string | null }>;
+        const keptCols = currentCols.filter(c => c.name !== "substep_image_id");
+        // Hardcode known column definitions to avoid interpolating raw dflt_value SQL expressions
+        const knownColumnDefs: Record<string, string> = {
+          id: '"id" TEXT PRIMARY KEY',
+          instruction_id: '"instruction_id" TEXT REFERENCES instructions(id)',
+          video_frame_area_id: '"video_frame_area_id" TEXT REFERENCES video_frame_areas(id) ON DELETE CASCADE',
+          version_id: '"version_id" TEXT NOT NULL',
+          substep_id: '"substep_id" TEXT NOT NULL',
+          type: '"type" TEXT NOT NULL',
+          path_data: '"path_data" TEXT NOT NULL',
+          color: '"color" TEXT NOT NULL',
+          stroke_width: '"stroke_width" REAL NOT NULL',
+          start_frame: '"start_frame" INTEGER',
+          end_frame: '"end_frame" INTEGER',
+          '"order"': '"order" INTEGER NOT NULL DEFAULT 0',
+          text: '"text" TEXT',
+          font_size: '"font_size" REAL',
+        };
+        const columnDefs = keptCols.map(c => {
+          const colKey = c.name === "order" ? '"order"' : c.name;
+          const known = knownColumnDefs[colKey];
+          if (known) return known;
+          // Fallback for unexpected columns: validate name/type to prevent injection
+          if (!/^[a-zA-Z0-9_]+$/.test(c.name) || !/^[a-zA-Z0-9_ ()]+$/.test(c.type)) {
+            throw new Error(`[getProjectData] Unexpected column name/type in drawings table: ${c.name} ${c.type}`);
+          }
+          const nullable = c.notnull ? " NOT NULL" : "";
+          return `"${c.name}" ${c.type}${nullable}`;
+        }).join(", ");
+        const colNames = keptCols.map(c => `"${c.name}"`).join(", ");
+
+        migDb.exec("BEGIN TRANSACTION");
+        migDb.exec(`CREATE TABLE drawings_new (${columnDefs})`);
+        migDb.exec(`INSERT INTO drawings_new (${colNames}) SELECT ${colNames} FROM drawings`);
+        migDb.exec("DROP TABLE drawings");
+        migDb.exec("ALTER TABLE drawings_new RENAME TO drawings");
+        migDb.exec("COMMIT");
+      }
+    } catch (err) {
+      try { migDb.exec("ROLLBACK"); } catch { /* ignore */ }
+      console.error("[getProjectData] Drawings migration failed:", err);
+      throw err;
+    } finally {
+      migDb.close();
+    }
+  }
+
   const db = new Database(dbPath, { readonly: true });
   try {
     // Read instruction (single row)
@@ -591,7 +659,7 @@ export async function uploadSubstepImage(
   substepId: string,
   sourceImagePath: string,
   crop?: { x: number; y: number; width: number; height: number },
-): Promise<{ success: boolean; vfaId?: string; substepImageId?: string; error?: string }> {
+): Promise<{ success: boolean; vfaId?: string; substepImageId?: string; deletedDrawingIds?: string[]; error?: string }> {
   console.log("[uploadSubstepImage] Entry: folder=%s, substep=%s, source=%s", folderName, substepId, sourceImagePath);
   const basePath = getProjectsBasePath();
   const dbPath = path.join(basePath, folderName, "montavis.db");
@@ -627,12 +695,19 @@ export async function uploadSubstepImage(
 
     try {
       // Clean up old substep images before inserting new ones
-      const oldVfaIds = db.prepare(
-        `SELECT video_frame_area_id FROM substep_images WHERE substep_id = ?`,
-      ).all(substepId) as { video_frame_area_id: string }[];
+      const oldRows = db.prepare(
+        `SELECT id, video_frame_area_id FROM substep_images WHERE substep_id = ?`,
+      ).all(substepId) as { id: string; video_frame_area_id: string }[];
+
+      // Collect drawing IDs that will be cascade-deleted when VFAs are removed
+      const deletedDrawingIds: string[] = [];
+      for (const { video_frame_area_id: oldVfaId } of oldRows) {
+        const rows = db.prepare(`SELECT id FROM drawings WHERE video_frame_area_id = ?`).all(oldVfaId) as { id: string }[];
+        deletedDrawingIds.push(...rows.map(r => r.id));
+      }
 
       db.prepare(`DELETE FROM substep_images WHERE substep_id = ?`).run(substepId);
-      for (const { video_frame_area_id } of oldVfaIds) {
+      for (const { video_frame_area_id } of oldRows) {
         db.prepare(`DELETE FROM video_frame_areas WHERE id = ?`).run(video_frame_area_id);
         // Remove old media files from disk
         const oldDir = path.join(basePath, folderName, "media", "frames", video_frame_area_id);
@@ -658,8 +733,9 @@ export async function uploadSubstepImage(
 
       db.exec("COMMIT");
       db.close();
-      console.log("[uploadSubstepImage] Success: vfaId=%s, substepImageId=%s", vfaId, substepImageId);
-      return { success: true, vfaId, substepImageId };
+      const uniqueDeletedIds = [...new Set(deletedDrawingIds)];
+      console.debug("[uploadSubstepImage] Success: vfaId=%s, substepImageId=%s, deletedDrawings=%d", vfaId, substepImageId, uniqueDeletedIds.length);
+      return { success: true, vfaId, substepImageId, deletedDrawingIds: uniqueDeletedIds };
     } catch (txErr) {
       console.error("[uploadSubstepImage] DB transaction failed:", txErr);
       db.exec("ROLLBACK");

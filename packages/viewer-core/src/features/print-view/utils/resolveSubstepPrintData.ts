@@ -52,27 +52,21 @@ export function resolveSubstepPrintData(
     ? buildMediaUrl(folderName, MediaPaths.frame(firstImage.videoFrameAreaId))
     : null;
 
-  // ── Image drawings ──
-  const substepImageId = firstImage?.id ?? null;
-  const imageDrawings = substepImageId
+  // ── Image drawings (keyed by videoFrameAreaId) ──
+  const imageVfaId = firstImage?.videoFrameAreaId ?? null;
+  const imageDrawings = imageVfaId
     ? Object.values(data.drawings).filter(
-        (d) => isImageDrawing(d) && d.substepImageId === substepImageId,
+        (d) => isImageDrawing(d) && d.videoFrameAreaId === imageVfaId,
       )
     : [];
 
-  if (substepImageId) {
-    const allDrawings = Object.values(data.drawings);
-    const imageDrawingsAll = allDrawings.filter(d => isImageDrawing(d));
-    if (imageDrawings.length === 0 && imageDrawingsAll.length > 0) {
+  if (imageVfaId && imageDrawings.length === 0) {
+    const imageDrawingsAll = Object.values(data.drawings).filter(d => isImageDrawing(d));
+    if (imageDrawingsAll.length > 0) {
       console.warn(
-        `[resolveSubstepPrintData] Substep ${substepId}: has substepImageId=${substepImageId} ` +
+        `[resolveSubstepPrintData] Substep ${substepId}: has videoFrameAreaId=${imageVfaId} ` +
         `but 0 matching drawings. Total image drawings in data: ${imageDrawingsAll.length}. ` +
-        `Their substepImageIds: ${imageDrawingsAll.map(d => d.substepImageId).join(', ')}`,
-      );
-    } else {
-      console.debug(
-        `[resolveSubstepPrintData] Substep ${substepId}: substepImageId=${substepImageId}, ` +
-        `found ${imageDrawings.length} drawings`,
+        `Their videoFrameAreaIds: ${imageDrawingsAll.map(d => d.videoFrameAreaId).join(', ')}`,
       );
     }
   }
@@ -116,7 +110,7 @@ export function resolveSubstepPrintData(
 
   return {
     imageUrl,
-    substepImageId,
+    substepImageId: firstImage?.id ?? null,
     imageDrawings,
     descriptions,
     notes,
