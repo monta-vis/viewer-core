@@ -10,6 +10,7 @@ import {
   InstructionViewProvider,
   InstructionViewContainer,
   InstructionView,
+  PrintView,
   ViewerDataProvider,
   VideoProvider,
   IconButton,
@@ -59,6 +60,8 @@ export function ViewPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const editModeActive = (location.state as { editMode?: boolean } | null)?.editMode ?? false;
+  const printParam = new URLSearchParams(location.search).get('print');
+  const isPrintMode = printParam === 'true';
   const { t, i18n } = useTranslation();
   const { resolvedTheme } = useTheme();
 
@@ -910,6 +913,16 @@ export function ViewPage() {
           <p className="text-[var(--color-text-danger)]">{error}</p>
         </div>
       </div>
+    );
+  }
+
+  // ── Print mode: render PrintView without Navbar, VideoProvider, editor wrappers ──
+  // Used by hidden BrowserWindow for PDF generation
+  if (isPrintMode && viewerData) {
+    return (
+      <ViewerDataProvider data={viewerData}>
+        <PrintView folderName={decodedFolderName!} />
+      </ViewerDataProvider>
     );
   }
 

@@ -271,4 +271,23 @@ export const ko = {
   mweb: {
     poweredBy: 'Powered by Montavis',
   },
+  printPreview: {
+    title: 'PDF 미리보기',
+    close: '닫기',
+    generating: 'PDF 생성 중...',
+    error: 'PDF 생성에 실패했습니다',
+  },
+  printView: {
+    title: '인쇄 보기',
+    partsAndTools: '부품 및 도구',
+    parts: '부품',
+    tools: '도구',
+    step: '단계',
+    page: '페이지',
+    generatedBy: 'Montavis로 생성됨',
+    quantity: '수량',
+    articleNumber: '품번',
+    estimatedDuration: '예상 소요 시간',
+    noImage: '이미지 없음',
+  },
 } as const satisfies TranslationNamespaces;

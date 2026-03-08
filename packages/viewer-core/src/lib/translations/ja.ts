@@ -271,4 +271,23 @@ export const ja = {
   mweb: {
     poweredBy: 'Powered by Montavis',
   },
+  printPreview: {
+    title: 'PDFプレビュー',
+    close: '閉じる',
+    generating: 'PDF生成中...',
+    error: 'PDFの生成に失敗しました',
+  },
+  printView: {
+    title: '印刷ビュー',
+    partsAndTools: '部品と工具',
+    parts: '部品',
+    tools: '工具',
+    step: 'ステップ',
+    page: 'ページ',
+    generatedBy: 'Montavisで生成',
+    quantity: '数量',
+    articleNumber: '品番',
+    estimatedDuration: '推定所要時間',
+    noImage: '画像なし',
+  },
 } as const satisfies TranslationNamespaces;

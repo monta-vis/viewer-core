@@ -60,3 +60,6 @@ export { matchTermsSearch, type MatchableEntry, type MatchResult } from './lib/m
 
 // Time formatting utilities
 export { formatTimecodeWithFrames } from './lib/timeFormat';
+
+// Print View
+export * from './features/print-view';

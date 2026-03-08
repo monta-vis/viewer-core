@@ -271,4 +271,23 @@ export const es = {
   mweb: {
     poweredBy: 'Powered by Montavis',
   },
+  printPreview: {
+    title: 'Vista previa del PDF',
+    close: 'Cerrar',
+    generating: 'Generando PDF...',
+    error: 'Error al generar el PDF',
+  },
+  printView: {
+    title: 'Vista de impresión',
+    partsAndTools: 'Piezas y herramientas',
+    parts: 'Piezas',
+    tools: 'Herramientas',
+    step: 'Paso',
+    page: 'Página',
+    generatedBy: 'Generado por Montavis',
+    quantity: 'Cantidad',
+    articleNumber: 'Número de artículo',
+    estimatedDuration: 'Duración estimada',
+    noImage: 'Sin imagen',
+  },
 } as const satisfies TranslationNamespaces;

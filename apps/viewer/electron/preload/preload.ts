@@ -2,6 +2,9 @@ const { contextBridge, ipcRenderer, webUtils } = require("electron");
 
 const electronAPI = {
   getFilePath: (file: File) => webUtils.getPathForFile(file),
+  print: {
+    generatePdf: (folderName: string) => ipcRenderer.invoke("print:generate-pdf", folderName),
+  },
   onNavigate: (callback: (path: string) => void) => {
     const handler = (_event: unknown, navPath: string) => callback(navPath);
     ipcRenderer.on("navigate", handler);
@@ -68,7 +71,7 @@ const electronAPI = {
       ),
     copyCatalogIcon: (folderName: string, catalogType: string, iconId: string, entryId: string) =>
       ipcRenderer.invoke("projects:copy-catalog-icon", folderName, catalogType, iconId, entryId),
-    exportProject: (folderName: string, type: "mvis" | "mweb" | "pdf") =>
+    exportProject: (folderName: string, type: "mvis" | "mweb") =>
       ipcRenderer.invoke("projects:export", folderName, type),
     onImportStart: (callback: (data: { fileName: string }) => void) => {
       const handler = (_event: unknown, data: { fileName: string }) => callback(data);

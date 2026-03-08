@@ -271,4 +271,23 @@ export const zh = {
   mweb: {
     poweredBy: 'Powered by Montavis',
   },
+  printPreview: {
+    title: 'PDF预览',
+    close: '关闭',
+    generating: '正在生成PDF...',
+    error: 'PDF生成失败',
+  },
+  printView: {
+    title: '打印视图',
+    partsAndTools: '零件和工具',
+    parts: '零件',
+    tools: '工具',
+    step: '步骤',
+    page: '页面',
+    generatedBy: '由 Montavis 生成',
+    quantity: '数量',
+    articleNumber: '物料编号',
+    estimatedDuration: '预计时长',
+    noImage: '无图片',
+  },
 } as const satisfies TranslationNamespaces;

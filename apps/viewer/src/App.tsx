@@ -12,6 +12,7 @@ import {
   IconButton,
   PreferencesDialog,
   LoadingCard,
+  PdfPreviewDialog,
 } from "@monta-vis/viewer-core";
 import type { SortOption, SortDirection } from "@monta-vis/viewer-core";
 import { ViewPage } from "./pages/ViewPage";
@@ -46,6 +47,9 @@ declare global {
     electronAPI?: {
       getFilePath: (file: File) => string;
       onNavigate: (callback: (path: string) => void) => (() => void);
+      print?: {
+        generatePdf: (folderName: string) => Promise<{ success: boolean; data?: string; error?: string }>;
+      };
       catalogs: {
         getSafetyIcons: () => Promise<Array<{
           name: string;
@@ -100,7 +104,7 @@ declare global {
         ) => Promise<{ success: boolean; vfaId?: string; error?: string }>;
         exportProject: (
           folderName: string,
-          type: "mvis" | "mweb" | "pdf",
+          type: "mvis" | "mweb",
         ) => Promise<{ success: boolean; error?: string }>;
         onImportStart: (callback: (data: { fileName: string }) => void) => (() => void);
         onImportComplete: (callback: (data: { success: boolean; folderName?: string }) => void) => (() => void);
@@ -212,6 +216,12 @@ function DashboardPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const [prefsOpen, setPrefsOpen] = useState(false);
   const [importingFileName, setImportingFileName] = useState<string | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<{
+    folderName: string;
+    pdfUrl: string | null;
+    isLoading: boolean;
+    error: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!window.electronAPI) return;
@@ -230,6 +240,46 @@ function DashboardPage() {
       cleanupComplete();
     };
   }, [refetch]);
+
+  // Cleanup blob URL when dialog closes
+  useEffect(() => {
+    return () => {
+      if (pdfPreview?.pdfUrl) {
+        URL.revokeObjectURL(pdfPreview.pdfUrl);
+      }
+    };
+  }, [pdfPreview?.pdfUrl]);
+
+  const handlePdfExport = useCallback((folderName: string) => {
+    const generatePdf = window.electronAPI?.print?.generatePdf;
+    if (!generatePdf) {
+      console.error('[DashboardPage] PDF generation not available: electronAPI.print.generatePdf is undefined');
+      return;
+    }
+    setPdfPreview({ folderName, pdfUrl: null, isLoading: true, error: null });
+    generatePdf(folderName)
+      .then((result) => {
+        if (result.success && result.data) {
+          const bytes = Uint8Array.from(atob(result.data), c => c.charCodeAt(0));
+          const blob = new Blob([bytes], { type: 'application/pdf' });
+          const url = URL.createObjectURL(blob);
+          setPdfPreview(prev => prev ? { ...prev, pdfUrl: url, isLoading: false } : null);
+        } else {
+          setPdfPreview(prev => prev ? { ...prev, isLoading: false, error: result.error ?? 'Unknown error' } : null);
+        }
+      })
+      .catch((err: Error) => {
+        console.error('[DashboardPage] PDF generation failed:', err);
+        setPdfPreview(prev => prev ? { ...prev, isLoading: false, error: err.message } : null);
+      });
+  }, []);
+
+  const closePdfPreview = useCallback(() => {
+    if (pdfPreview?.pdfUrl) {
+      URL.revokeObjectURL(pdfPreview.pdfUrl);
+    }
+    setPdfPreview(null);
+  }, [pdfPreview?.pdfUrl]);
 
   const filteredAndSorted = useMemo(() => {
     let items = projects;
@@ -346,9 +396,13 @@ function DashboardPage() {
                             state: { editMode: true },
                           })
                         : undefined}
-                        onExport={editEnabled ? (format) =>
-                          window.electronAPI?.projects.exportProject(project.folderName, format)
-                        : undefined}
+                        onExport={editEnabled ? (format) => {
+                          if (format === 'pdf') {
+                            handlePdfExport(project.folderName);
+                          } else {
+                            window.electronAPI?.projects.exportProject(project.folderName, format);
+                          }
+                        } : undefined}
                       />
                     ))}
                   </div>
@@ -356,6 +410,14 @@ function DashboardPage() {
               </div>
         </div>
       </main>
+
+      <PdfPreviewDialog
+        open={!!pdfPreview}
+        onClose={closePdfPreview}
+        pdfUrl={pdfPreview?.pdfUrl ?? null}
+        isLoading={pdfPreview?.isLoading ?? false}
+        error={pdfPreview?.error ?? null}
+      />
     </div>
   );
 }

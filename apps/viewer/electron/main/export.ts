@@ -2,7 +2,7 @@
 // Unified export dispatcher
 // ---------------------------------------------------------------------------
 
-export type ExportType = "mvis" | "mweb" | "pdf";
+export type ExportType = "mvis" | "mweb";
 
 export async function exportProject(
   folderName: string,
@@ -16,10 +16,6 @@ export async function exportProject(
     case "mweb": {
       const { exportMweb } = await import("./export-mweb.js");
       return exportMweb(folderName);
-    }
-    case "pdf": {
-      const { exportPdf } = await import("./export-pdf.js");
-      return exportPdf(folderName);
     }
     default:
       return { success: false, error: `Unknown export type: ${type}` };

@@ -296,12 +296,79 @@ function registerIpcHandlers(): void {
         throw new Error("Invalid folderName");
       if (
         typeof type !== "string" ||
-        !["mvis", "mweb", "pdf"].includes(type)
+        !["mvis", "mweb"].includes(type)
       )
         throw new Error("Invalid export type");
       return exportProject(folderName, type as ExportType);
     },
   );
+
+  // PDF generation — creates a hidden BrowserWindow, renders PrintView, calls printToPDF
+  ipcMain.handle("print:generate-pdf", async (_event, folderName: unknown) => {
+    if (typeof folderName !== "string") {
+      return { success: false, error: "Invalid folderName" };
+    }
+    // Reject path traversal and dangerous characters
+    if (/[/\\]|\.\./.test(folderName)) {
+      return { success: false, error: "Invalid folderName: contains illegal characters" };
+    }
+
+    const hiddenWin = new BrowserWindow({
+      show: false,
+      width: 1024,
+      height: 768,
+      webPreferences: {
+        preload: path.join(__dirname, "preload.mjs"),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+      },
+    });
+
+    try {
+      if (isDev && process.env["VITE_DEV_SERVER_URL"]) {
+        await hiddenWin.loadURL(
+          `${process.env["VITE_DEV_SERVER_URL"]}#/view/${encodeURIComponent(folderName)}?print=true`,
+        );
+      } else {
+        await hiddenWin.loadFile(
+          path.join(__dirname, "../dist/index.html"),
+          { hash: `/view/${encodeURIComponent(folderName)}?print=true` },
+        );
+      }
+
+      // Poll for data-pdf-ready (max 30s)
+      await hiddenWin.webContents.executeJavaScript(`
+        new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('PDF render timeout')), 30000);
+          const check = () => {
+            if (document.querySelector('[data-pdf-ready="true"]')) {
+              clearTimeout(timeout);
+              resolve(true);
+            } else setTimeout(check, 200);
+          };
+          check();
+        });
+      `);
+
+      const pdfData = await hiddenWin.webContents.printToPDF({
+        printBackground: true,
+        landscape: false,
+        pageSize: "A4",
+        margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
+      });
+
+      return { success: true, data: pdfData.toString("base64") };
+    } catch (err) {
+      console.error("[print:generate-pdf] Failed:", err);
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      };
+    } finally {
+      hiddenWin.close();
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
