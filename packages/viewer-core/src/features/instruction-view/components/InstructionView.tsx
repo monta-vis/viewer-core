@@ -2,7 +2,6 @@ import type { ReactNode } from 'react';
 import { Fragment, useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Check, ChevronDown, ChevronRight, Gauge, Home, LayoutGrid, Plus, X } from 'lucide-react';
-import { PartIcon, ToolIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
 import { Button, Drawer, TutorialClickIcon } from '@/components/ui';
@@ -15,6 +14,7 @@ import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
 
+import { PartToolBadge } from './PartToolBadge';
 import { SubstepCard } from './SubstepCard';
 import type { SubstepEditCallbacks } from './SubstepCard';
 import { StepOverview } from './StepOverview';
@@ -119,6 +119,7 @@ interface InstructionViewProps {
     onAddAssembly?: () => void;
     onDeleteAssembly?: (assemblyId: string) => void;
     onRenameAssembly?: (assemblyId: string, title: string) => void;
+    onRenameStep?: (stepId: string, title: string) => void;
     onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
     onReorderAssembly?: (assemblyId: string, newIndex: number) => void;
     renderAssemblyList?: (
@@ -713,11 +714,11 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                 className={`flex items-center gap-0.5 sm:gap-1 min-w-0 justify-center px-2 sm:px-3 h-12 sm:h-14 rounded-lg transition-colors ${
                   showOverview
                     ? 'bg-[var(--color-secondary)] text-white'
-                    : 'hover:bg-[var(--color-secondary)]/20'
+                    : 'bg-[var(--color-bg-elevated)]/50 hover:bg-[var(--color-secondary)]/20'
                 }`}
                 aria-label={t('instructionView.overview', 'Step Overview')}
               >
-                <LayoutGrid className={`h-5 w-5 sm:h-6 sm:w-6 mr-0.5 sm:mr-1 ${showOverview ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`} />
+                <LayoutGrid className={`h-7 w-7 sm:h-8 sm:w-8 mr-0.5 sm:mr-1 ${showOverview ? 'text-white/70' : 'text-[var(--color-text-muted)]'}`} />
                 {isPartsDrawerOpen && !hasStarted ? (
                   <span className="text-lg sm:text-xl font-medium text-current leading-none flex items-center">–</span>
                 ) : (
@@ -729,58 +730,35 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
             </div>
           )}
 
-          {/* Center: Parts/Tools drawer button - diagonal split: tool (yellow) top-left, part (orange) bottom-right */}
+          {/* Center: Parts/Tools drawer button */}
           <div className="flex items-center gap-1 sm:gap-3 min-w-0 flex-1 justify-center">
-            <button
-              type="button"
-              className={clsx(
-                'relative group overflow-hidden rounded-lg transition-all duration-200',
-                'h-12 w-12 sm:h-14 sm:w-14 m-0',
-                'border border-[var(--color-border)]/30 hover:border-[var(--color-border)]/50',
-                tutorialStep === 0 && 'shadow-[inset_0_0_0_0.1875rem_var(--color-tutorial)]',
-              )}
-              style={{
-                background: 'linear-gradient(135deg, color-mix(in srgb, var(--color-element-tool) 15%, transparent) 45%, color-mix(in srgb, var(--color-element-part) 15%, transparent) 55%)',
-              }}
-              onClick={() => {
-                const opening = !isPartsDrawerOpen;
-                if (opening) {
-                  setPartsDrawerInitialCount(undefined);
-                  setIsPartsDrawerOpen(true);
-                  setTutorialStep((s) => advanceOnDrawerOpen(s));
-                } else {
-                  handlePartsDrawerClose();
-                }
-              }}
-              aria-label={t('instructionView.partsToolsOverview', 'Parts & Tools')}
-            >
-              {/* Top-left icon — Tool */}
-              <span className="absolute top-0.5 left-0.5 sm:top-1 sm:left-1" aria-hidden="true">
-                <ToolIcon className="h-5 w-5 sm:h-6 sm:w-6 text-[var(--color-element-tool)] transition-transform duration-200 group-hover:scale-110" />
-              </span>
-              {/* Bottom-right icon — Part */}
-              <span className="absolute bottom-0.5 right-0.5 sm:bottom-1 sm:right-1" aria-hidden="true">
-                <PartIcon className="h-5 w-5 sm:h-6 sm:w-6 text-[var(--color-element-part)] transition-transform duration-200 group-hover:scale-110" />
-              </span>
+            <div className="relative">
+              <PartToolBadge
+                partCount={1}
+                toolCount={1}
+                showAmount={false}
+                rounded="lg"
+                className={clsx(
+                  'h-12 sm:h-14 w-16 sm:w-20',
+                  tutorialStep === 0 && 'shadow-[inset_0_0_0_0.1875rem_var(--color-tutorial)]',
+                )}
+                onClick={() => {
+                  const opening = !isPartsDrawerOpen;
+                  if (opening) {
+                    setPartsDrawerInitialCount(undefined);
+                    setIsPartsDrawerOpen(true);
+                    setTutorialStep((s) => advanceOnDrawerOpen(s));
+                  } else {
+                    handlePartsDrawerClose();
+                  }
+                }}
+              />
               {tutorialStep === 0 && <TutorialClickIcon iconPosition="bottom-right" label={t('instructionView.tutorial.openParts')} labelPosition="bottom-right" labelWidth="10rem" />}
-            </button>
+            </div>
           </div>
 
           {/* Right: Feedback + Close */}
-          <div className="flex items-center gap-1 sm:gap-3 shrink-0">
-            {/* Playback speed toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-12 sm:h-14 px-2 sm:px-3 py-0 rounded-lg hover:bg-[var(--color-bg-elevated)]"
-              onClick={() => setIsSpeedDrawerOpen(prev => !prev)}
-              aria-label={t('instructionView.playbackSpeed', 'Playback speed')}
-            >
-              <div className="relative flex flex-col items-center gap-0">
-                <span className="text-xs sm:text-sm font-bold leading-none">{playbackSpeed}x</span>
-                <Gauge className="h-7 w-7 sm:h-8 sm:w-8" />
-              </div>
-            </Button>
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Problem report button */}
             <FeedbackButton
               position="right"
@@ -792,18 +770,31 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
               stepNumber={currentIndex + 1}
               web3FormsKey={web3FormsKey}
             />
+            {/* Playback speed toggle */}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-12 sm:h-14 w-16 sm:w-20 px-2 sm:px-3 py-0 rounded-lg !bg-[var(--color-bg-elevated)]/50 hover:!bg-[var(--color-bg-elevated)]"
+              onClick={() => setIsSpeedDrawerOpen(prev => !prev)}
+              aria-label={t('instructionView.playbackSpeed', 'Playback speed')}
+            >
+              <div className="relative flex flex-col items-center gap-0">
+                <span className="text-xs sm:text-sm font-bold leading-none">{playbackSpeed}x</span>
+                <Gauge className="h-7 w-7 sm:h-8 sm:w-8" />
+              </div>
+            </Button>
             {/* Break button - shows Home icon (desktop) or Close icon (mweb) */}
             {onBreak && (
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg hover:bg-[var(--color-bg-elevated)]"
+                className="w-16 h-12 sm:w-20 sm:h-14 rounded-lg !bg-[var(--color-bg-elevated)]/50 hover:!bg-[var(--color-bg-elevated)]"
                 onClick={onBreak}
                 aria-label={breakVariant === 'home' ? t('common.home', 'Home') : t('common.close', 'Close')}
               >
                 {breakVariant === 'home'
-                  ? <Home className="h-5 w-5 sm:h-6 sm:w-6" />
-                  : <X className="h-5 w-5 sm:h-6 sm:w-6" />}
+                  ? <Home className="h-7 w-7 sm:h-8 sm:w-8 translate-y-1" />
+                  : <X className="h-7 w-7 sm:h-8 sm:w-8" />}
               </Button>
             )}
           </div>
@@ -1031,6 +1022,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
               onAddAssembly: editCallbacks?.onAddAssembly,
               onDeleteAssembly: editCallbacks?.onDeleteAssembly,
               onRenameAssembly: editCallbacks?.onRenameAssembly,
+              onRenameStep: editCallbacks?.onRenameStep,
               onMoveStepToAssembly: editCallbacks?.onMoveStepToAssembly,
               onReorderAssembly: editCallbacks?.onReorderAssembly,
               renderAssemblyList: editCallbacks?.renderAssemblyList,

@@ -304,7 +304,7 @@ export function getProjectData(folderName: string): ElectronProjectData {
           instruction_id: '"instruction_id" TEXT REFERENCES instructions(id)',
           video_frame_area_id: '"video_frame_area_id" TEXT REFERENCES video_frame_areas(id) ON DELETE CASCADE',
           version_id: '"version_id" TEXT NOT NULL',
-          substep_id: '"substep_id" TEXT NOT NULL',
+          substep_id: '"substep_id" TEXT',
           type: '"type" TEXT NOT NULL',
           path_data: '"path_data" TEXT NOT NULL',
           color: '"color" TEXT NOT NULL',
@@ -625,7 +625,7 @@ export async function uploadPartToolImage(
 
       db.exec("COMMIT");
       db.close();
-      console.log("[uploadPartToolImage] Success: vfaId=%s, junctionId=%s", vfaId, junctionId);
+      console.debug("[uploadPartToolImage] Success: vfaId=%s, junctionId=%s", vfaId, junctionId);
       return { success: true, vfaId, junctionId, isPreview: true };
     } catch (txErr) {
       console.error("[uploadPartToolImage] DB transaction failed:", txErr);
@@ -660,7 +660,7 @@ export async function uploadSubstepImage(
   sourceImagePath: string,
   crop?: { x: number; y: number; width: number; height: number },
 ): Promise<{ success: boolean; vfaId?: string; substepImageId?: string; deletedDrawingIds?: string[]; error?: string }> {
-  console.log("[uploadSubstepImage] Entry: folder=%s, substep=%s, source=%s", folderName, substepId, sourceImagePath);
+  console.debug("[uploadSubstepImage] Entry: folder=%s, substep=%s, source=%s", folderName, substepId, sourceImagePath);
   const basePath = getProjectsBasePath();
   const dbPath = path.join(basePath, folderName, "montavis.db");
 

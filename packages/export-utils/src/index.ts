@@ -12,6 +12,9 @@ export type { RowWithId, InstructionMeta } from "./helpers.js";
 export { buildSnapshotFromRows, generateDataJson } from "./snapshot.js";
 export type { SnapshotRowData, FindImageInDir } from "./snapshot.js";
 
+// Obfuscation
+export { obfuscateJson, deobfuscateJson, isObfuscated } from "./obfuscation.js";
+
 // Manifest reader
 export {
   readManifestFromZip,

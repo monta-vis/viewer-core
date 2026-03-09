@@ -590,6 +590,155 @@ describe('useEditorStore', () => {
       expect(result.current.data?.notes['note-1']).toBeUndefined();
     });
   });
+
+  describe('deleteSubstep renumbering', () => {
+    function createDataWithSubsteps(): InstructionData {
+      const base = createMockInstructionData();
+      base.steps['step-1'].substepIds = ['sub-1', 'sub-2', 'sub-3'];
+      base.substeps = {
+        'sub-1': { ...base.substeps['substep-1'], id: 'sub-1', stepId: 'step-1', stepOrder: 1 },
+        'sub-2': { ...base.substeps['substep-1'], id: 'sub-2', stepId: 'step-1', stepOrder: 2 },
+        'sub-3': { ...base.substeps['substep-1'], id: 'sub-3', stepId: 'step-1', stepOrder: 3 },
+      };
+      return base;
+    }
+
+    it('renumbers remaining siblings stepOrder to 1,2,3 after deleting middle substep', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSubsteps()));
+
+      act(() => result.current.deleteSubstep('sub-2'));
+
+      const substeps = result.current.data!.substeps;
+      expect(substeps['sub-1'].stepOrder).toBe(1);
+      expect(substeps['sub-3'].stepOrder).toBe(2);
+      expect(substeps['sub-2']).toBeUndefined();
+    });
+
+    it('renumbers after deleting the first substep', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSubsteps()));
+
+      act(() => result.current.deleteSubstep('sub-1'));
+
+      const substeps = result.current.data!.substeps;
+      expect(substeps['sub-2'].stepOrder).toBe(1);
+      expect(substeps['sub-3'].stepOrder).toBe(2);
+    });
+
+    it('leaves no orphan ordering when deleting the last substep in a step', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithSubsteps();
+      data.steps['step-1'].substepIds = ['sub-1'];
+      data.substeps = {
+        'sub-1': { ...data.substeps['sub-1'], stepOrder: 1 },
+      };
+      act(() => result.current.setData(data));
+
+      act(() => result.current.deleteSubstep('sub-1'));
+
+      expect(result.current.data!.steps['step-1'].substepIds).toEqual([]);
+    });
+  });
+
+  describe('deleteStep renumbering', () => {
+    function createDataWithSteps(): InstructionData {
+      const base = createMockInstructionData();
+      base.steps = {
+        'step-1': { ...base.steps['step-1'], id: 'step-1', stepNumber: 1, substepIds: [] },
+        'step-2': { ...base.steps['step-1'], id: 'step-2', stepNumber: 2, substepIds: [] },
+        'step-3': { ...base.steps['step-1'], id: 'step-3', stepNumber: 3, substepIds: [] },
+        'step-4': { ...base.steps['step-1'], id: 'step-4', stepNumber: 4, substepIds: [] },
+      };
+      base.substeps = {};
+      return base;
+    }
+
+    it('renumbers remaining steps stepNumber to 1,2,3 after deleting middle step', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSteps()));
+
+      act(() => result.current.deleteStep('step-2'));
+
+      const steps = result.current.data!.steps;
+      expect(steps['step-1'].stepNumber).toBe(1);
+      expect(steps['step-3'].stepNumber).toBe(2);
+      expect(steps['step-4'].stepNumber).toBe(3);
+      expect(steps['step-2']).toBeUndefined();
+    });
+
+    it('renumbers after deleting the first step', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSteps()));
+
+      act(() => result.current.deleteStep('step-1'));
+
+      const steps = result.current.data!.steps;
+      expect(steps['step-2'].stepNumber).toBe(1);
+      expect(steps['step-3'].stepNumber).toBe(2);
+      expect(steps['step-4'].stepNumber).toBe(3);
+    });
+  });
+
+  describe('moveSubstep', () => {
+    function createDataWithSubsteps(): InstructionData {
+      const base = createMockInstructionData();
+      base.steps['step-1'].substepIds = ['sub-1', 'sub-2', 'sub-3'];
+      base.substeps = {
+        'sub-1': { ...base.substeps['substep-1'], id: 'sub-1', stepId: 'step-1', stepOrder: 1 },
+        'sub-2': { ...base.substeps['substep-1'], id: 'sub-2', stepId: 'step-1', stepOrder: 2 },
+        'sub-3': { ...base.substeps['substep-1'], id: 'sub-3', stepId: 'step-1', stepOrder: 3 },
+      };
+      return base;
+    }
+
+    it('swaps stepOrder when moving down', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSubsteps()));
+
+      act(() => result.current.moveSubstep('sub-1', 1));
+
+      const substeps = result.current.data!.substeps;
+      expect(substeps['sub-1'].stepOrder).toBe(2);
+      expect(substeps['sub-2'].stepOrder).toBe(1);
+      expect(substeps['sub-3'].stepOrder).toBe(3);
+    });
+
+    it('swaps stepOrder when moving up', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSubsteps()));
+
+      act(() => result.current.moveSubstep('sub-3', -1));
+
+      const substeps = result.current.data!.substeps;
+      expect(substeps['sub-2'].stepOrder).toBe(3);
+      expect(substeps['sub-3'].stepOrder).toBe(2);
+    });
+
+    it('is a no-op when moving first substep up', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSubsteps()));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.moveSubstep('sub-1', -1));
+
+      const substeps = result.current.data!.substeps;
+      expect(substeps['sub-1'].stepOrder).toBe(1);
+      expect(result.current.changes.substeps.changed.size).toBe(0);
+    });
+
+    it('is a no-op when moving last substep down', () => {
+      const { result } = renderHook(() => useEditorStore());
+      act(() => result.current.setData(createDataWithSubsteps()));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.moveSubstep('sub-3', 1));
+
+      const substeps = result.current.data!.substeps;
+      expect(substeps['sub-3'].stepOrder).toBe(3);
+      expect(result.current.changes.substeps.changed.size).toBe(0);
+    });
+  });
 });
 
 describe('videoFrameAreaToViewport', () => {

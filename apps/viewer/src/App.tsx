@@ -47,6 +47,7 @@ declare global {
     electronAPI?: {
       getFilePath: (file: File) => string;
       onNavigate: (callback: (path: string) => void) => (() => void);
+      signalReady?: () => void;
       print?: {
         generatePdf: (folderName: string) => Promise<{ success: boolean; data?: string; error?: string }>;
       };
@@ -434,6 +435,7 @@ function NavigateListener() {
     const cleanup = window.electronAPI.onNavigate((path) => {
       navigate(path);
     });
+    window.electronAPI.signalReady?.();
     return cleanup;
   }, [navigate]);
 

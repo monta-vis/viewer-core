@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { Card } from '@/components/ui';
+import { Card, TextInputModal } from '@/components/ui';
 import { VideoFrameCapture } from './VideoFrameCapture';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 
@@ -25,6 +26,10 @@ interface StepOverviewCardProps {
   stepId?: string;
   /** Whether the card is draggable (edit mode). Default: false */
   draggable?: boolean;
+  /** Whether edit mode is active. Default: false */
+  editMode?: boolean;
+  /** Called to rename a step (edit mode only) */
+  onRenameStep?: (stepId: string, title: string) => void;
 }
 
 /**
@@ -43,8 +48,11 @@ export function StepOverviewCard({
   onClick,
   stepId,
   draggable = false,
+  editMode = false,
+  onRenameStep,
 }: StepOverviewCardProps) {
   const { t } = useTranslation();
+  const [titleModalOpen, setTitleModalOpen] = useState(false);
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!stepId) return;
@@ -112,11 +120,21 @@ export function StepOverviewCard({
             <span className="text-3xl font-bold text-[var(--color-secondary)]">
               {stepNumber}
             </span>
-            {title && (
+            {editMode && stepId ? (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); e.currentTarget.blur(); setTitleModalOpen(true); }}
+                className="flex-1 min-w-0 text-left bg-transparent border-b border-[var(--color-border)] text-base font-semibold truncate cursor-text hover:border-[var(--color-secondary)] transition-colors"
+              >
+                <span className={title ? 'text-[var(--color-text-base)]' : 'text-[var(--color-text-muted)]'}>
+                  {title || t('editorCore.stepTitlePlaceholder', 'Title (optional)')}
+                </span>
+              </button>
+            ) : title ? (
               <span className="text-base font-semibold text-[var(--color-text)] truncate">
                 {title}
               </span>
-            )}
+            ) : null}
           </div>
 
           {description && (
@@ -130,6 +148,15 @@ export function StepOverviewCard({
           </p>
         </div>
       </div>
+
+      {titleModalOpen && stepId && (
+        <TextInputModal
+          label={t('editorCore.stepTitlePlaceholder', 'Title (optional)')}
+          value={title ?? ''}
+          onConfirm={(val) => { onRenameStep?.(stepId, val); setTitleModalOpen(false); }}
+          onCancel={() => setTitleModalOpen(false)}
+        />
+      )}
     </Card>
   );
 }

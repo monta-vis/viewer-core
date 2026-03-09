@@ -194,6 +194,53 @@ describe("buildSnapshotFromRows", () => {
     expect(translations.instruction["inst-1"]["en"].is_auto).toBe(false);
   });
 
+  it("places viewport_keyframe_ids on videoSections (not videos)", () => {
+    const data = makeMinimalData({
+      videos: [{ id: "v-1", fps: 30, order: 0, video_path: "video.mp4" }],
+      videoSections: [
+        {
+          id: "vs-1",
+          video_id: "v-1",
+          start_frame: 0,
+          end_frame: 100,
+        },
+        {
+          id: "vs-2",
+          video_id: "v-1",
+          start_frame: 100,
+          end_frame: 200,
+        },
+      ],
+      viewportKeyframes: [
+        { id: "kf-1", video_section_id: "vs-1", video_id: "v-1" },
+        { id: "kf-2", video_section_id: "vs-1", video_id: "v-1" },
+        { id: "kf-3", video_section_id: "vs-2", video_id: "v-1" },
+      ],
+    });
+
+    const result = buildSnapshotFromRows(data);
+    const sections = result.videoSections as Record<string, Record<string, unknown>>;
+    const vids = result.videos as Record<string, Record<string, unknown>>;
+
+    expect(sections["vs-1"].viewport_keyframe_ids).toEqual(["kf-1", "kf-2"]);
+    expect(sections["vs-2"].viewport_keyframe_ids).toEqual(["kf-3"]);
+    expect(vids["v-1"]).not.toHaveProperty("viewport_keyframe_ids");
+  });
+
+  it("uses tutorial_row_ids (not reference_row_ids) on substeps", () => {
+    const data = makeMinimalData({
+      steps: [{ id: "step-1", instruction_id: "inst-1", step_number: 1, title: "S" }],
+      substeps: [{ id: "sub-1", step_id: "step-1", step_order: 1, title: "SS" }],
+      substepReferences: [{ id: "ref-1", substep_id: "sub-1" }],
+    });
+
+    const result = buildSnapshotFromRows(data);
+    const substeps = result.substeps as Record<string, Record<string, unknown>>;
+
+    expect(substeps["sub-1"].tutorial_row_ids).toEqual(["ref-1"]);
+    expect(substeps["sub-1"]).not.toHaveProperty("reference_row_ids");
+  });
+
   it("groups substep relations correctly", () => {
     const data = makeMinimalData({
       steps: [{ id: "step-1", instruction_id: "inst-1", step_number: 1, title: "S" }],

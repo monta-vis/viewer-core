@@ -71,9 +71,12 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      e.stopPropagation();
       handleConfirm();
     }
+    // Stop propagation for all keys so React's synthetic events
+    // don't bubble through portals to parent components (e.g. Card role="button"
+    // consuming Space, or parent onKeyDown handlers intercepting input).
+    e.stopPropagation();
   };
 
   const inputClassName = 'w-full rounded-lg border border-[var(--color-border-base)] bg-[var(--color-bg-base)] px-3 py-2 text-[var(--color-text-base)] focus:outline-none focus:ring-2 focus:ring-[var(--color-secondary)]/40';

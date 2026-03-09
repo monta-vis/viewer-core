@@ -70,6 +70,8 @@ interface AssemblySectionProps {
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
   /** All steps (for step assignment dialog) */
   allSteps?: (StepWithPreview & { assemblyId?: string | null })[];
+  /** Called to rename a step (edit mode only) */
+  onRenameStep?: (stepId: string, title: string) => void;
 }
 
 /**
@@ -90,6 +92,7 @@ export function AssemblySection({
   onRenameAssembly,
   onMoveStepToAssembly,
   allSteps,
+  onRenameStep,
 }: AssemblySectionProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -153,6 +156,7 @@ export function AssemblySection({
     <Card
       variant="glass"
       padding="none"
+      data-assembly-id={assembly.id}
       className={clsx(
         'overflow-hidden transition-shadow',
         isDragOver && 'ring-2 ring-[var(--color-secondary)]',
@@ -282,6 +286,8 @@ export function AssemblySection({
                   onClick={() => onStepSelect(step.id)}
                   stepId={step.id}
                   draggable={editMode}
+                  editMode={editMode}
+                  onRenameStep={onRenameStep}
                 />
               ))}
             </div>
@@ -328,6 +334,8 @@ interface UnassignedSectionProps {
   availableAssemblies?: AvailableAssembly[];
   /** Called to move a step to an assembly */
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
+  /** Called to rename a step (edit mode only) */
+  onRenameStep?: (stepId: string, title: string) => void;
 }
 
 /**
@@ -342,6 +350,7 @@ export function UnassignedSection({
   useRawVideo = false,
   editMode = false,
   onMoveStepToAssembly,
+  onRenameStep,
 }: UnassignedSectionProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -430,6 +439,8 @@ export function UnassignedSection({
                 onClick={() => onStepSelect(step.id)}
                 stepId={step.id}
                 draggable={editMode}
+                editMode={editMode}
+                onRenameStep={onRenameStep}
               />
             ))}
           </div>

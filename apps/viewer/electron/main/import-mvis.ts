@@ -4,6 +4,7 @@ import fs from "fs";
 import * as yauzl from "yauzl";
 import Database from "better-sqlite3";
 import extractZip from "extract-zip";
+import log from "electron-log/main";
 import { getProjectsBasePath, isInsideBasePath } from "./projects.js";
 
 // ---------------------------------------------------------------------------
@@ -191,7 +192,9 @@ export function deduplicateFolderName(
 export async function importMvisFromPath(
   zipPath: string,
 ): Promise<ImportResult> {
+  log.info('[importMvis] Starting import:', zipPath);
   const basePath = getProjectsBasePath();
+  log.info('[importMvis] Projects base path:', basePath);
 
   if (!fs.existsSync(basePath)) {
     fs.mkdirSync(basePath, { recursive: true });
@@ -199,12 +202,15 @@ export async function importMvisFromPath(
 
   // Fast path: read manifest from zip without extracting
   const manifest = await readManifestFromZip(zipPath);
+  log.info('[importMvis] Manifest from zip:', manifest ? JSON.stringify(manifest) : 'null');
 
   if (manifest) {
     const match = findExistingProject(basePath, manifest.id);
     if (match) {
+      log.info('[importMvis] Existing project found:', JSON.stringify(match));
       if (manifest.revision <= match.revision) {
         // Existing project is same or newer — skip import entirely
+        log.info('[importMvis] Skipping import — existing revision is same or newer');
         return { success: true, folderName: match.folderName };
       }
     }
@@ -212,9 +218,11 @@ export async function importMvisFromPath(
 
   // Extract to OS temp directory (avoids leftover folders in Documents/Montavis/)
   const tempDir = path.join(os.tmpdir(), `mvis-import-${Date.now()}`);
+  log.info('[importMvis] Extracting to temp dir:', tempDir);
 
   try {
     await extractZip(zipPath, { dir: tempDir });
+    log.info('[importMvis] Extraction complete');
 
     // Find montavis.db — it may be at root or inside a single subfolder
     let dbRoot: string | null = null;
@@ -234,6 +242,7 @@ export async function importMvisFromPath(
     }
 
     if (!dbRoot) {
+      log.error('[importMvis] No montavis.db found in extracted contents');
       fs.rmSync(tempDir, { recursive: true, force: true });
       return {
         success: false,
@@ -241,22 +250,27 @@ export async function importMvisFromPath(
       };
     }
 
+    log.info('[importMvis] Found montavis.db at:', dbRoot);
     const incomingDbPath = path.join(dbRoot, "montavis.db");
     const incoming = readInstructionMeta(incomingDbPath);
     if (!incoming) {
+      log.error('[importMvis] No instruction found in database');
       fs.rmSync(tempDir, { recursive: true, force: true });
       return {
         success: false,
         error: "Invalid .mvis file: no instruction found in database",
       };
     }
+    log.info('[importMvis] Instruction meta:', JSON.stringify(incoming));
 
     // Fallback duplicate check when manifest was not available (old .mvis files)
     if (!manifest) {
       const match = findExistingProject(basePath, incoming.id);
       if (match) {
+        log.info('[importMvis] Fallback duplicate check — existing:', JSON.stringify(match));
         if (incoming.revision <= match.revision) {
           fs.rmSync(tempDir, { recursive: true, force: true });
+          log.info('[importMvis] Skipping import — existing revision is same or newer');
           return { success: true, folderName: match.folderName };
         }
       }
@@ -267,21 +281,26 @@ export async function importMvisFromPath(
       dbRoot === tempDir ? path.basename(zipPath, ".mvis") : path.basename(dbRoot);
     const folderName = deduplicateFolderName(basePath, rawName);
     const destDir = path.join(basePath, folderName);
+    log.info('[importMvis] Destination:', destDir);
 
     if (!isInsideBasePath(destDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });
+      log.error('[importMvis] Destination outside base path');
       return { success: false, error: "Invalid project name" };
     }
 
     // Move content to final location
     try {
       fs.renameSync(dbRoot, destDir);
+      log.info('[importMvis] Moved via renameSync');
     } catch {
       // renameSync fails across drives — fall back to copy
+      log.info('[importMvis] renameSync failed, falling back to copy');
       await fs.promises.cp(dbRoot, destDir, { recursive: true });
     }
 
     if (!fs.existsSync(path.join(destDir, "montavis.db"))) {
+      log.error('[importMvis] montavis.db missing after move');
       fs.rmSync(destDir, { recursive: true, force: true });
       fs.rmSync(tempDir, { recursive: true, force: true });
       return {
@@ -295,8 +314,10 @@ export async function importMvisFromPath(
       fs.rmSync(tempDir, { recursive: true, force: true });
     }
 
+    log.info('[importMvis] Import successful, folderName:', folderName);
     return { success: true, folderName };
   } catch (err) {
+    log.error('[importMvis] Unexpected error:', err);
     // Clean up temp dir on failure
     if (fs.existsSync(tempDir)) {
       fs.rmSync(tempDir, { recursive: true, force: true });

@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { createReadStream, existsSync, statSync } from "fs";
 import { extname } from "path";
+import log from "electron-log/main";
 import { resolveMediaPath } from "./projects.js";
 import type { ProjectChanges } from "./projects.js";
 import { importMvisFromPath } from "./import-mvis.js";
@@ -11,6 +12,9 @@ import type { ExportType } from "./export.js";
 import type { VideoUploadArgs } from "./video.js";
 import { initElectronPaths } from "./electronPaths.js";
 import { DbWorker } from "./dbWorker.js";
+
+log.initialize();
+log.info('[main] electron-log initialized. Log file:', log.transports.file.getFile().path);
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const isDev = !app.isPackaged;
@@ -29,26 +33,42 @@ function findMvisArg(argv: string[]): string | null {
 
 /** Import a .mvis file and navigate the renderer to the project. */
 async function handleOpenMvisFile(filePath: string): Promise<void> {
+  log.info('[main] handleOpenMvisFile called:', filePath);
   const fileName = path.basename(filePath, ".mvis");
 
-  // Navigate to dashboard and show importing card immediately
-  if (mainWindow) {
-    mainWindow.webContents.send("navigate", "/");
-    mainWindow.webContents.send("mvis-import:start", { fileName });
-  }
+  try {
+    // Navigate to dashboard and show importing card immediately
+    if (mainWindow) {
+      log.info('[main] Sending navigate + mvis-import:start to renderer');
+      mainWindow.webContents.send("navigate", "/");
+      mainWindow.webContents.send("mvis-import:start", { fileName });
+    } else {
+      log.warn('[main] mainWindow is null, cannot send import signals');
+    }
 
-  const result = await importMvisFromPath(filePath);
+    const result = await importMvisFromPath(filePath);
+    log.info('[main] importMvisFromPath result:', JSON.stringify(result));
 
-  // Signal import complete
-  if (mainWindow) {
-    mainWindow.webContents.send("mvis-import:complete", {
-      success: result.success,
-      folderName: result.folderName,
-    });
-  }
+    // Signal import complete
+    if (mainWindow) {
+      mainWindow.webContents.send("mvis-import:complete", {
+        success: result.success,
+        folderName: result.folderName,
+      });
+    }
 
-  if (result.success && result.folderName && mainWindow) {
-    mainWindow.webContents.send("navigate", `/view/${encodeURIComponent(result.folderName)}`);
+    if (result.success && result.folderName && mainWindow) {
+      const navPath = `/view/${encodeURIComponent(result.folderName)}`;
+      log.info('[main] Navigating to:', navPath);
+      mainWindow.webContents.send("navigate", navPath);
+    } else if (!result.success) {
+      log.error('[main] Import failed:', result.error);
+    }
+  } catch (err) {
+    log.error('[main] handleOpenMvisFile unexpected error:', err);
+    if (mainWindow) {
+      mainWindow.webContents.send("mvis-import:complete", { success: false });
+    }
   }
 }
 
@@ -58,6 +78,7 @@ if (!gotLock) {
   app.quit();
 } else {
   app.on("second-instance", (_event, argv) => {
+    log.info('[main] second-instance event, argv:', argv);
     // Focus existing window
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
@@ -67,6 +88,7 @@ if (!gotLock) {
     // Handle .mvis arg from second instance
     const mvisPath = findMvisArg(argv);
     if (mvisPath) {
+      log.info('[main] second-instance: found .mvis arg:', mvisPath);
       void handleOpenMvisFile(mvisPath);
     }
   });
@@ -74,6 +96,7 @@ if (!gotLock) {
   // macOS: file opened while app is running or before ready
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
+    log.info('[main] open-file event:', filePath);
     if (mainWindow) {
       void handleOpenMvisFile(filePath);
     } else {
@@ -84,6 +107,7 @@ if (!gotLock) {
   // Windows/Linux: check argv on first launch
   const argMvis = findMvisArg(process.argv);
   if (argMvis) {
+    log.info('[main] Found .mvis in process.argv:', argMvis);
     pendingMvisPath = argMvis;
   }
 }
@@ -208,7 +232,7 @@ let dbWorker: DbWorker;
 
 function registerIpcHandlers(): void {
   dbWorker = new DbWorker(
-    path.join(__dirname, "dbWorkerThread.js"),
+    path.join(__dirname, "dbWorkerThread.cjs"),
     {
       documentsPath: app.getPath("documents"),
       homePath: app.getPath("home"),
@@ -360,7 +384,7 @@ function registerIpcHandlers(): void {
 
       return { success: true, data: pdfData.toString("base64") };
     } catch (err) {
-      console.error("[print:generate-pdf] Failed:", err);
+      log.error("[print:generate-pdf] Failed:", err);
       return {
         success: false,
         error: err instanceof Error ? err.message : String(err),
@@ -415,9 +439,21 @@ function createWindow() {
     void win.loadFile(path.join(__dirname, "../dist/index.html"));
   }
 
-  // Process pending .mvis file after the page has loaded
-  win.webContents.on("did-finish-load", () => {
+  // Process pending .mvis file after React has mounted and registered IPC listeners
+  const readyTimeout = setTimeout(() => {
     if (pendingMvisPath) {
+      log.warn('[main] renderer:ready not received after 10s, processing pending .mvis anyway');
+      const mvisPath = pendingMvisPath;
+      pendingMvisPath = null;
+      void handleOpenMvisFile(mvisPath);
+    }
+  }, 10_000);
+
+  ipcMain.once("renderer:ready", () => {
+    clearTimeout(readyTimeout);
+    log.info('[main] renderer:ready received');
+    if (pendingMvisPath) {
+      log.info('[main] Processing pending .mvis:', pendingMvisPath);
       const mvisPath = pendingMvisPath;
       pendingMvisPath = null;
       void handleOpenMvisFile(mvisPath);

@@ -19,7 +19,7 @@ import type {
   AreaData,
   Rectangle,
 } from '@monta-vis/viewer-core';
-import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon } from '@monta-vis/viewer-core';
+import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon, DialogShell } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
 import { ImageCropDialog } from './ImageCropDialog';
 import { ImageEditDialog } from './ImageEditDialog';
@@ -245,7 +245,7 @@ export function SubstepEditPopover({
       console.warn('[SubstepEditPopover.handleCropConfirm] onUploadSubstepImage callback not provided');
     }
     if (file && onUploadSubstepImage) {
-      console.log('[SubstepEditPopover.handleCropConfirm] Uploading substep image: file=%s', file.name);
+      console.debug('[SubstepEditPopover.handleCropConfirm] Uploading substep image: file=%s', file.name);
       onUploadSubstepImage(file, crop);
       captureSnapshot();
     }
@@ -264,6 +264,7 @@ export function SubstepEditPopover({
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const pendingVideoFileRef = useRef<File | null>(null);
   const [videoTrimDialogOpen, setVideoTrimDialogOpen] = useState(false);
+  const [confirmDeleteSubstep, setConfirmDeleteSubstep] = useState(false);
 
   const handleVideoUploadClick = useCallback(() => {
     videoFileInputRef.current?.click();
@@ -528,7 +529,8 @@ export function SubstepEditPopover({
   if (!open) return null;
 
   const hasMedia = hasImage || hasVideo;
-  return createPortal(
+  return (<>
+    {createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -547,6 +549,17 @@ export function SubstepEditPopover({
             {t('editorCore.editSubstep', 'Edit substep')}
           </h2>
           <div className="flex items-center gap-1">
+            {callbacks.onDeleteSubstep && (
+              <button
+                type="button"
+                data-testid="delete-substep-btn"
+                aria-label={t('editorCore.deleteSubstep', 'Delete substep')}
+                className={`${DELETE_BTN_CLASS} mr-2`}
+                onClick={() => setConfirmDeleteSubstep(true)}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
             <button
               type="button"
               aria-label={t('editorCore.undo', 'Undo')}
@@ -1040,5 +1053,40 @@ export function SubstepEditPopover({
       </div>{/* end panel */}
     </div>,
     document.body,
-  );
+  )}
+    <DialogShell
+      open={confirmDeleteSubstep}
+      onClose={() => setConfirmDeleteSubstep(false)}
+      maxWidth="max-w-sm"
+    >
+      <div className="flex flex-col gap-4">
+        <h3 className="text-lg font-semibold text-[var(--color-text-base)]">
+          {t('editorCore.deleteSubstepConfirmTitle', 'Delete substep?')}
+        </h3>
+        <p className="text-sm text-[var(--color-text-muted)]">
+          {t('editorCore.deleteSubstepConfirmMessage', 'This action cannot be undone.')}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="ghost"
+            data-testid="delete-substep-cancel"
+            onClick={() => setConfirmDeleteSubstep(false)}
+          >
+            {t('common.cancel', 'Cancel')}
+          </Button>
+          <Button
+            variant="danger"
+            data-testid="delete-substep-confirm"
+            onClick={() => {
+              fire(callbacks.onDeleteSubstep);
+              setConfirmDeleteSubstep(false);
+              onClose();
+            }}
+          >
+            {t('common.delete', 'Delete')}
+          </Button>
+        </div>
+      </div>
+    </DialogShell>
+  </>);
 }

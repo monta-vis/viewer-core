@@ -10,6 +10,7 @@ import {
   sanitizeFilename,
   readInstructionMeta,
   generateDataJson,
+  obfuscateJson,
 } from "@monta-vis/export-utils";
 
 // ---------------------------------------------------------------------------
@@ -35,9 +36,20 @@ export async function exportMweb(
   );
 
   // Locate dist-mweb viewer files
-  const distMwebDir = app.isPackaged
-    ? path.join(process.resourcesPath, "dist-mweb")
-    : path.join(process.cwd(), "dist-mweb");
+  let distMwebDir: string;
+  if (app.isPackaged) {
+    distMwebDir = path.join(process.resourcesPath, "dist-mweb");
+  } else {
+    // Dev: try local copy first, then resolve from package
+    const localDist = path.join(process.cwd(), "dist-mweb");
+    if (fs.existsSync(localDist)) {
+      distMwebDir = localDist;
+    } else {
+      distMwebDir = path.resolve(
+        process.cwd(), "..", "..", "packages", "mweb-viewer", "dist",
+      );
+    }
+  }
 
   if (!fs.existsSync(distMwebDir)) {
     return {
@@ -66,13 +78,16 @@ export async function exportMweb(
       findImageInDir,
     );
 
-    // Write JSON to a temp file so archiver can stream it instead of
+    // Obfuscate data.json to prevent casual inspection / scraping
+    const obfuscated = obfuscateJson(dataJson);
+
+    // Write to a temp file so archiver can stream it instead of
     // duplicating the entire string in memory as a Buffer (OOM fix).
     const tmpPath = path.join(
       os.tmpdir(),
       `montavis-data-${crypto.randomUUID()}.json`,
     );
-    await fs.promises.writeFile(tmpPath, dataJson, "utf-8");
+    await fs.promises.writeFile(tmpPath, obfuscated, "utf-8");
 
     return new Promise((resolve) => {
       const output = fs.createWriteStream(result.filePath!);

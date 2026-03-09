@@ -54,13 +54,13 @@ export function FeedbackButton({
         aria-label={t('feedback.reportProblem', 'Problem?')}
         className={clsx(
           'group flex items-center justify-center rounded-lg transition-all duration-200',
-          'h-12 w-12 sm:h-14 sm:w-14 m-0 bg-[hsl(0,60%,65%)]/10 hover:bg-[hsl(0,60%,65%)]/20',
+          'h-12 w-16 sm:h-14 sm:w-20 m-0 bg-[hsl(0,60%,65%)]/10 hover:bg-[hsl(0,60%,65%)]/20',
           'border border-[hsl(0,60%,65%)]/30 hover:border-[hsl(0,60%,65%)]/50',
           'text-[hsl(0,60%,65%)] text-sm font-medium',
           className
         )}
       >
-        <SupportAgentIcon className="h-7 w-7 sm:h-8 sm:w-8 transition-transform duration-200 group-hover:scale-110" />
+        <SupportAgentIcon className="h-9 w-9 sm:h-10 sm:w-10 transition-transform duration-200 group-hover:scale-110" />
       </button>
 
       <FeedbackWidget

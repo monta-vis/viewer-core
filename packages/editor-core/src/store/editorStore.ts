@@ -177,6 +177,7 @@ interface StoreActions {
   updateSubstep(id: string, updates: Partial<Substep>): void;
   batchUpdateSubsteps(updates: Array<{ id: string; changes: Partial<Substep> }>): void;
   deleteSubstep(id: string): void;
+  moveSubstep(substepId: string, direction: -1 | 1): void;
 
   // Videos
   addVideo(video: Video): void;
@@ -597,6 +598,18 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         delete s.data.steps[id];
         s.changes.steps.changed.delete(id);
         s.changes.steps.deleted.add(id);
+
+        // Renumber remaining steps' stepNumber sequentially (1-based)
+        const remaining = Object.values(s.data.steps).sort(
+          (a, b) => a.stepNumber - b.stepNumber,
+        );
+        remaining.forEach((step, index) => {
+          const newNumber = index + 1;
+          if (step.stepNumber !== newNumber) {
+            step.stepNumber = newNumber;
+            s.changes.steps.changed.add(step.id);
+          }
+        });
       });
       const { onEventRecord } = get();
       if (onEventRecord && stepData) {
@@ -730,11 +743,23 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           }
         }
 
-        // Remove from parent step's substepIds list
+        // Remove from parent step's substepIds list and renumber siblings
         if (substep.stepId) {
           const step = s.data.steps[substep.stepId];
           if (step) {
             step.substepIds = step.substepIds.filter((sid: string) => sid !== id);
+            // Renumber remaining siblings' stepOrder sequentially (1-based)
+            const siblings = step.substepIds
+              .map(sid => s.data!.substeps[sid])
+              .filter(Boolean)
+              .sort((a, b) => a.stepOrder - b.stepOrder);
+            siblings.forEach((sub, index) => {
+              const newOrder = index + 1;
+              if (sub.stepOrder !== newOrder) {
+                sub.stepOrder = newOrder;
+                s.changes.substeps.changed.add(sub.id);
+              }
+            });
           }
         }
 
@@ -746,6 +771,41 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       const { onEventRecord } = get();
       if (onEventRecord && substepData) {
         onEventRecord('substep', id, 'delete', substepData);
+      }
+    },
+
+    moveSubstep: (substepId, direction) => {
+      set((s) => {
+        if (!s.data) return;
+        const substep = s.data.substeps[substepId];
+        if (!substep || !substep.stepId) return;
+
+        const step = s.data.steps[substep.stepId];
+        if (!step) return;
+
+        const siblings = step.substepIds
+          .map(id => s.data!.substeps[id])
+          .filter(Boolean)
+          .sort((a, b) => a.stepOrder - b.stepOrder);
+
+        const newOrder = substep.stepOrder + direction;
+        if (newOrder < 1 || newOrder > siblings.length) return;
+
+        const sibling = siblings.find(s => s.stepOrder === newOrder);
+        if (sibling) {
+          sibling.stepOrder = substep.stepOrder;
+          s.changes.substeps.changed.add(sibling.id);
+        }
+        substep.stepOrder = newOrder;
+        s.changes.substeps.changed.add(substepId);
+      });
+      // Record events for sync
+      const { onEventRecord, data } = get();
+      if (onEventRecord && data) {
+        const substep = data.substeps[substepId];
+        if (substep) {
+          onEventRecord('substep', substepId, 'update', substep, ['stepOrder']);
+        }
       }
     },
 

@@ -12,6 +12,7 @@ const mockAddAssembly = vi.fn();
 const mockDeleteAssembly = vi.fn();
 const mockUpdateAssembly = vi.fn();
 const mockAssignStepToAssembly = vi.fn();
+const mockUpdateStep = vi.fn();
 
 let mockData: Record<string, Record<string, Record<string, unknown>>> | null = null;
 
@@ -32,6 +33,7 @@ vi.mock('../store', () => ({
         deleteAssembly: mockDeleteAssembly,
         updateAssembly: mockUpdateAssembly,
         assignStepToAssembly: mockAssignStepToAssembly,
+        updateStep: mockUpdateStep,
       }),
     }
   ),
@@ -184,6 +186,18 @@ describe('useEditCallbacks', () => {
     expect(mockAssignStepToAssembly).toHaveBeenCalledWith('s1', 'asm-2');
   });
 
+  it('onRenameStep calls store.updateStep with title', () => {
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onRenameStep!('step-1', 'New Title');
+    expect(mockUpdateStep).toHaveBeenCalledWith('step-1', { title: 'New Title' });
+  });
+
+  it('onRenameStep with empty string sets title to null', () => {
+    const { result } = renderHook(() => useEditCallbacks());
+    result.current.onRenameStep!('step-1', '');
+    expect(mockUpdateStep).toHaveBeenCalledWith('step-1', { title: null });
+  });
+
   it('onMoveStepToAssembly with null unassigns step', () => {
     const { result } = renderHook(() => useEditCallbacks());
     result.current.onMoveStepToAssembly!('s1', null);
@@ -205,6 +219,7 @@ describe('useEditCallbacks', () => {
     expect(second.onAddAssembly).toBe(first.onAddAssembly);
     expect(second.onDeleteAssembly).toBe(first.onDeleteAssembly);
     expect(second.onRenameAssembly).toBe(first.onRenameAssembly);
+    expect(second.onRenameStep).toBe(first.onRenameStep);
     expect(second.onMoveStepToAssembly).toBe(first.onMoveStepToAssembly);
   });
 });

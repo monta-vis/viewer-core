@@ -9,6 +9,10 @@
     ".": {
       "import": "./dist/index.js",
       "types": "./dist/index.d.ts"
+    },
+    "./obfuscation": {
+      "import": "./dist/obfuscation.js",
+      "types": "./dist/obfuscation.d.ts"
     }
   },
   "files": [

@@ -8,6 +8,7 @@
     "build:db": "npm run build -w packages/db-utils",
     "build:media": "npm run build -w packages/media-utils",
     "build:export": "npm run build -w packages/export-utils",
+    "build:mweb": "npm run build:core && npm run build:editor && npm run build:export && npm run build -w packages/mweb-viewer",
     "build:app": "npm run build -w apps/viewer",
     "dev:core": "npm run dev -w packages/viewer-core",
     "dev:editor": "npm run dev -w packages/editor-core",

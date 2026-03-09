@@ -17,6 +17,7 @@ export interface StepOverviewEditCallbacks {
   onDeleteAssembly?: (assemblyId: string) => void;
   onRenameAssembly?: (assemblyId: string, title: string) => void;
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
+  onRenameStep?: (stepId: string, title: string) => void;
   onReorderAssembly?: (assemblyId: string, newIndex: number) => void;
   /** Wraps the assembly list with DnD reordering (injected by editor-core) */
   renderAssemblyList?: (
@@ -74,21 +75,6 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
   const handlePartToolClear = useCallback(() => {
     setFilteredPartToolId(null);
   }, []);
-
-  // Auto-scroll to the active step when the component mounts / activeStepId changes
-  useEffect(() => {
-    if (!activeStepId) return;
-
-    const handle = requestAnimationFrame(() => {
-      const container = scrollContainerRef.current;
-      if (!container) return;
-
-      const target = container.querySelector(`[data-step-id="${CSS.escape(activeStepId)}"]`);
-      target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    });
-
-    return () => cancelAnimationFrame(handle);
-  }, [activeStepId]);
 
   // Get sorted steps
   const sortedSteps = useMemo(() => {
@@ -200,6 +186,43 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
     };
   }, [data, stepsWithPreview]);
 
+  // Refs for scroll lookup — avoids triggering the effect on data changes
+  const stepsWithPreviewRef = useRef(stepsWithPreview);
+  stepsWithPreviewRef.current = stepsWithPreview;
+  const assemblyStepsMapRef = useRef(assemblyStepsMap);
+  assemblyStepsMapRef.current = assemblyStepsMap;
+
+  // Auto-scroll to the active step when the component mounts / activeStepId changes.
+  // When the active step is the first step of its assembly, scroll to the assembly
+  // header instead so the user can see which assembly they're in.
+  useEffect(() => {
+    if (!activeStepId) return;
+
+    const handle = requestAnimationFrame(() => {
+      const container = scrollContainerRef.current;
+      if (!container) return;
+
+      let target: Element | null = null;
+
+      // Check if active step is the first step of its assembly
+      const activeStep = stepsWithPreviewRef.current.find((s) => s.id === activeStepId);
+      if (activeStep?.assemblyId) {
+        const assemblySteps = assemblyStepsMapRef.current.get(activeStep.assemblyId);
+        if (assemblySteps && assemblySteps.length > 0 && assemblySteps[0].id === activeStepId) {
+          target = container.querySelector(`[data-assembly-id="${CSS.escape(activeStep.assemblyId)}"]`);
+        }
+      }
+
+      if (!target) {
+        target = container.querySelector(`[data-step-id="${CSS.escape(activeStepId)}"]`);
+      }
+
+      target?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+
+    return () => cancelAnimationFrame(handle);
+  }, [activeStepId]);
+
   if (stepsWithPreview.length === 0 && !editMode) {
     return (
       <div className="h-full flex items-center justify-center text-[var(--color-text-muted)]">
@@ -250,7 +273,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
   }, [unassignedSteps, filteredStepIds]);
 
   return (
-    <div ref={scrollContainerRef} className="h-full overflow-y-auto scrollbar-subtle">
+    <div ref={scrollContainerRef} className="h-full overflow-y-auto scrollbar-subtle scroll-pt-20">
       {/* Sticky search bar */}
       {allPartTools.length > 0 && (
         <div className="sticky top-0 z-10 bg-[var(--color-bg-surface)] px-4 pt-4 pb-2 sm:px-6 sm:pt-6">
@@ -283,6 +306,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                       onDeleteAssembly={editCallbacks?.onDeleteAssembly}
                       onRenameAssembly={editCallbacks?.onRenameAssembly}
                       onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
+                      onRenameStep={editCallbacks?.onRenameStep}
                     />
                   ),
                 )
@@ -299,6 +323,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                     onDeleteAssembly={editCallbacks?.onDeleteAssembly}
                     onRenameAssembly={editCallbacks?.onRenameAssembly}
                     onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
+                    onRenameStep={editCallbacks?.onRenameStep}
                   />
                 ))
             }
@@ -325,6 +350,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 useRawVideo={useRawVideo}
                 editMode={editMode}
                 onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
+                onRenameStep={editCallbacks?.onRenameStep}
               />
             )}
           </div>
@@ -348,6 +374,8 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 useRawVideo={useRawVideo}
                 frameCaptureData={step.frameCaptureData}
                 onClick={() => onStepSelect(step.id)}
+                editMode={editMode}
+                onRenameStep={editCallbacks?.onRenameStep}
               />
             ))}
           </div>

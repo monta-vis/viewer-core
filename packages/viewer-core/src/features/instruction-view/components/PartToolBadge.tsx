@@ -7,6 +7,10 @@ interface PartToolBadgeProps {
   toolCount: number;
   onClick?: () => void;
   showChevron?: boolean;
+  /** When false, hide the ×{count} text and show only icons. @default true */
+  showAmount?: boolean;
+  /** Controls border-radius. @default 'full' */
+  rounded?: 'full' | 'lg';
   /** Extra CSS classes merged onto the button. */
   className?: string;
   /** Inline styles merged onto the button. */
@@ -19,6 +23,8 @@ export function PartToolBadge({
   toolCount,
   onClick,
   showChevron,
+  showAmount = true,
+  rounded = 'full',
   className = '',
   style,
 }: PartToolBadgeProps) {
@@ -58,14 +64,14 @@ export function PartToolBadge({
     <button
       type="button"
       aria-label={ariaLabel}
-      className={`group flex items-center gap-2 rounded-full px-4 py-4 text-lg font-medium transition-all duration-200 focus:outline-none cursor-pointer hover:scale-105 active:scale-95 border border-[var(--color-border)]/30 ${bgClass} ${className}`}
+      className={`group flex items-center justify-center gap-2 ${rounded === 'full' ? 'rounded-full' : 'rounded-lg'} px-4 py-4 text-lg font-medium transition-all duration-200 focus:outline-none cursor-pointer hover:scale-105 active:scale-95 border border-[var(--color-border)]/30 ${bgClass} ${className}`}
       style={bgStyle}
       onClick={onClick}
     >
       {hasParts && (
         <span className="flex items-center gap-1">
           <PartIcon className="h-6 w-6 text-[var(--color-element-part)] transition-transform duration-200 group-hover:scale-110" />
-          <span className="text-[var(--color-text-base)]">&times;{partCount}</span>
+          {showAmount && <span className="text-[var(--color-text-base)]">&times;{partCount}</span>}
         </span>
       )}
       {hasParts && hasTools && (
@@ -74,7 +80,7 @@ export function PartToolBadge({
       {hasTools && (
         <span className="flex items-center gap-1">
           <ToolIcon className="h-6 w-6 text-[var(--color-element-tool)] transition-transform duration-200 group-hover:scale-110" />
-          <span className="text-[var(--color-text-base)]">&times;{toolCount}</span>
+          {showAmount && <span className="text-[var(--color-text-base)]">&times;{toolCount}</span>}
         </span>
       )}
       {showChevron && (

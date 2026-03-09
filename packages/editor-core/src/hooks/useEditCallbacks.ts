@@ -48,6 +48,7 @@ export interface EditCallbacks {
   onAddAssembly?: () => void;
   onDeleteAssembly?: (assemblyId: string) => void;
   onRenameAssembly?: (assemblyId: string, title: string) => void;
+  onRenameStep?: (stepId: string, title: string) => void;
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
   onReorderAssembly?: (assemblyId: string, newIndex: number) => void;
   renderAssemblyList?: (
@@ -170,6 +171,10 @@ export function useEditCallbacks(): EditCallbacks {
     useEditorStore.getState().updateAssembly(assemblyId, { title: title || null });
   }, []);
 
+  const onRenameStep = useCallback((stepId: string, title: string) => {
+    useEditorStore.getState().updateStep(stepId, { title: title || null });
+  }, []);
+
   const onMoveStepToAssembly = useCallback((stepId: string, assemblyId: string | null) => {
     useEditorStore.getState().assignStepToAssembly(stepId, assemblyId);
   }, []);
@@ -206,6 +211,7 @@ export function useEditCallbacks(): EditCallbacks {
     onAddAssembly,
     onDeleteAssembly,
     onRenameAssembly,
+    onRenameStep,
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,
@@ -223,6 +229,7 @@ export function useEditCallbacks(): EditCallbacks {
     onAddAssembly,
     onDeleteAssembly,
     onRenameAssembly,
+    onRenameStep,
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,

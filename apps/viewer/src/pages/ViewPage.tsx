@@ -362,6 +362,7 @@ export function ViewPage() {
     onAddAssembly,
     onDeleteAssembly,
     onRenameAssembly,
+    onRenameStep,
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,
@@ -785,6 +786,7 @@ export function ViewPage() {
     onAddAssembly,
     onDeleteAssembly,
     onRenameAssembly,
+    onRenameStep,
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,
@@ -795,7 +797,7 @@ export function ViewPage() {
     onUpdatePartTool,
     onAddSubstepPartTool, onUpdateSubstepPartToolAmount, onDeleteSubstepPartTool,
     onReplaceSubstepPartTool, onCreateAndReplacePartTool,
-    onAddAssembly, onDeleteAssembly, onRenameAssembly, onMoveStepToAssembly,
+    onAddAssembly, onDeleteAssembly, onRenameAssembly, onRenameStep, onMoveStepToAssembly,
     onReorderAssembly, renderAssemblyList,
   ]);
 

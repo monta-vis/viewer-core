@@ -249,6 +249,52 @@ describe('SubstepEditPopover — visibility', () => {
 });
 
 // ============================================================
+// Delete substep
+// ============================================================
+describe('SubstepEditPopover — delete substep', () => {
+  it('renders delete substep button when onDeleteSubstep is provided', () => {
+    render(<SubstepEditPopover {...baseProps} callbacks={{ ...callbacks, onDeleteSubstep: vi.fn() }} />);
+    expect(screen.getByTestId('delete-substep-btn')).toBeInTheDocument();
+  });
+
+  it('does not render delete substep button when onDeleteSubstep is not provided', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    expect(screen.queryByTestId('delete-substep-btn')).toBeNull();
+  });
+
+  it('opens confirmation dialog when delete button clicked', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} callbacks={{ ...callbacks, onDeleteSubstep: vi.fn() }} />);
+
+    await user.click(screen.getByTestId('delete-substep-btn'));
+    expect(screen.getByTestId('delete-substep-confirm')).toBeInTheDocument();
+    expect(screen.getByTestId('delete-substep-cancel')).toBeInTheDocument();
+  });
+
+  it('fires onDeleteSubstep and closes popover when confirmed', async () => {
+    const user = userEvent.setup();
+    const onDeleteSubstep = vi.fn();
+    render(<SubstepEditPopover {...baseProps} callbacks={{ ...callbacks, onDeleteSubstep }} />);
+
+    await user.click(screen.getByTestId('delete-substep-btn'));
+    await user.click(screen.getByTestId('delete-substep-confirm'));
+    expect(onDeleteSubstep).toHaveBeenCalledOnce();
+    expect(baseProps.onClose).toHaveBeenCalledOnce();
+  });
+
+  it('does not fire onDeleteSubstep when cancelled', async () => {
+    const user = userEvent.setup();
+    const onDeleteSubstep = vi.fn();
+    render(<SubstepEditPopover {...baseProps} callbacks={{ ...callbacks, onDeleteSubstep }} />);
+
+    await user.click(screen.getByTestId('delete-substep-btn'));
+    await user.click(screen.getByTestId('delete-substep-cancel'));
+    expect(onDeleteSubstep).not.toHaveBeenCalled();
+    expect(baseProps.onClose).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================
 // Layout — section cards
 // ============================================================
 describe('SubstepEditPopover — section cards', () => {

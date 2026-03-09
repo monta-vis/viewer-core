@@ -74,7 +74,7 @@ export function buildSnapshotFromRows(
   const notesBySubstep = groupIds(data.substepNotes, "substep_id");
   const descsBySubstep = groupIds(data.substepDescriptions, "substep_id");
   const refsBySubstep = groupIds(data.substepReferences, "substep_id");
-  const kfByVideo = groupIds(data.viewportKeyframes, "video_id");
+  const kfBySection = groupIds(data.viewportKeyframes, "video_section_id");
 
   // Build steps
   const steps: Record<string, unknown> = {};
@@ -107,7 +107,7 @@ export function buildSnapshotFromRows(
       part_tool_row_ids: ptBySubstep[r.id] || [],
       note_row_ids: notesBySubstep[r.id] || [],
       description_row_ids: descsBySubstep[r.id] || [],
-      reference_row_ids: refsBySubstep[r.id] || [],
+      tutorial_row_ids: refsBySubstep[r.id] || [],
     };
   }
 
@@ -118,8 +118,10 @@ export function buildSnapshotFromRows(
       id: r.id,
       fps: r.fps,
       order: r.order,
-      viewport_keyframe_ids: kfByVideo[r.id] || [],
       video_path: r.video_path,
+      width: r.width ?? null,
+      height: r.height ?? null,
+      duration: r.duration ?? null,
     };
   }
 
@@ -131,7 +133,9 @@ export function buildSnapshotFromRows(
       video_id: r.video_id,
       start_frame: r.start_frame,
       end_frame: r.end_frame,
+      fps: r.fps ?? null,
       content_aspect_ratio: r.content_aspect_ratio ?? null,
+      viewport_keyframe_ids: kfBySection[r.id] || [],
       url_1080p: `./media/sections/${r.id}/video.mp4`,
       url_720p: `./media/sections/${r.id}/video.mp4`,
       url_480p: `./media/sections/${r.id}/video.mp4`,
@@ -149,11 +153,13 @@ export function buildSnapshotFromRows(
       id: r.id,
       video_id: r.video_id,
       frame_number: r.frame_number,
+      image_id: r.image_id ?? null,
       type: r.type,
       x: r.x,
       y: r.y,
       width: r.width,
       height: r.height,
+      segmentation_points: r.segmentation_points ?? null,
       url_1080p: `./media/frames/${r.id}/${imageFile}`,
       url_720p: `./media/frames/${r.id}/${imageFile}`,
       url_480p: `./media/frames/${r.id}/${imageFile}`,

@@ -1,0 +1,41 @@
+{
+  "name": "@monta-vis/mweb-viewer",
+  "version": "0.1.0",
+  "type": "module",
+  "private": false,
+  "files": ["dist"],
+  "exports": {
+    "./dist-path": {
+      "import": "./src/distPath.ts",
+      "types": "./src/distPath.ts"
+    }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "scripts": {
+    "build": "vite build && node -e \"require('fs').copyFileSync('embed.js','dist/embed.js')\""
+  },
+  "dependencies": {
+    "@monta-vis/viewer-core": "*",
+    "@monta-vis/editor-core": "*",
+    "@monta-vis/export-utils": "*"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "i18next": "^25.0.0",
+    "react-i18next": "^16.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "lucide-react": ">=0.400.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^7.0.0"
+  },
+  "license": "UNLICENSED"
+}

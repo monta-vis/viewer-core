@@ -10,6 +10,7 @@ const electronAPI = {
     ipcRenderer.on("navigate", handler);
     return () => { ipcRenderer.removeListener("navigate", handler); };
   },
+  signalReady: () => ipcRenderer.send("renderer:ready"),
   catalogs: {
     getSafetyIcons: () => ipcRenderer.invoke("catalogs:get-safety-icons"),
   },
