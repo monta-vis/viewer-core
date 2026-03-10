@@ -48,6 +48,7 @@ npm run typecheck    # Typecheck all packages
 - Add app-specific logic (routes, IPC, DB) to viewer-core or editor-core
 - Add editing/mutation logic to viewer-core (use editor-core)
 - Mix old and new logic when plans change — clean up first
+- create a worktree on you own
 
 ### ALWAYS
 
