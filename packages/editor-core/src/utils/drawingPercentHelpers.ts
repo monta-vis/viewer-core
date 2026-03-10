@@ -29,6 +29,9 @@ export function frameToSubstepPercent(
   const { sorted, totalFrames } = isPrepared(sections) ? sections : prepareSections(sections);
   if (totalFrames === 0) return 0;
 
+  // Before first section → 0%
+  if (absoluteFrame < sorted[0].startFrame) return 0;
+
   let elapsed = 0;
   for (const sec of sorted) {
     if (absoluteFrame >= sec.startFrame && absoluteFrame <= sec.endFrame) {
