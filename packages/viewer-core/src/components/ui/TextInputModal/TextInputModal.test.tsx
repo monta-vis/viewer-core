@@ -55,16 +55,16 @@ describe('TextInputModal', () => {
     expect(onCancel).toHaveBeenCalled();
   });
 
-  it('fires onCancel when clicking backdrop', async () => {
+  it('does not fire onCancel when clicking backdrop (disableBackdropClick)', async () => {
     const onCancel = vi.fn();
     const user = userEvent.setup();
     render(<TextInputModal {...defaultProps} onCancel={onCancel} />);
 
-    // Click the backdrop (the outermost fixed overlay)
+    // Click the backdrop — TextInputModal uses disableBackdropClick to prevent accidental dismissal
     const backdrop = screen.getByTestId('dialog-shell-backdrop');
     await user.click(backdrop);
 
-    expect(onCancel).toHaveBeenCalled();
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it('does not fire onCancel when clicking inside the card', async () => {

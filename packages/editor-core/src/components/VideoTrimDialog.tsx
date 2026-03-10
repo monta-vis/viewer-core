@@ -154,7 +154,7 @@ export function VideoTrimDialog({ open, file, onConfirm, onClose }: VideoTrimDia
   if (!file) return null;
 
   return (
-    <DialogShell open={open} onClose={onClose} maxWidth="max-w-4xl" className="p-0">
+    <DialogShell open={open} onClose={onClose} disableBackdropClick maxWidth="max-w-4xl" className="p-0">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-[var(--color-border)] px-4 py-3">
         <div className="flex items-center gap-2">

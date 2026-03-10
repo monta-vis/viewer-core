@@ -80,7 +80,7 @@ export function NoteEditDialog({
   );
 
   return (
-    <DialogShell open={open} onClose={onClose} maxWidth="max-w-4xl">
+    <DialogShell open={open} onClose={onClose} disableBackdropClick maxWidth="max-w-4xl">
       {/* Safety icon picker */}
       <div className="mb-4">
         <SafetyIconPicker

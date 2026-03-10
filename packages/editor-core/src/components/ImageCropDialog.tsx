@@ -65,6 +65,7 @@ export function ImageCropDialog({
     <DialogShell
       open={open}
       onClose={onCancel}
+      disableBackdropClick
       maxWidth="max-w-[40rem]"
       className="p-6"
     >

@@ -40,7 +40,7 @@ export function TextEditDialog({ open, title, initialValue, onSave, onClose }: T
   }, [handleSave]);
 
   return (
-    <DialogShell open={open} onClose={onClose}>
+    <DialogShell open={open} onClose={onClose} disableBackdropClick>
       <h2 className="text-lg font-semibold text-[var(--color-text-base)] mb-4">{title}</h2>
       <EditTextarea
         ref={textareaRef}

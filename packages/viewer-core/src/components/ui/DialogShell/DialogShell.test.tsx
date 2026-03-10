@@ -126,6 +126,42 @@ describe('DialogShell', () => {
     document.removeEventListener('keydown', parentSpy);
   });
 
+  describe('disableBackdropClick', () => {
+    it('does not call onClose on backdrop click when disableBackdropClick is true', async () => {
+      const user = userEvent.setup();
+      render(
+        <DialogShell {...defaultProps} disableBackdropClick>
+          <p>Content</p>
+        </DialogShell>,
+      );
+      const backdrop = screen.getByTestId('dialog-shell-backdrop');
+      await user.click(backdrop);
+      expect(defaultProps.onClose).not.toHaveBeenCalled();
+    });
+
+    it('still calls onClose on Escape when disableBackdropClick is true', async () => {
+      const user = userEvent.setup();
+      render(
+        <DialogShell {...defaultProps} disableBackdropClick>
+          <p>Content</p>
+        </DialogShell>,
+      );
+      await user.keyboard('{Escape}');
+      expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('still does not call onClose on panel click when disableBackdropClick is true', async () => {
+      const user = userEvent.setup();
+      render(
+        <DialogShell {...defaultProps} disableBackdropClick>
+          <p>Click Me</p>
+        </DialogShell>,
+      );
+      await user.click(screen.getByText('Click Me'));
+      expect(defaultProps.onClose).not.toHaveBeenCalled();
+    });
+  });
+
   it('applies custom className to the panel', () => {
     render(
       <DialogShell {...defaultProps} className="custom-class">

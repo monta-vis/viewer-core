@@ -179,6 +179,7 @@ export function ImageEditDialog({
     <MediaEditDialog
       open={open}
       onClose={onClose}
+      disableBackdropClick
       sidebar={
         <DrawingEditor
           activeTool={imageDrawing.drawingTool}

@@ -6,6 +6,8 @@ export interface MediaEditDialogProps {
   onClose: () => void;
   children: ReactNode;
   sidebar: ReactNode;
+  /** When true, clicking the backdrop does not call onClose. */
+  disableBackdropClick?: boolean;
 }
 
 /**
@@ -18,7 +20,7 @@ export interface MediaEditDialogProps {
  * │                          │                   │
  * └─────────────────────────────────────────────┘
  */
-export function MediaEditDialog({ open, onClose, children, sidebar }: MediaEditDialogProps) {
+export function MediaEditDialog({ open, onClose, children, sidebar, disableBackdropClick }: MediaEditDialogProps) {
   if (!open) return null;
 
   return createPortal(
@@ -29,8 +31,9 @@ export function MediaEditDialog({ open, onClose, children, sidebar }: MediaEditD
     >
       {/* Backdrop */}
       <div
+        data-testid="media-edit-backdrop"
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-        onClick={onClose}
+        onClick={disableBackdropClick ? undefined : onClose}
       />
 
       {/* Panel */}

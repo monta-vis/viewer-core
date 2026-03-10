@@ -36,6 +36,8 @@ export interface DialogShellProps {
   maxWidth?: string;
   /** Apply backdrop-blur to the overlay. */
   blur?: boolean;
+  /** When true, clicking the backdrop does not call onClose. */
+  disableBackdropClick?: boolean;
   /** Additional class names applied to the panel element. */
   className?: string;
   children: ReactNode;
@@ -46,6 +48,7 @@ export function DialogShell({
   onClose,
   maxWidth = 'max-w-lg',
   blur = true,
+  disableBackdropClick,
   className,
   children,
 }: DialogShellProps) {
@@ -79,7 +82,7 @@ export function DialogShell({
         blur && 'backdrop-blur-sm',
       )}
       style={{ top: `${offsetTop}px`, height: `${height}px` }}
-      onClick={onClose}
+      onClick={disableBackdropClick ? undefined : onClose}
     >
       <div
         data-testid="dialog-shell-panel"

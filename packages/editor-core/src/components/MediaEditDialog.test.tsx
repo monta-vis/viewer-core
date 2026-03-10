@@ -1,6 +1,9 @@
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MediaEditDialog } from './MediaEditDialog';
+
+afterEach(cleanup);
 
 describe('MediaEditDialog', () => {
   it('does not render when open is false', () => {
@@ -47,5 +50,46 @@ describe('MediaEditDialog', () => {
       </MediaEditDialog>,
     );
     expect(screen.getByText('right sidebar')).toBeInTheDocument();
+  });
+
+  it('calls onClose when backdrop is clicked', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <MediaEditDialog open={true} onClose={onClose} sidebar={<div>sidebar</div>}>
+        <div>content</div>
+      </MediaEditDialog>,
+    );
+    const backdrop = screen.getByTestId('media-edit-backdrop');
+    await user.click(backdrop);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  describe('disableBackdropClick', () => {
+    it('does not call onClose on backdrop click when disableBackdropClick is true', async () => {
+      const user = userEvent.setup();
+      const onClose = vi.fn();
+      render(
+        <MediaEditDialog open={true} onClose={onClose} sidebar={<div>sidebar</div>} disableBackdropClick>
+          <div>content</div>
+        </MediaEditDialog>,
+      );
+      const backdrop = screen.getByTestId('media-edit-backdrop');
+      await user.click(backdrop);
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('calls onClose on backdrop click when disableBackdropClick is false', async () => {
+      const user = userEvent.setup();
+      const onClose = vi.fn();
+      render(
+        <MediaEditDialog open={true} onClose={onClose} sidebar={<div>sidebar</div>} disableBackdropClick={false}>
+          <div>content</div>
+        </MediaEditDialog>,
+      );
+      const backdrop = screen.getByTestId('media-edit-backdrop');
+      await user.click(backdrop);
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 });
