@@ -57,6 +57,7 @@ interface ImageOverlayProps {
     isDrawing: boolean;
     startPoint: { x: number; y: number } | null;
     currentPoint: { x: number; y: number } | null;
+    freehandPoints?: { x: number; y: number }[];
   };
   /** Annotation drawing handlers */
   onAnnotationMouseDown?: (e: React.MouseEvent, container: HTMLElement) => void;
@@ -356,6 +357,7 @@ export function ImageOverlay({
                   currentPoint={annotationDrawing.currentPoint}
                   containerWidth={overlayWidth}
                   containerHeight={overlayHeight}
+                  freehandPoints={annotationDrawing.freehandPoints}
                 />
               </svg>
             )}

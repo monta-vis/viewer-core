@@ -162,6 +162,16 @@ function renderDrawingToCanvas(
       break;
     }
 
+    case 'line': {
+      if (d.x1 === null || d.y1 === null || d.x2 === null || d.y2 === null) return;
+      const x1 = d.x1 * w, y1 = d.y1 * h, x2 = d.x2 * w, y2 = d.y2 * h;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+      break;
+    }
+
     case 'rectangle': {
       if (d.x1 === null || d.y1 === null || d.x2 === null || d.y2 === null) return;
       const x = Math.min(d.x1, d.x2) * w;

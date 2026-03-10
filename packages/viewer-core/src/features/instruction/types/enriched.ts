@@ -9,7 +9,7 @@
 // --- Shape Types (shared between instruction + video-overlay) ---
 
 /** Shape types for annotations and drawings */
-export type ShapeType = 'arrow' | 'circle' | 'rectangle' | 'text' | 'freehand';
+export type ShapeType = 'arrow' | 'line' | 'circle' | 'rectangle' | 'text' | 'freehand';
 
 /** Shape colors */
 export type ShapeColor = 'teal' | 'yellow' | 'red' | 'blue' | 'green' | 'orange' | 'purple' | 'black' | 'white';
@@ -250,7 +250,7 @@ export interface DrawingRow {
   endFrame: number | null;          // Percentage (0-100) of substep video duration
 
   // Drawing properties
-  type: ShapeType;                  // arrow, circle, rectangle, text, freehand
+  type: ShapeType;                  // arrow, line, circle, rectangle, text, freehand
   color: ShapeColor | string;
   strokeWidth: number | null;
   x1: number | null;

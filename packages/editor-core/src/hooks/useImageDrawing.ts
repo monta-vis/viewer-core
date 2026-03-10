@@ -90,7 +90,7 @@ export function useImageDrawing({
         y: shape.type === 'text' ? shape.y1 : null,
         content: shape.text ?? null,
         fontSize: shape.fontSize ?? null,
-        points: null,
+        points: shape.points ?? null,
         order: annotationsLengthRef.current,
       };
       addDrawing(newDrawing);

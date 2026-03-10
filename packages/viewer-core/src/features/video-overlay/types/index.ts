@@ -143,6 +143,8 @@ export interface DrawnShape {
   text: string | null;
   /** Font size as percentage of container width (text shapes only). Default: 5 */
   fontSize?: number;
+  /** JSON array of {x, y} points in 0-100% space (freehand shapes only) */
+  points?: string | null;
 }
 
 /**

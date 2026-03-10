@@ -12,6 +12,8 @@ interface DrawingPreviewProps {
   currentPoint: Point;
   containerWidth: number;
   containerHeight: number;
+  /** Collected points for freehand preview (percentage 0-100) */
+  freehandPoints?: Point[];
 }
 
 export function DrawingPreview({
@@ -21,6 +23,7 @@ export function DrawingPreview({
   currentPoint,
   containerWidth,
   containerHeight,
+  freehandPoints,
 }: DrawingPreviewProps) {
   const strokeColor = ANNOTATION_COLORS[color];
   const strokeWidth = 4;
@@ -84,6 +87,30 @@ export function DrawingPreview({
           width={rectWidth}
           height={rectHeight}
           {...commonProps}
+        />
+      );
+    }
+
+    case 'line':
+      return (
+        <line x1={x1} y1={y1} x2={x2} y2={y2} {...commonProps} />
+      );
+
+    case 'freehand': {
+      if (!freehandPoints || freehandPoints.length < 2) return null;
+      const pathData = freehandPoints
+        .map((p, i) => {
+          const px = (p.x / 100) * containerWidth;
+          const py = (p.y / 100) * containerHeight;
+          return i === 0 ? `M ${px} ${py}` : `L ${px} ${py}`;
+        })
+        .join(' ');
+      return (
+        <path
+          d={pathData}
+          {...commonProps}
+          strokeLinecap="round"
+          strokeLinejoin="round"
         />
       );
     }

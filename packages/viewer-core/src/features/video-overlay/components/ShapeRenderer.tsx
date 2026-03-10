@@ -104,6 +104,52 @@ function ArrowShape({
 }
 
 /**
+ * Renders line shape (straight line without arrowhead)
+ */
+function LineShape({
+  x1,
+  y1,
+  x2,
+  y2,
+  commonProps,
+  hitAreaProps,
+  isSelected,
+  onHandleMouseDown,
+}: {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  commonProps: Omit<React.SVGProps<SVGElement>, 'ref'>;
+  hitAreaProps: Omit<React.SVGProps<SVGElement>, 'ref'>;
+  isSelected?: boolean;
+  onHandleMouseDown?: (handle: ShapeHandleType, e: React.MouseEvent) => void;
+}) {
+  return (
+    <g>
+      {/* Invisible hit area for easier clicking/moving */}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} {...hitAreaProps} />
+      {/* Visible stroke */}
+      <line
+        x1={x1}
+        y1={y1}
+        x2={x2}
+        y2={y2}
+        {...commonProps}
+        style={{ ...commonProps.style, pointerEvents: 'none' }}
+      />
+      {/* Selection handles at start and end points */}
+      {isSelected && (
+        <>
+          <SelectionHandle x={x1} y={y1} handleType="start" onMouseDown={onHandleMouseDown} />
+          <SelectionHandle x={x2} y={y2} handleType="end" onMouseDown={onHandleMouseDown} />
+        </>
+      )}
+    </g>
+  );
+}
+
+/**
  * Renders ellipse/circle shape inscribed in bounding box
  */
 function EllipseShape({
@@ -380,6 +426,20 @@ export function ShapeRenderer<T extends ShapeData>({
     case 'arrow':
       return (
         <ArrowShape
+          x1={x1}
+          y1={y1}
+          x2={x2}
+          y2={y2}
+          commonProps={commonProps}
+          hitAreaProps={hitAreaProps}
+          isSelected={showHandles}
+          onHandleMouseDown={onHandleMouseDown}
+        />
+      );
+
+    case 'line':
+      return (
+        <LineShape
           x1={x1}
           y1={y1}
           x2={x2}

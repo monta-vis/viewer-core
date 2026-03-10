@@ -71,6 +71,7 @@ interface VideoOverlayProps {
     isDrawing: boolean;
     startPoint: { x: number; y: number } | null;
     currentPoint: { x: number; y: number } | null;
+    freehandPoints?: { x: number; y: number }[];
   };
   /** Annotation drawing handlers */
   onAnnotationMouseDown?: (e: React.MouseEvent, container: HTMLElement) => void;
@@ -530,6 +531,7 @@ export function VideoOverlay({
                   currentPoint={annotationDrawing.currentPoint}
                   containerWidth={videoDimensions.width}
                   containerHeight={videoDimensions.height}
+                  freehandPoints={annotationDrawing.freehandPoints}
                 />
               </svg>
             )}

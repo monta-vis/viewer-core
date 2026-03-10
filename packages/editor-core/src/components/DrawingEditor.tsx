@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, ArrowUpRight, Circle, Square, Type, Pencil, Image, Video } from 'lucide-react';
+import { X, ArrowUpRight, Minus, Circle, Square, Type, Pencil, Image, Video } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import {
@@ -17,7 +17,7 @@ import {
 export interface DrawingCardData {
   id: string;
   type: 'image' | 'video';
-  shapeType: string; // arrow, circle, rectangle, text, freehand
+  shapeType: string; // arrow, line, circle, rectangle, text, freehand
   color: string;
   // Video drawings have frame range
   startFrame?: number;
@@ -71,6 +71,7 @@ interface DrawingEditorProps {
 const getShapeIcon = (shapeType: string) => {
   switch (shapeType) {
     case 'arrow': return ArrowUpRight;
+    case 'line': return Minus;
     case 'circle': return Circle;
     case 'rectangle': return Square;
     case 'text': return Type;

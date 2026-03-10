@@ -16,6 +16,8 @@ interface DrawingState {
   isDrawing: boolean;
   startPoint: Point | null;
   currentPoint: Point | null;
+  /** Snapshot of freehand points for preview rendering (updated periodically) */
+  freehandPoints: Point[];
 }
 
 interface UseAnnotationDrawingOptions {
@@ -31,6 +33,7 @@ const IDLE_STATE: DrawingState = {
   isDrawing: false,
   startPoint: null,
   currentPoint: null,
+  freehandPoints: [],
 };
 
 export function useAnnotationDrawing({
@@ -44,6 +47,11 @@ export function useAnnotationDrawing({
 
   // Store container aspect ratio for true pixel-square calculation
   const containerAspectRef = useRef<number>(1);
+
+  // Accumulate freehand points in a ref to avoid re-renders on every mousemove.
+  // Points are flushed to state periodically for preview and on mouseup for commit.
+  const freehandPointsRef = useRef<Point[]>([]);
+  const freehandFlushTimerRef = useRef<number | null>(null);
 
   // Check if a point is within bounds
   const isPointInBounds = useCallback(
@@ -105,10 +113,12 @@ export function useAnnotationDrawing({
         return;
       }
 
+      freehandPointsRef.current = tool === 'freehand' ? [point] : [];
       setState({
         isDrawing: true,
         startPoint: point,
         currentPoint: point,
+        freehandPoints: freehandPointsRef.current,
       });
     },
     [tool, getRelativePosition, onTextInput, isPointInBounds]
@@ -120,6 +130,33 @@ export function useAnnotationDrawing({
 
       const rawPoint = getRelativePosition(e as React.MouseEvent, container);
       let point = clampToBounds(rawPoint);
+
+      // Freehand: collect points in ref with distance-based thinning, flush to state periodically
+      if (tool === 'freehand') {
+        const pts = freehandPointsRef.current;
+        const last = pts[pts.length - 1];
+        if (last) {
+          const dx = point.x - last.x;
+          const dy = point.y - last.y;
+          if (dx * dx + dy * dy < 0.25) {
+            setState((prev) => ({ ...prev, currentPoint: point }));
+            return;
+          }
+        }
+        pts.push(point);
+        // Flush to state at ~30fps for smooth preview without per-point re-renders
+        if (freehandFlushTimerRef.current === null) {
+          freehandFlushTimerRef.current = window.requestAnimationFrame(() => {
+            freehandFlushTimerRef.current = null;
+            setState((prev) => ({
+              ...prev,
+              currentPoint: point,
+              freehandPoints: [...freehandPointsRef.current],
+            }));
+          });
+        }
+        return;
+      }
 
       // Apply square constraint for circle and rectangle (default = square, Shift = free)
       if (tool === 'circle' || tool === 'rectangle') {
@@ -207,18 +244,74 @@ export function useAnnotationDrawing({
     const width = Math.abs(currentPoint.x - startPoint.x);
     const height = Math.abs(currentPoint.y - startPoint.y);
 
-    // For arrows, check distance instead of bounding box
-    if (tool === 'arrow') {
+    // Cancel any pending flush timer
+    if (freehandFlushTimerRef.current !== null) {
+      cancelAnimationFrame(freehandFlushTimerRef.current);
+      freehandFlushTimerRef.current = null;
+    }
+
+    // Freehand: compute bounding box from collected points
+    if (tool === 'freehand') {
+      const freehandPoints = freehandPointsRef.current;
+      if (freehandPoints.length < 2) {
+        freehandPointsRef.current = [];
+        setState(IDLE_STATE);
+        return;
+      }
+
+      // Compute bounding box
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const p of freehandPoints) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+
+      // Transform points to local space if bounds provided
+      let finalPoints: Point[];
+      let finalBBoxStart: Point;
+      let finalBBoxEnd: Point;
+
+      if (bounds) {
+        finalPoints = freehandPoints.map((p) =>
+          clampPointToLocalSpace(pointContainerToLocal(p, bounds))
+        );
+        finalBBoxStart = clampPointToLocalSpace(pointContainerToLocal({ x: minX, y: minY }, bounds));
+        finalBBoxEnd = clampPointToLocalSpace(pointContainerToLocal({ x: maxX, y: maxY }, bounds));
+      } else {
+        finalPoints = freehandPoints;
+        finalBBoxStart = { x: minX, y: minY };
+        finalBBoxEnd = { x: maxX, y: maxY };
+      }
+
+      onShapeCreate({
+        type: 'freehand',
+        color,
+        strokeWidth: 2,
+        x1: finalBBoxStart.x,
+        y1: finalBBoxStart.y,
+        x2: finalBBoxEnd.x,
+        y2: finalBBoxEnd.y,
+        text: null,
+        points: JSON.stringify(finalPoints),
+      });
+
+      freehandPointsRef.current = [];
+      setState(IDLE_STATE);
+      return;
+    }
+
+    // For arrows and lines, check distance instead of bounding box
+    if (tool === 'arrow' || tool === 'line') {
       const distance = Math.sqrt(width * width + height * height);
       if (distance < MIN_SIZE) {
-        // Too small, cancel
         setState(IDLE_STATE);
         return;
       }
     } else if (tool === 'circle' || tool === 'rectangle') {
       // For shapes, check both width and height
       if (width < MIN_SIZE || height < MIN_SIZE) {
-        // Too small, cancel
         setState(IDLE_STATE);
         return;
       }
@@ -238,8 +331,8 @@ export function useAnnotationDrawing({
       finalEnd = currentPoint;
     }
 
-    // Only arrow, circle, rectangle are valid draw tools (text handled in mouseDown)
-    if (tool !== 'arrow' && tool !== 'circle' && tool !== 'rectangle') {
+    // Only arrow, line, circle, rectangle are valid draw tools (text handled in mouseDown)
+    if (tool !== 'arrow' && tool !== 'line' && tool !== 'circle' && tool !== 'rectangle') {
       setState(IDLE_STATE);
       return;
     }
@@ -286,6 +379,11 @@ export function useAnnotationDrawing({
   );
 
   const cancelDrawing = useCallback(() => {
+    if (freehandFlushTimerRef.current !== null) {
+      cancelAnimationFrame(freehandFlushTimerRef.current);
+      freehandFlushTimerRef.current = null;
+    }
+    freehandPointsRef.current = [];
     setState(IDLE_STATE);
   }, []);
 
@@ -293,6 +391,7 @@ export function useAnnotationDrawing({
     isDrawing: state.isDrawing,
     startPoint: state.startPoint,
     currentPoint: state.currentPoint,
+    freehandPoints: state.freehandPoints,
     handleMouseDown,
     handleMouseMove,
     handleMouseUp,
