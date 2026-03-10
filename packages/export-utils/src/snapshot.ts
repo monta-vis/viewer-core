@@ -102,6 +102,7 @@ export function buildSnapshotFromRows(
       display_mode: r.display_mode ?? "normal",
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
+      use_blurred: r.use_blurred ?? null,
       image_row_ids: imagesBySubstep[r.id] || [],
       video_section_row_ids: vsBySubstep[r.id] || [],
       part_tool_row_ids: ptBySubstep[r.id] || [],
@@ -142,13 +143,16 @@ export function buildSnapshotFromRows(
     };
   }
 
-  // Build video frame areas with relative URLs (always image.jpg — blur handled at archive level)
+  // Build video frame areas with relative URLs
+  // Per-item blur: resolve to media/ or media_blurred/ based on master + item flags
+  const masterBlurred = !!instruction.use_blurred;
   const videoFrameAreas: Record<string, unknown> = {};
   for (const r of data.videoFrameAreas) {
     const imageFile =
       r.image_ext && r.image_ext !== ".jpg"
         ? `image${r.image_ext}`
         : "image.jpg";
+    const frameBase = (masterBlurred && r.use_blurred) ? 'media_blurred/frames' : 'media/frames';
     videoFrameAreas[r.id] = {
       id: r.id,
       video_id: r.video_id,
@@ -160,9 +164,10 @@ export function buildSnapshotFromRows(
       width: r.width,
       height: r.height,
       segmentation_points: r.segmentation_points ?? null,
-      url_1080p: `./media/frames/${r.id}/${imageFile}`,
-      url_720p: `./media/frames/${r.id}/${imageFile}`,
-      url_480p: `./media/frames/${r.id}/${imageFile}`,
+      use_blurred: r.use_blurred ?? null,
+      url_1080p: `./${frameBase}/${r.id}/${imageFile}`,
+      url_720p: `./${frameBase}/${r.id}/${imageFile}`,
+      url_480p: `./${frameBase}/${r.id}/${imageFile}`,
     };
   }
 

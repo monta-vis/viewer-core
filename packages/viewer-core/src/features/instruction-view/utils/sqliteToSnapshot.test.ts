@@ -95,3 +95,33 @@ describe('sqliteToSnapshot – assemblies', () => {
     expect(snapshot.assemblies).toEqual({});
   });
 });
+
+describe('sqliteToSnapshot – use_blurred propagation', () => {
+  it('sets use_blurred on instruction when useBlurred=true', () => {
+    const data = makeProjectData();
+    const snapshot = sqliteToSnapshot(data as never, true);
+    expect(snapshot.instruction.use_blurred).toBe(true);
+  });
+
+  it('does not set use_blurred on instruction when useBlurred=false', () => {
+    const data = makeProjectData();
+    const snapshot = sqliteToSnapshot(data as never, false);
+    expect(snapshot.instruction.use_blurred).toBe(false);
+  });
+
+  it('sets use_blurred on substep rows from DB data', () => {
+    const data = makeProjectData({
+      steps: [{ id: 'step-1', instruction_id: 'instr-1', step_number: 1, title: 'S1' }],
+      substeps: [
+        { id: 'sub-1', step_id: 'step-1', step_order: 0, title: null, use_blurred: 1 },
+        { id: 'sub-2', step_id: 'step-1', step_order: 1, title: null, use_blurred: 0 },
+        { id: 'sub-3', step_id: 'step-1', step_order: 2, title: null },
+      ],
+    });
+
+    const snapshot = sqliteToSnapshot(data as never, true);
+    expect(snapshot.substeps['sub-1'].use_blurred).toBe(1);
+    expect(snapshot.substeps['sub-2'].use_blurred).toBe(0);
+    expect(snapshot.substeps['sub-3'].use_blurred).toBeNull();
+  });
+});

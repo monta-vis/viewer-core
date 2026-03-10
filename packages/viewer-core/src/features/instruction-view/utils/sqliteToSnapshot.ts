@@ -160,7 +160,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
   // Build substeps with relation arrays
   const substeps: InstructionSnapshot['substeps'] = {};
   for (const row of data.substeps) {
-    const r = row as { id: string; step_id: string; step_order: number; title: string | null; display_mode?: string; repeat_count?: number; repeat_label?: string | null };
+    const r = row as { id: string; step_id: string; step_order: number; title: string | null; display_mode?: string; repeat_count?: number; repeat_label?: string | null; use_blurred?: number | null };
     substeps[r.id] = {
       id: r.id,
       step_id: r.step_id,
@@ -169,6 +169,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
       display_mode: (r.display_mode as 'normal' | 'tutorial') || 'normal',
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
+      use_blurred: r.use_blurred ?? null,
       image_row_ids: imagesBySubstep[r.id] || [],
       video_section_row_ids: vsBySubstep[r.id] || [],
       part_tool_row_ids: ptBySubstep[r.id] || [],
@@ -212,8 +213,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
   }
 
   // Build video frame areas with mvis-media:// URLs
-  // When useBlurred, read from media_blurred/ folder (same filename, separate tree)
-  const frameBase = useBlurred ? 'media_blurred/frames' : 'media/frames';
+  // Per-VFA blur: use media_blurred/ when master ON + VFA use_blurred = 1
   const videoFrameAreas: InstructionSnapshot['videoFrameAreas'] = {};
   for (const row of data.videoFrameAreas) {
     const r = row as {
@@ -222,7 +222,10 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
       x: number | null; y: number | null;
       width: number | null; height: number | null;
       segmentation_points?: string | null;
+      use_blurred?: number | null;
     };
+    const vfaBlurred = useBlurred && r.use_blurred === 1;
+    const frameBase = vfaBlurred ? 'media_blurred/frames' : 'media/frames';
     videoFrameAreas[r.id] = {
       id: r.id,
       video_id: r.video_id,
@@ -294,6 +297,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
       estimated_duration: instruction.estimated_duration ?? null,
       cover_image_area_id: instruction.cover_image_area_id ?? null,
       source_language: instruction.source_language ?? undefined,
+      use_blurred: useBlurred,
     },
     translations: parsed.translations,
     steps,

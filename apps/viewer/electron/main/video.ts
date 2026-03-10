@@ -13,6 +13,7 @@ import {
 import { getProjectsBasePath, isInsideBasePath } from "./projects.js";
 import { isInsidePath } from "./pathUtils.js";
 import { getElectronPaths } from "./electronPaths.js";
+import { createAuditHelper } from "./auditHelpers.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -146,6 +147,18 @@ export async function uploadSubstepVideo(
     try {
       db.pragma("foreign_keys = ON");
 
+      const audit = createAuditHelper(db);
+
+      // Prepare statements once (used in delete loop)
+      const selectKeyframes = db.prepare("SELECT * FROM viewport_keyframes WHERE video_section_id = ?");
+      const deleteKeyframes = db.prepare("DELETE FROM viewport_keyframes WHERE video_section_id = ?");
+      const deleteSvs = db.prepare("DELETE FROM substep_video_sections WHERE id = ?");
+      const selectSection = db.prepare("SELECT * FROM video_sections WHERE id = ?");
+      const deleteSection = db.prepare("DELETE FROM video_sections WHERE id = ?");
+      const countSections = db.prepare("SELECT COUNT(*) as cnt FROM video_sections WHERE video_id = ?");
+      const selectVideo = db.prepare("SELECT * FROM videos WHERE id = ?");
+      const deleteVideo = db.prepare("DELETE FROM videos WHERE id = ?");
+
       const result = db.transaction(() => {
         // Find and delete old substep_video_sections for this substep
         const oldSvsRows = db
@@ -153,18 +166,32 @@ export async function uploadSubstepVideo(
           .all(substepId) as Array<{ id: string; video_section_id: string }>;
 
         for (const row of oldSvsRows) {
-          db.prepare("DELETE FROM viewport_keyframes WHERE video_section_id = ?").run(row.video_section_id);
-          db.prepare("DELETE FROM substep_video_sections WHERE id = ?").run(row.id);
-          const oldSection = db
-            .prepare("SELECT video_id FROM video_sections WHERE id = ?")
-            .get(row.video_section_id) as { video_id: string | null } | undefined;
-          db.prepare("DELETE FROM video_sections WHERE id = ?").run(row.video_section_id);
-          if (oldSection?.video_id) {
-            const otherSections = db
-              .prepare("SELECT COUNT(*) as cnt FROM video_sections WHERE video_id = ?")
-              .get(oldSection.video_id) as { cnt: number };
+          // Audit viewport_keyframes deletes
+          const oldKeyframes = selectKeyframes.all(row.video_section_id) as Record<string, unknown>[];
+          for (const kf of oldKeyframes) {
+            audit('viewport_keyframes', kf, 'delete');
+          }
+          deleteKeyframes.run(row.video_section_id);
+
+          // Audit substep_video_sections delete
+          audit('substep_video_sections', row, 'delete');
+          deleteSvs.run(row.id);
+
+          const oldSection = selectSection.get(row.video_section_id) as Record<string, unknown> | undefined;
+          if (oldSection) {
+            audit('video_sections', oldSection, 'delete');
+          }
+          deleteSection.run(row.video_section_id);
+
+          const videoId = oldSection?.['video_id'] as string | null | undefined;
+          if (videoId) {
+            const otherSections = countSections.get(videoId) as { cnt: number };
             if (otherSections.cnt === 0) {
-              db.prepare("DELETE FROM videos WHERE id = ?").run(oldSection.video_id);
+              const videoRow = selectVideo.get(videoId) as Record<string, unknown> | undefined;
+              if (videoRow) {
+                audit('videos', videoRow, 'delete');
+              }
+              deleteVideo.run(videoId);
             }
           }
         }
@@ -174,12 +201,14 @@ export async function uploadSubstepVideo(
           `INSERT INTO video_sections (id, video_id, start_frame, end_frame, fps)
            VALUES (?, NULL, ?, ?, ?)`,
         ).run(sectionId, 0, frameCount, meta.fps);
+        audit('video_sections', { id: sectionId, start_frame: 0, end_frame: frameCount, fps: meta.fps }, 'create');
 
         // Insert junction: substep_video_sections
         db.prepare(
           `INSERT INTO substep_video_sections (id, substep_id, video_section_id, "order")
            VALUES (?, ?, ?, 0)`,
         ).run(substepVideoSectionId, substepId, sectionId);
+        audit('substep_video_sections', { id: substepVideoSectionId, substep_id: substepId, video_section_id: sectionId, order: 0 }, 'create');
 
         return { success: true as const, sectionId, substepVideoSectionId, frameCount, fps: meta.fps, videoPath: resolvedSource };
       })();

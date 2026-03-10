@@ -2,6 +2,32 @@ import type Database from "better-sqlite3";
 import type { AuditChangeType, TableInfo } from "./types.js";
 import { assertValidIdentifier, getTableInfo } from "./sqlHelpers.js";
 
+/** Map from content table name to audit table name (shared by creator + viewer). */
+export const AUDIT_TABLE_MAP = {
+  instructions: "instructions_audit",
+  assemblies: "assemblies_audit",
+  steps: "steps_audit",
+  substeps: "substeps_audit",
+  videos: "videos_audit",
+  video_sections: "video_sections_audit",
+  video_frame_areas: "video_frame_areas_audit",
+  viewport_keyframes: "viewport_keyframes_audit",
+  drawings: "drawings_audit",
+  notes: "notes_audit",
+  part_tools: "part_tools_audit",
+  substep_descriptions: "substep_descriptions_audit",
+  substep_part_tools: "substep_part_tools_audit",
+  substep_images: "substep_images_audit",
+  substep_video_sections: "substep_video_sections_audit",
+  part_tool_video_frame_areas: "part_tool_video_frame_areas_audit",
+  substep_notes: "substep_notes_audit",
+  branding: "branding_audit",
+  substep_references: "substep_references_audit",
+  substep_tutorials: "substep_tutorials_audit",
+} as const;
+
+export type AuditedTable = keyof typeof AUDIT_TABLE_MAP;
+
 /**
  * Build an INSERT statement for an audit table.
  * Skips the `audit_id` column (auto-increment PK).

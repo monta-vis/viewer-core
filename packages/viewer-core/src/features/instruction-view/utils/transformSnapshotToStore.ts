@@ -48,7 +48,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
     articleNumber: snapshot.instruction.article_number ?? null,
     estimatedDuration: snapshot.instruction.estimated_duration ?? null,
     sourceLanguage: snapshot.instruction.source_language ?? 'de',
-    useBlurred: false,
+    useBlurred: !!snapshot.instruction.use_blurred,
     currentVersionId: versionId,
     liteSubstepLimit: null,
     assemblies: Object.fromEntries(
@@ -94,6 +94,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         displayMode: s.display_mode ?? 'normal',
         repeatCount: s.repeat_count ?? 1,
         repeatLabel: s.repeat_label ?? null,
+        useBlurred: s.use_blurred != null ? !!s.use_blurred : null,
         imageRowIds: s.image_row_ids,
         videoSectionRowIds: s.video_section_row_ids,
         partToolRowIds: s.part_tool_row_ids,
@@ -147,6 +148,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         type: vfa.type as 'SubstepImage',
         segmentationPoints: vfa.segmentation_points ?? null,
         localPath: vfa.url_720p || null,
+        useBlurred: vfa.use_blurred != null ? !!vfa.use_blurred : null,
       }])
     ),
     viewportKeyframes: {

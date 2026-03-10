@@ -1,7 +1,45 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import Database from "better-sqlite3";
-import { buildAuditInsert, recordAudit } from "../audit.js";
+import { buildAuditInsert, recordAudit, AUDIT_TABLE_MAP } from "../audit.js";
 import type { TableInfo } from "../types.js";
+
+describe("AUDIT_TABLE_MAP", () => {
+  const EXPECTED_TABLES = [
+    "instructions",
+    "assemblies",
+    "steps",
+    "substeps",
+    "videos",
+    "video_sections",
+    "video_frame_areas",
+    "viewport_keyframes",
+    "drawings",
+    "notes",
+    "part_tools",
+    "substep_descriptions",
+    "substep_part_tools",
+    "substep_images",
+    "substep_video_sections",
+    "part_tool_video_frame_areas",
+    "substep_notes",
+    "branding",
+    "substep_references",
+    "substep_tutorials",
+  ];
+
+  it("covers all 20 audited tables", () => {
+    expect(Object.keys(AUDIT_TABLE_MAP)).toHaveLength(20);
+    for (const table of EXPECTED_TABLES) {
+      expect(AUDIT_TABLE_MAP).toHaveProperty(table);
+    }
+  });
+
+  it("maps each table to its _audit counterpart", () => {
+    for (const [table, auditTable] of Object.entries(AUDIT_TABLE_MAP)) {
+      expect(auditTable).toBe(`${table}_audit`);
+    }
+  });
+});
 
 describe("buildAuditInsert", () => {
   it("builds correct INSERT SQL for a create action", () => {

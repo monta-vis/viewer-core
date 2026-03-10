@@ -4,8 +4,13 @@ import type { InstructionData, Substep } from '@/features/instruction';
 
 vi.mock('@/lib/media', () => ({
   buildMediaUrl: (folder: string, path: string) => `mvis-media://${folder}/${path}`,
-  MediaPaths: { substepVideo: (id: string) => `media/substeps/${id}/video` },
+  MediaPaths: {
+    substepVideo: (id: string) => `media/substeps/${id}/video`,
+    substepVideoBlurred: (id: string) => `media_blurred/substeps/${id}/video`,
+  },
   DEFAULT_FPS: 30,
+  resolveSubstepVideoPath: (id: string, master: boolean, substep: boolean | null | undefined) =>
+    master && substep ? `media_blurred/substeps/${id}/video` : `media/substeps/${id}/video`,
 }));
 
 function makeSubstep(overrides: Partial<Substep> = {}): Substep {
@@ -191,5 +196,43 @@ describe('buildStandaloneVideoEntry', () => {
   it('uses relative URL when no folder name', () => {
     const result = buildStandaloneVideoEntry('sub1', { fps: 24, startFrame: 0, endFrame: 60 }, undefined);
     expect(result.videoSrc).toBe('./media/substeps/sub1/video');
+  });
+
+  it('uses blurred path when both master and substep flags are on', () => {
+    const result = buildStandaloneVideoEntry(
+      'sub1',
+      { fps: 24, startFrame: 0, endFrame: 60 },
+      'folder',
+      { useBlurred: true, substepUseBlurred: true },
+    );
+    expect(result.videoSrc).toBe('mvis-media://folder/media_blurred/substeps/sub1/video');
+  });
+
+  it('uses normal path when master flag is off', () => {
+    const result = buildStandaloneVideoEntry(
+      'sub1',
+      { fps: 24, startFrame: 0, endFrame: 60 },
+      'folder',
+      { useBlurred: false, substepUseBlurred: true },
+    );
+    expect(result.videoSrc).toBe('mvis-media://folder/media/substeps/sub1/video');
+  });
+});
+
+describe('buildVideoEntry – blurred video paths', () => {
+  it('resolves to blurred video path when both master and substep flags are on', () => {
+    const substep = makeSubstep({ useBlurred: true } as Partial<Substep>);
+    const data = makeData({ useBlurred: true });
+    const result = buildVideoEntry(substep, data, defaultOptions);
+    expect(result).not.toBeNull();
+    expect(result!.videoSrc).toBe('mvis-media://my-project/media_blurred/substeps/sub1/video');
+  });
+
+  it('resolves to normal video path when master is off', () => {
+    const substep = makeSubstep({ useBlurred: true } as Partial<Substep>);
+    const data = makeData({ useBlurred: false });
+    const result = buildVideoEntry(substep, data, defaultOptions);
+    expect(result).not.toBeNull();
+    expect(result!.videoSrc).toBe('mvis-media://my-project/media/substeps/sub1/video');
   });
 });

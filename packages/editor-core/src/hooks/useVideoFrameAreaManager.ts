@@ -77,6 +77,7 @@ export function useVideoFrameAreaManager({
     addSubstepImage,
     deleteSubstepImage,
     addPartToolVideoFrameArea,
+    updatePartToolVideoFrameArea,
     deletePartToolVideoFrameArea,
   } = useEditorStore();
 
@@ -153,6 +154,7 @@ export function useVideoFrameAreaManager({
         width: normalized.width,
         height: normalized.height,
         type: 'SubstepImage' as const,
+        useBlurred: true,
       };
 
       // Add area to store (also updates Video.frameAreaIds automatically)
@@ -211,26 +213,29 @@ export function useVideoFrameAreaManager({
         height: normalized.height,
         type: 'PartToolScan' as const,
         segmentationPoints: segmentationPoints ?? null,
+        useBlurred: false,
       };
 
       // Add area to store (also updates Video.frameAreaIds automatically)
       addVideoFrameArea(area);
 
-      // Get existing areas for this partTool to determine order
+      // Demote existing preview and make new area the preview at order 0
       const existingAreas = Object.values(data.partToolVideoFrameAreas || {})
         .filter((row) => row.partToolId === partToolId);
-      const maxOrder = existingAreas.length > 0
-        ? Math.max(...existingAreas.map((r) => r.order)) + 1
-        : 0;
+      for (const row of existingAreas) {
+        if (row.isPreviewImage) {
+          updatePartToolVideoFrameArea(row.id, { isPreviewImage: false });
+        }
+      }
 
-      // Create PartToolVideoFrameArea junction
+      // Create PartToolVideoFrameArea junction — always preview, always first
       addPartToolVideoFrameArea({
         id: uuidv4(),
         versionId,
         partToolId,
         videoFrameAreaId: areaId,
-        order: maxOrder,
-        isPreviewImage: existingAreas.length === 0, // First area is preview
+        order: 0,
+        isPreviewImage: true,
       });
 
       // Select the newly created area
@@ -244,6 +249,7 @@ export function useVideoFrameAreaManager({
       versionId,
       addVideoFrameArea,
       addPartToolVideoFrameArea,
+      updatePartToolVideoFrameArea,
     ]
   );
 
@@ -271,6 +277,7 @@ export function useVideoFrameAreaManager({
         height: normalized.height,
         type: 'PartToolScan' as const,
         segmentationPoints: segmentationPoints ?? null,
+        useBlurred: false,
       };
 
       // Add area to store (also updates Video.frameAreaIds automatically)

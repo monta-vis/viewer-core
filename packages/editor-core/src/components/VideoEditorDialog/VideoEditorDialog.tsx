@@ -36,6 +36,11 @@ import {
   timeToFrame,
   frameToTime,
 } from './viewportUtils';
+import {
+  prepareSections,
+  frameToSubstepPercent,
+  substepPercentToFrame,
+} from '../../utils/drawingPercentHelpers';
 
 // ── Discriminated union props ──
 
@@ -68,6 +73,7 @@ interface VideoEditorViewProps extends VideoEditorBaseProps {
   onAddDrawing: (drawing: DrawingRow) => void;
   onUpdateDrawing: (id: string, updates: Partial<DrawingRow>) => void;
   onDeleteDrawing: (id: string) => void;
+  sections?: Array<{ startFrame: number; endFrame: number }>;
 }
 
 export type VideoEditorDialogProps = VideoEditorEditProps | VideoEditorViewProps;
@@ -424,6 +430,7 @@ function VideoEditorViewMode({
   onAddDrawing,
   onUpdateDrawing,
   onDeleteDrawing,
+  sections,
 }: VideoEditorViewProps) {
   const { t } = useTranslation();
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -510,9 +517,18 @@ function VideoEditorViewMode({
     };
   }, [containerSize, videoData.contentAspectRatio]);
 
-  const totalFrames = videoData.durationSeconds * videoData.fps;
+  const effectiveDuration = videoData.durationSeconds || playback.duration;
+  const totalFrames = effectiveDuration * videoData.fps;
   const currentFrame = timeToFrame(playback.currentTime, videoData.fps);
-  const currentPercent = totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
+
+  // Section-aware percent: map absolute frame → substep percent when sections exist
+  const preparedSections = useMemo(
+    () => sections?.length ? prepareSections(sections) : null,
+    [sections],
+  );
+  const currentPercent = preparedSections
+    ? frameToSubstepPercent(currentFrame, preparedSections)
+    : totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
 
   // Video drawing hook
   const videoDrawing = useVideoDrawing({
@@ -614,13 +630,43 @@ function VideoEditorViewMode({
   // Delete key handler (multi-select aware)
   useDrawingDeleteKey(open, videoDrawing.selectedDrawingId, videoDrawing.handleDrawingDelete, videoDrawing.selectedDrawingIds);
 
-  // Seek by percent
+  // Constrain playback within section boundaries (ref-based to avoid 60fps effect re-runs)
+  const currentFrameRef = useRef(currentFrame);
+  currentFrameRef.current = currentFrame;
+  const preparedSectionsRef = useRef(preparedSections);
+  preparedSectionsRef.current = preparedSections;
+
+  useEffect(() => {
+    if (!playback.isPlaying) return;
+    const id = setInterval(() => {
+      const sections = preparedSectionsRef.current;
+      if (!sections) return;
+      const frame = currentFrameRef.current;
+      const { sorted } = sections;
+      // Check if inside any section
+      for (const sec of sorted) {
+        if (frame >= sec.startFrame && frame < sec.endFrame) return;
+      }
+      // Outside all sections — find next section to jump to, or pause at end
+      const nextSection = sorted.find((s) => s.startFrame > frame);
+      if (nextSection) {
+        playback.seek(frameToTime(nextSection.startFrame, videoData.fps));
+      } else {
+        playback.pause();
+      }
+    }, 100); // Check every 100ms instead of every frame
+    return () => clearInterval(id);
+  }, [playback.isPlaying, playback.seek, playback.pause, videoData.fps]);
+
+  // Seek by percent (section-aware when sections exist)
   const handleSeekPercent = useCallback(
     (percent: number) => {
-      const frame = Math.round((percent / 100) * totalFrames);
+      const frame = preparedSections
+        ? substepPercentToFrame(percent, preparedSections)
+        : Math.round((percent / 100) * totalFrames);
       playback.seek(frameToTime(frame, videoData.fps));
     },
-    [totalFrames, playback.seek, videoData.fps],
+    [preparedSections, totalFrames, playback.seek, videoData.fps],
   );
 
   // Click-to-seek on timeline bar
@@ -701,11 +747,9 @@ function VideoEditorViewMode({
           onFontSizeSelect={videoDrawing.handleDrawingFontSizeSelect}
           onDrawingFrameUpdate={videoDrawing.handleDrawingFrameUpdate}
           onSeekPercent={handleSeekPercent}
-          duration={videoData.durationSeconds}
+          duration={effectiveDuration}
           drawingMode="video"
           isInVideoSection
-          showModeToggle={false}
-          onDrawingModeChange={() => {}}
           onClose={onClose}
         />
       }

@@ -1,11 +1,10 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ImageOverlay,
   TextInputModal,
   useAnnotationDrawing,
   useAnnotationResize,
-  type AreaData,
   type Rectangle,
   type DrawingRow,
   type ImageOverlayMode,
@@ -21,9 +20,6 @@ export interface ImageEditDialogProps {
   open: boolean;
   onClose: () => void;
   imageSrc: string;
-  /** Area/viewport (the "crop rectangle") */
-  area?: AreaData | null;
-  onAreaUpdate?: (areaId: string, rect: Rectangle) => void;
   /** Drawing data + callbacks */
   videoFrameAreaId: string | null;
   versionId: string;
@@ -46,8 +42,7 @@ export interface ImageEditDialogProps {
  * │                                │ ● ● (colors)    │
  * │   ImageOverlay                 │ [S] [M] [L]     │
  * │   ┌──────────────────┐        │                  │
- * │   │  AreaHighlight   │        │ ■ ■ ■ (cards)    │
- * │   │  + Annotations   │        │                  │
+ * │   │   Annotations    │        │ ■ ■ ■ (cards)    │
  * │   └──────────────────┘        │                  │
  * │                                │                  │
  * ├──────────────────────────────────────────────────┤
@@ -58,8 +53,6 @@ export function ImageEditDialog({
   open,
   onClose,
   imageSrc,
-  area,
-  onAreaUpdate,
   videoFrameAreaId,
   versionId,
   drawings,
@@ -128,12 +121,6 @@ export function ImageEditDialog({
 
   // Mode logic: tool selected → annotation mode, else none (area resizable)
   const overlayMode: ImageOverlayMode = imageDrawing.drawingTool ? 'annotation' : 'none';
-
-  // Areas to display
-  const areas: AreaData[] = useMemo(() => {
-    if (!area) return [];
-    return [area];
-  }, [area]);
 
   // Handle background click (deselect annotation)
   const handleBackgroundClick = useCallback(() => {
@@ -207,9 +194,6 @@ export function ImageEditDialog({
           selectedDrawingFontSize={imageDrawing.selectedDrawingFontSize}
           onFontSizeSelect={imageDrawing.handleDrawingFontSizeSelect}
           drawingMode="image"
-          hasImageArea
-          showModeToggle={false}
-          onDrawingModeChange={() => {}}
           onClose={onClose}
         />
       }
@@ -220,9 +204,6 @@ export function ImageEditDialog({
           imageSrc={imageSrc}
           showBackground={false}
           mode={overlayMode}
-          areas={areas}
-          selectedAreaId={area?.id}
-          onAreaUpdate={onAreaUpdate}
           annotations={imageDrawing.annotations}
           selectedAnnotationId={imageDrawing.selectedDrawingId}
           selectedAnnotationIds={imageDrawing.selectedDrawingIds}

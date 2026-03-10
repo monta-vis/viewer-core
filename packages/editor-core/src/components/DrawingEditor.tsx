@@ -57,12 +57,8 @@ interface DrawingEditorProps {
   duration?: number;
 
   // Mode control
-  hasImageArea?: boolean; // Is there an ImageArea on current frame?
   isInVideoSection?: boolean; // Is playhead inside a VideoSection?
   drawingMode: DrawingMode; // Current mode (image or video)
-  onDrawingModeChange: (mode: DrawingMode) => void;
-  /** Hide the image/video mode checkbox (default true) */
-  showModeToggle?: boolean;
 
   /** Called when a minicard click changes the active section type */
   onDrawingSectionChange?: (section: 'image' | 'video') => void;
@@ -120,10 +116,8 @@ function TimelineMarker({
 /**
  * DrawingEditor - Unified editor for both Image Annotations and Video Drawings.
  *
- * Mode logic:
- * - If hasImageArea: Show checkbox to toggle between Image/Video mode
- * - If !hasImageArea: Only Video mode available (no checkbox)
- * - If !isInVideoSection && !hasImageArea: Tools disabled
+ * Mode is driven by element selection in the parent (image element → image mode,
+ * video section element → video mode). Only context-relevant minicards are shown.
  */
 export function DrawingEditor({
   activeTool,
@@ -143,11 +137,8 @@ export function DrawingEditor({
   onDrawingFrameUpdate,
   onSeekPercent,
   duration = 0,
-  hasImageArea = false,
   isInVideoSection = false,
   drawingMode,
-  onDrawingModeChange,
-  showModeToggle = true,
   onDrawingSectionChange,
   onClose,
 }: DrawingEditorProps) {
@@ -260,11 +251,6 @@ export function DrawingEditor({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Handle mode toggle
-  const handleModeToggle = useCallback(() => {
-    onDrawingModeChange(drawingMode === 'image' ? 'video' : 'image');
-  }, [drawingMode, onDrawingModeChange]);
-
   // Render a single minicard button
   const renderMinicard = (drawing: DrawingCardData, section: 'image' | 'video') => {
     const Icon = getShapeIcon(drawing.shapeType);
@@ -314,29 +300,8 @@ export function DrawingEditor({
 
   return (
     <div className="flex flex-col gap-2 p-3">
-      {/* Header row: Mode toggle (if ImageArea) + Action buttons */}
-      <div className={clsx('flex items-center', showModeToggle ? 'justify-between' : 'justify-end')}>
-        {/* Mode toggle - only shown when showModeToggle is true */}
-        {showModeToggle && (
-          <label className={clsx(
-            'flex items-center gap-2 select-none',
-            hasImageArea ? 'cursor-pointer' : 'cursor-not-allowed opacity-40'
-          )}>
-            <input
-              type="checkbox"
-              checked={drawingMode === 'image'}
-              onChange={handleModeToggle}
-              disabled={!hasImageArea}
-              className="w-4 h-4 rounded border-[var(--color-border-base)] bg-[var(--color-bg-surface)] accent-[var(--color-element-image)]"
-            />
-            <Image className="h-4 w-4 text-[var(--color-element-image)]" />
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {t('editorCore.imageDrawing', 'Image')}
-            </span>
-          </label>
-        )}
-
-        {/* Close button */}
+      {/* Header row: Close button */}
+      <div className="flex items-center justify-end">
         <button
           type="button"
           onClick={onClose}
@@ -386,35 +351,31 @@ export function DrawingEditor({
         </div>
       )}
 
-      {/* Drawing Minicards - split into Video and Image sections */}
-      {(videoDrawings.length > 0 || imageDrawings.length > 0) && (
-        <div className="flex flex-col gap-2 mt-1">
-          {imageDrawings.length > 0 && (
-            <div data-testid="image-drawings-section">
-              <div className="flex items-center gap-1 mb-1">
-                <Image className="h-3 w-3 text-[var(--color-element-image)]" />
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  {t('editorCore.imageDrawings', 'Image')}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {imageDrawings.map((drawing) => renderMinicard(drawing, 'image'))}
-              </div>
-            </div>
-          )}
-          {videoDrawings.length > 0 && (
-            <div data-testid="video-drawings-section">
-              <div className="flex items-center gap-1 mb-1">
-                <Video className="h-3 w-3 text-[var(--color-element-drawing)]" />
-                <span className="text-xs text-[var(--color-text-muted)]">
-                  {t('editorCore.videoDrawings', 'Video')}
-                </span>
-              </div>
-              <div className="flex flex-wrap gap-1">
-                {videoDrawings.map((drawing) => renderMinicard(drawing, 'video'))}
-              </div>
-            </div>
-          )}
+      {/* Drawing Minicards - only show section matching current mode */}
+      {drawingMode === 'image' && imageDrawings.length > 0 && (
+        <div className="mt-1" data-testid="image-drawings-section">
+          <div className="flex items-center gap-1 mb-1">
+            <Image className="h-3 w-3 text-[var(--color-element-image)]" />
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {t('editorCore.imageDrawings', 'Image')}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {imageDrawings.map((drawing) => renderMinicard(drawing, 'image'))}
+          </div>
+        </div>
+      )}
+      {drawingMode === 'video' && videoDrawings.length > 0 && (
+        <div className="mt-1" data-testid="video-drawings-section">
+          <div className="flex items-center gap-1 mb-1">
+            <Video className="h-3 w-3 text-[var(--color-element-drawing)]" />
+            <span className="text-xs text-[var(--color-text-muted)]">
+              {t('editorCore.videoDrawings', 'Video')}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {videoDrawings.map((drawing) => renderMinicard(drawing, 'video'))}
+          </div>
         </div>
       )}
 

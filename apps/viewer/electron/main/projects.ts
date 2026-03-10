@@ -13,10 +13,12 @@ import { isInsidePath } from "./pathUtils.js";
 import { parseIconId } from "./catalogIconUtils.js";
 import {
   saveProjectData as dbSaveProjectData,
+  AUDIT_TABLE_MAP,
   type ProjectChanges as DbProjectChanges,
   type SaveConfig,
 } from "@monta-vis/db-utils";
 import { getElectronPaths } from "./electronPaths.js";
+import { createAuditHelper } from "./auditHelpers.js";
 
 /** Image extensions to search for, in priority order. */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'];
@@ -227,6 +229,7 @@ const VIEWER_SAVE_CONFIG: SaveConfig = {
     // Parent tables
     "videos", "substeps", "steps", "assemblies",
   ],
+  auditTableMap: AUDIT_TABLE_MAP,
 };
 
 // ---------------------------------------------------------------------------
@@ -594,6 +597,8 @@ export async function uploadPartToolImage(
     db.exec("BEGIN TRANSACTION");
 
     try {
+      const audit = createAuditHelper(db);
+
       // Insert video_frame_areas row with crop coordinates
       const cx = crop?.x ?? 0;
       const cy = crop?.y ?? 0;
@@ -604,6 +609,7 @@ export async function uploadPartToolImage(
         `INSERT INTO video_frame_areas (id, x, y, width, height)
          VALUES (?, ?, ?, ?, ?)`,
       ).run(vfaId, cx, cy, cw, ch);
+      audit('video_frame_areas', { id: vfaId, x: cx, y: cy, width: cw, height: ch }, 'create');
 
       // Insert junction row
       const junctionId = crypto.randomUUID();
@@ -611,6 +617,7 @@ export async function uploadPartToolImage(
         `INSERT INTO part_tool_video_frame_areas (id, part_tool_id, video_frame_area_id)
          VALUES (?, ?, ?)`,
       ).run(junctionId, partToolId, vfaId);
+      audit('part_tool_video_frame_areas', { id: junctionId, part_tool_id: partToolId, video_frame_area_id: vfaId }, 'create');
 
       // Update part_tool preview_image_id (only if column exists)
       const columns = db.prepare("PRAGMA table_info(part_tools)").all() as { name: string }[];
@@ -619,6 +626,8 @@ export async function uploadPartToolImage(
         db.prepare(
           `UPDATE part_tools SET preview_image_id = ? WHERE id = ?`,
         ).run(vfaId, partToolId);
+        const updatedPartTool = db.prepare('SELECT * FROM part_tools WHERE id = ?').get(partToolId) as Record<string, unknown>;
+        audit('part_tools', updatedPartTool, 'update');
       } else {
         console.warn("[uploadPartToolImage] part_tools table has no preview_image_id column — skipping UPDATE");
       }
@@ -694,23 +703,35 @@ export async function uploadSubstepImage(
     db.exec("BEGIN TRANSACTION");
 
     try {
+      const audit = createAuditHelper(db);
+
       // Clean up old substep images before inserting new ones
       const oldRows = db.prepare(
-        `SELECT id, video_frame_area_id FROM substep_images WHERE substep_id = ?`,
-      ).all(substepId) as { id: string; video_frame_area_id: string }[];
+        `SELECT * FROM substep_images WHERE substep_id = ?`,
+      ).all(substepId) as Record<string, unknown>[];
 
       // Collect drawing IDs that will be cascade-deleted when VFAs are removed
       const deletedDrawingIds: string[] = [];
-      for (const { video_frame_area_id: oldVfaId } of oldRows) {
+      for (const oldRow of oldRows) {
+        const oldVfaId = oldRow.video_frame_area_id as string;
         const rows = db.prepare(`SELECT id FROM drawings WHERE video_frame_area_id = ?`).all(oldVfaId) as { id: string }[];
         deletedDrawingIds.push(...rows.map(r => r.id));
       }
 
+      // Audit deletes before removing rows
+      for (const oldRow of oldRows) {
+        audit('substep_images', oldRow, 'delete');
+      }
       db.prepare(`DELETE FROM substep_images WHERE substep_id = ?`).run(substepId);
-      for (const { video_frame_area_id } of oldRows) {
-        db.prepare(`DELETE FROM video_frame_areas WHERE id = ?`).run(video_frame_area_id);
+      for (const oldRow of oldRows) {
+        const oldVfaId = oldRow.video_frame_area_id as string;
+        const vfaRow = db.prepare(`SELECT * FROM video_frame_areas WHERE id = ?`).get(oldVfaId) as Record<string, unknown> | undefined;
+        if (vfaRow) {
+          audit('video_frame_areas', vfaRow, 'delete');
+        }
+        db.prepare(`DELETE FROM video_frame_areas WHERE id = ?`).run(oldVfaId);
         // Remove old media files from disk
-        const oldDir = path.join(basePath, folderName, "media", "frames", video_frame_area_id);
+        const oldDir = path.join(basePath, folderName, "media", "frames", oldVfaId);
         try { fs.rmSync(oldDir, { recursive: true }); } catch { /* ignore if already gone */ }
       }
 
@@ -723,6 +744,7 @@ export async function uploadSubstepImage(
         `INSERT INTO video_frame_areas (id, x, y, width, height)
          VALUES (?, ?, ?, ?, ?)`,
       ).run(vfaId, cx, cy, cw, ch);
+      audit('video_frame_areas', { id: vfaId, x: cx, y: cy, width: cw, height: ch }, 'create');
 
       // Insert substep_images junction row
       const substepImageId = crypto.randomUUID();
@@ -730,6 +752,7 @@ export async function uploadSubstepImage(
         `INSERT INTO substep_images (id, substep_id, video_frame_area_id, "order")
          VALUES (?, ?, ?, 0)`,
       ).run(substepImageId, substepId, vfaId);
+      audit('substep_images', { id: substepImageId, substep_id: substepId, video_frame_area_id: vfaId, order: 0 }, 'create');
 
       db.exec("COMMIT");
       db.close();
@@ -797,6 +820,8 @@ export async function uploadCoverImage(
     db.exec("BEGIN TRANSACTION");
 
     try {
+      const audit = createAuditHelper(db);
+
       const cx = crop?.x ?? 0;
       const cy = crop?.y ?? 0;
       const cw = crop?.width ?? 1;
@@ -806,10 +831,17 @@ export async function uploadCoverImage(
         `INSERT INTO video_frame_areas (id, x, y, width, height)
          VALUES (?, ?, ?, ?, ?)`,
       ).run(vfaId, cx, cy, cw, ch);
+      audit('video_frame_areas', { id: vfaId, x: cx, y: cy, width: cw, height: ch }, 'create');
 
-      db.prepare(
-        `UPDATE instructions SET cover_image_area_id = ?`,
-      ).run(vfaId);
+      // Read instruction ID first, then scope UPDATE + audit query by ID
+      const instrBefore = db.prepare(`SELECT id FROM instructions LIMIT 1`).get() as { id: string } | undefined;
+      if (instrBefore) {
+        db.prepare(`UPDATE instructions SET cover_image_area_id = ? WHERE id = ?`).run(vfaId, instrBefore.id);
+        const instrRow = db.prepare(`SELECT * FROM instructions WHERE id = ?`).get(instrBefore.id) as Record<string, unknown> | undefined;
+        if (instrRow) {
+          audit('instructions', instrRow, 'update');
+        }
+      }
 
       db.exec("COMMIT");
       db.close();
@@ -885,11 +917,16 @@ export function copyCatalogIcon(
     fs.copyFileSync(sourcePath, destFile);
 
     try {
+      const audit = createAuditHelper(db);
+
       // INSERT OR IGNORE: dedup without TOCTOU race
-      db.prepare(
+      const result = db.prepare(
         `INSERT OR IGNORE INTO video_frame_areas (id, x, y, width, height)
          VALUES (?, 0, 0, 1, 1)`,
       ).run(vfaId);
+      if (result.changes > 0) {
+        audit('video_frame_areas', { id: vfaId, x: 0, y: 0, width: 1, height: 1 }, 'create');
+      }
 
       return { success: true, vfaId };
     } catch (dbErr) {

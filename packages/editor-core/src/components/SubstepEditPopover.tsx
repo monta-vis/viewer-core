@@ -16,7 +16,6 @@ import type {
   FrameCaptureData,
   ViewportKeyframeRow,
   DrawingRow,
-  AreaData,
   Rectangle,
 } from '@monta-vis/viewer-core';
 import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon, DialogShell } from '@monta-vis/viewer-core';
@@ -94,10 +93,6 @@ export interface SubstepEditPopoverProps {
   onUpdateDrawing?: (id: string, updates: Partial<DrawingRow>) => void;
   /** Called when a drawing is deleted */
   onDeleteDrawing?: (id: string) => void;
-  /** Area overlay for the image (crop rectangle) */
-  area?: AreaData | null;
-  /** Called when the area is resized */
-  onAreaUpdate?: (areaId: string, rect: Rectangle) => void;
   /** Annotation bounds for constraining drawings to area */
   areaBounds?: Rectangle | null;
   /** Called when the user uploads a video for this substep */
@@ -198,8 +193,6 @@ export function SubstepEditPopover({
   onAddDrawing,
   onUpdateDrawing,
   onDeleteDrawing,
-  area,
-  onAreaUpdate,
   areaBounds,
   onUploadSubstepVideo,
 }: SubstepEditPopoverProps) {
@@ -591,7 +584,7 @@ export function SubstepEditPopover({
 
         {/* ── Body — two-column layout ── */}
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="grid grid-cols-1 md:grid-cols-[20rem_1fr] gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-[28rem_1fr] gap-6">
 
             {/* ── Left column: Media preview ── */}
             <div className="flex flex-col gap-3 min-w-0" data-testid="popover-col-sidebar">
@@ -666,8 +659,6 @@ export function SubstepEditPopover({
                             onAddDrawing={onAddDrawing}
                             onUpdateDrawing={onUpdateDrawing}
                             onDeleteDrawing={onDeleteDrawing}
-                            area={area}
-                            onAreaUpdate={onAreaUpdate}
                             areaBounds={areaBounds}
                           />
                         )}

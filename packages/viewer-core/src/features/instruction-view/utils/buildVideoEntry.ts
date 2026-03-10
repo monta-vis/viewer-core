@@ -1,5 +1,5 @@
 import type { Substep, ViewportKeyframeRow, InstructionData } from '@/features/instruction';
-import { buildMediaUrl, MediaPaths, DEFAULT_FPS } from '@/lib/media';
+import { buildMediaUrl, DEFAULT_FPS, resolveSubstepVideoPath } from '@/lib/media';
 
 /** Pre-computed video playback data for a single substep. */
 export interface SubstepVideoEntry {
@@ -18,10 +18,15 @@ export function buildStandaloneVideoEntry(
   substepId: string,
   videoSection: { fps: number | null; startFrame: number; endFrame: number; contentAspectRatio?: number | null },
   folderName: string | undefined,
+  blurFlags?: { useBlurred: boolean; substepUseBlurred: boolean | null | undefined },
 ): SubstepVideoEntry {
   const fps = videoSection.fps ?? DEFAULT_FPS;
   const duration = videoSection.endFrame - videoSection.startFrame;
-  const substepMediaPath = MediaPaths.substepVideo(substepId);
+  const substepMediaPath = resolveSubstepVideoPath(
+    substepId,
+    blurFlags?.useBlurred ?? false,
+    blurFlags?.substepUseBlurred,
+  );
   const videoSrc = folderName
     ? buildMediaUrl(folderName, substepMediaPath)
     : `./${substepMediaPath}`;
@@ -65,7 +70,10 @@ export function buildVideoEntry(
 
   // Standalone uploaded video (no parent videos row)
   if (!video) {
-    return buildStandaloneVideoEntry(substep.id, videoSection, options.folderName);
+    return buildStandaloneVideoEntry(substep.id, videoSection, options.folderName, {
+      useBlurred: data.useBlurred,
+      substepUseBlurred: substep.useBlurred,
+    });
   }
 
   if (options.useRawVideo) {
@@ -116,7 +124,7 @@ export function buildVideoEntry(
     totalFrames += sec.endFrame - sec.startFrame;
   }
 
-  const substepMediaPath = MediaPaths.substepVideo(substep.id);
+  const substepMediaPath = resolveSubstepVideoPath(substep.id, data.useBlurred, substep.useBlurred);
   const videoSrc = options.folderName
     ? buildMediaUrl(options.folderName, substepMediaPath)
     : `./${substepMediaPath}`;

@@ -27,6 +27,8 @@ export interface SubstepRow {
   displayMode: 'normal' | 'tutorial';
   repeatCount: number;        // default 1 — "do N times" badge
   repeatLabel: string | null; // e.g. "left & right", "all 4 corners"
+  /** Per-substep blur flag (true = blur video, false = original, null = not set). */
+  useBlurred?: boolean | null;
 }
 
 export interface StepRow {
@@ -122,6 +124,8 @@ export interface VideoFrameAreaRow {
   segmentationPoints?: string | null;
   /** Pre-exported image URL (for standalone/snapshot mode) */
   localPath?: string | null;
+  /** Per-VFA blur flag (true = blur enabled, false = disabled, null = not applicable). */
+  useBlurred?: boolean | null;
 }
 
 export interface SubstepImageRow {

@@ -204,3 +204,52 @@ describe('transformSnapshotToStore – assemblies', () => {
     expect(result.assemblies['asm-1'].title).toBe('Empty Assembly');
   });
 });
+
+describe('transformSnapshotToStore – substep useBlurred', () => {
+  it('maps use_blurred=1 to useBlurred=true on substeps', () => {
+    const snapshot = makeEmptySnapshot({
+      substeps: {
+        'sub-1': {
+          id: 'sub-1', step_id: 's1', step_order: 0, title: null,
+          image_row_ids: [], video_section_row_ids: [], part_tool_row_ids: [],
+          note_row_ids: [], description_row_ids: [],
+          use_blurred: 1,
+        },
+      },
+    });
+
+    const result = transformSnapshotToStore(snapshot);
+    expect(result.substeps['sub-1'].useBlurred).toBe(true);
+  });
+
+  it('maps use_blurred=0 to useBlurred=false on substeps', () => {
+    const snapshot = makeEmptySnapshot({
+      substeps: {
+        'sub-1': {
+          id: 'sub-1', step_id: 's1', step_order: 0, title: null,
+          image_row_ids: [], video_section_row_ids: [], part_tool_row_ids: [],
+          note_row_ids: [], description_row_ids: [],
+          use_blurred: 0,
+        },
+      },
+    });
+
+    const result = transformSnapshotToStore(snapshot);
+    expect(result.substeps['sub-1'].useBlurred).toBe(false);
+  });
+
+  it('maps missing use_blurred to useBlurred=null on substeps', () => {
+    const snapshot = makeEmptySnapshot({
+      substeps: {
+        'sub-1': {
+          id: 'sub-1', step_id: 's1', step_order: 0, title: null,
+          image_row_ids: [], video_section_row_ids: [], part_tool_row_ids: [],
+          note_row_ids: [], description_row_ids: [],
+        },
+      },
+    });
+
+    const result = transformSnapshotToStore(snapshot);
+    expect(result.substeps['sub-1'].useBlurred).toBeNull();
+  });
+});

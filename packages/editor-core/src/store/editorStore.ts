@@ -183,6 +183,10 @@ interface StoreActions {
   addVideo(video: Video): void;
   updateVideo(id: string, updates: Partial<Video>): void;
 
+  // Blur toggles
+  toggleSubstepBlur(id: string): void;
+  toggleVfaBlur(id: string): void;
+
   // VideoFrameAreas
   addVideoFrameArea(area: VideoFrameAreaRow): void;
   updateVideoFrameArea(id: string, updates: Partial<VideoFrameAreaRow>): void;
@@ -820,11 +824,21 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       Object.assign(s.data.videos[id], updates);
       s.changes.videos.changed.add(id);
     }),
+    toggleSubstepBlur: (id: string) => set((s) => {
+      if (!s.data?.substeps[id]) return;
+      const substep = s.data.substeps[id];
+      substep.useBlurred = substep.useBlurred === true ? false : true;
+      s.changes.substeps.changed.add(id);
+    }),
 
     // VideoFrameAreas
     addVideoFrameArea: (area) => set((s) => {
       if (!s.data) return;
-      s.data.videoFrameAreas[area.id] = area;
+      // Set use_blurred default by type if not explicitly provided
+      const useBlurred = area.useBlurred === undefined
+        ? (area.type === 'SubstepImage' ? true : area.type === 'PartToolScan' ? false : undefined)
+        : area.useBlurred;
+      s.data.videoFrameAreas[area.id] = { ...area, useBlurred };
       s.changes.videoFrameAreas.changed.add(area.id);
 
       // Also update Video's frameAreaIds if videoId is set
@@ -839,6 +853,12 @@ export const useEditorStore = create<StoreState & StoreActions>()(
     updateVideoFrameArea: (id, updates) => set((s) => {
       if (!s.data?.videoFrameAreas[id]) return;
       Object.assign(s.data.videoFrameAreas[id], updates);
+      s.changes.videoFrameAreas.changed.add(id);
+    }),
+    toggleVfaBlur: (id: string) => set((s) => {
+      if (!s.data?.videoFrameAreas[id]) return;
+      const vfa = s.data.videoFrameAreas[id];
+      vfa.useBlurred = vfa.useBlurred === true ? false : true;
       s.changes.videoFrameAreas.changed.add(id);
     }),
 

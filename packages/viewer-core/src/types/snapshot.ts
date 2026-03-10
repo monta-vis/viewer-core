@@ -58,6 +58,7 @@ export interface SnapshotSubstep {
   display_mode?: 'normal' | 'tutorial';
   repeat_count?: number;
   repeat_label?: string | null;
+  use_blurred?: boolean | number | null;
   image_row_ids: string[];
   video_section_row_ids: string[];
   part_tool_row_ids: string[];
@@ -105,6 +106,7 @@ export interface SnapshotVideoFrameArea {
   type: string;
   /** JSON array of normalized contour points [{x, y}] from SAM segmentation (0-1) */
   segmentation_points: string | null;
+  use_blurred?: boolean | number | null;
   url_1080p: string;
   url_720p: string;
   url_480p: string;

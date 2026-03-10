@@ -5,7 +5,7 @@ import { Check, ChevronDown, ChevronRight, Gauge, Home, LayoutGrid, Plus, X } fr
 import { clsx } from 'clsx';
 
 import { Button, Drawer, TutorialClickIcon } from '@/components/ui';
-import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, sortSubstepsByVideoFrame, buildSortData, UNASSIGNED_STEP_ID } from '@/features/instruction';
+import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
 import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, SubstepRow, RichTutorialDisplay, SafetyIconCategory } from '@/features/instruction';
@@ -212,10 +212,8 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
       step: s,
       substeps: s.id === UNASSIGNED_STEP_ID
         ? getUnassignedSubsteps(data)
-        : sortSubstepsByVideoFrame(
-            s.substepIds.map(id => data.substeps[id]).filter(Boolean),
-            buildSortData(data),
-          ),
+        : s.substepIds.map(id => data.substeps[id]).filter(Boolean)
+          .sort((a, b) => a.stepOrder - b.stepOrder),
     }));
   }, [sortedSteps, data]);
 

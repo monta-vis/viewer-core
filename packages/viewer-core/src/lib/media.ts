@@ -28,6 +28,26 @@ export const MediaPaths = {
   frameBlurred: (frameAreaId: string) => `media_blurred/frames/${frameAreaId}/image`,
 } as const;
 
+/** Resolve frame image path: use blurred path when master ON + VFA flag ON. */
+export function resolveFramePath(
+  vfaId: string,
+  masterBlurred: boolean,
+  vfaUseBlurred: boolean | null | undefined,
+): string {
+  if (masterBlurred && vfaUseBlurred) return MediaPaths.frameBlurred(vfaId);
+  return MediaPaths.frame(vfaId);
+}
+
+/** Resolve substep video path: use blurred path when master ON + substep flag ON. */
+export function resolveSubstepVideoPath(
+  substepId: string,
+  masterBlurred: boolean,
+  substepUseBlurred: boolean | null | undefined,
+): string {
+  if (masterBlurred && substepUseBlurred) return MediaPaths.substepVideoBlurred(substepId);
+  return MediaPaths.substepVideo(substepId);
+}
+
 /**
  * Build an mvis-media:// URL. Handles both absolute external paths
  * and relative project paths.

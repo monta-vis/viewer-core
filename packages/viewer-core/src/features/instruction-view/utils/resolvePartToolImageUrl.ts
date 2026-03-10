@@ -1,4 +1,4 @@
-import { buildMediaUrl } from '@/lib/media';
+import { buildMediaUrl, resolveFramePath } from '@/lib/media';
 
 /**
  * Resolve the first area image URL for a PartTool.
@@ -13,7 +13,7 @@ export function resolvePartToolImageUrl(
   folderName: string | undefined,
   partToolVideoFrameAreas: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>,
   useBlurred?: boolean,
-  videoFrameAreas?: Record<string, { localPath?: string | null }>,
+  videoFrameAreas?: Record<string, { localPath?: string | null; useBlurred?: boolean | null }>,
 ): string | null {
   const areas = Object.values(partToolVideoFrameAreas)
     .filter((a) => a.partToolId === partToolId);
@@ -29,8 +29,9 @@ export function resolvePartToolImageUrl(
   const areaId = sorted[0].videoFrameAreaId;
 
   if (folderName) {
-    const base = useBlurred ? 'media_blurred/frames' : 'media/frames';
-    return buildMediaUrl(folderName, `${base}/${areaId}/image`);
+    const vfaBlurred = videoFrameAreas?.[areaId]?.useBlurred;
+    const mediaPath = resolveFramePath(areaId, !!useBlurred, vfaBlurred);
+    return buildMediaUrl(folderName, mediaPath);
   }
 
   // Fallback: use pre-exported localPath from the store (mweb context)

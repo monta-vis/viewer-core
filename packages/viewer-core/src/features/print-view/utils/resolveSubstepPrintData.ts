@@ -6,7 +6,7 @@ import type {
   SafetyIconCategory,
 } from '@/features/instruction';
 import { isImageDrawing, getCategoryPriority } from '@/features/instruction';
-import { buildMediaUrl, MediaPaths } from '@/lib/media';
+import { buildMediaUrl, resolveFramePath } from '@/lib/media';
 import { byOrder } from '@/lib/sortedValues';
 
 export interface PrintNoteData {
@@ -48,8 +48,9 @@ export function resolveSubstepPrintData(
   // ── Image URL (first substep image) ──
   const firstImageRowId = substep.imageRowIds[0] ?? null;
   const firstImage = firstImageRowId ? data.substepImages[firstImageRowId] : null;
+  const vfa = firstImage ? data.videoFrameAreas[firstImage.videoFrameAreaId] : null;
   const imageUrl = firstImage
-    ? buildMediaUrl(folderName, MediaPaths.frame(firstImage.videoFrameAreaId))
+    ? buildMediaUrl(folderName, resolveFramePath(firstImage.videoFrameAreaId, data.useBlurred, vfa?.useBlurred))
     : null;
 
   // ── Image drawings (keyed by videoFrameAreaId) ──

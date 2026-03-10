@@ -23,6 +23,7 @@ const mockDeleteVideoFrameArea = vi.fn();
 const mockAddSubstepImage = vi.fn();
 const mockDeleteSubstepImage = vi.fn();
 const mockAddPartToolVideoFrameArea = vi.fn();
+const mockUpdatePartToolVideoFrameArea = vi.fn();
 const mockDeletePartToolVideoFrameArea = vi.fn();
 
 interface MockVideoFrameArea {
@@ -58,6 +59,7 @@ vi.mock('../store', () => ({
         addSubstepImage: mockAddSubstepImage,
         deleteSubstepImage: mockDeleteSubstepImage,
         addPartToolVideoFrameArea: mockAddPartToolVideoFrameArea,
+        updatePartToolVideoFrameArea: mockUpdatePartToolVideoFrameArea,
         deletePartToolVideoFrameArea: mockDeletePartToolVideoFrameArea,
       };
     },
@@ -203,6 +205,44 @@ describe('useVideoFrameAreaManager', () => {
         partToolId: 'pt-1',
         order: 0,
         isPreviewImage: true,
+      }),
+    );
+  });
+
+  it('createPartToolScanArea demotes old preview and makes new area preview', () => {
+    mockData = {
+      ...emptyData(),
+      partToolVideoFrameAreas: {
+        'ptvfa-old': {
+          id: 'ptvfa-old',
+          videoFrameAreaId: 'area-old',
+          partToolId: 'pt-1',
+          order: 0,
+          isPreviewImage: true,
+        },
+      },
+    };
+
+    const { result } = renderHook(() =>
+      useVideoFrameAreaManager({
+        videoId: 'vid-1',
+        versionId: 'ver-1',
+        selectedSubstepId: null,
+      }),
+    );
+
+    act(() => {
+      result.current.createPartToolScanArea(defaultRect, 'pt-1');
+    });
+
+    // Old preview should be demoted
+    expect(mockUpdatePartToolVideoFrameArea).toHaveBeenCalledWith('ptvfa-old', { isPreviewImage: false });
+    // New area should be preview at order 0
+    expect(mockAddPartToolVideoFrameArea).toHaveBeenCalledWith(
+      expect.objectContaining({
+        partToolId: 'pt-1',
+        isPreviewImage: true,
+        order: 0,
       }),
     );
   });
