@@ -6,6 +6,7 @@ export type {
   ImageUploadResult,
   CoverImageUploadResult,
   SubstepImageUploadResult,
+  StepPreviewUploadResult,
   CatalogIconCopyResult,
   VideoUploadResult,
   VideoUploadArgs,

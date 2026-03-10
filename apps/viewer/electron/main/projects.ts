@@ -279,6 +279,27 @@ export function getProjectData(folderName: string): ElectronProjectData {
     }
   }
 
+  // Add optional preview image columns (video_frame_area_id) to steps, assemblies, substeps
+  {
+    const migDb = new Database(dbPath);
+    try {
+      const stepCols = migDb.pragma("table_info(steps)") as Array<{ name: string }>;
+      if (!stepCols.some(c => c.name === "video_frame_area_id")) {
+        migDb.exec("ALTER TABLE steps ADD COLUMN video_frame_area_id TEXT DEFAULT NULL");
+      }
+      const assemblyCols = migDb.pragma("table_info(assemblies)") as Array<{ name: string }>;
+      if (!assemblyCols.some(c => c.name === "video_frame_area_id")) {
+        migDb.exec("ALTER TABLE assemblies ADD COLUMN video_frame_area_id TEXT DEFAULT NULL");
+      }
+      const substepCols = migDb.pragma("table_info(substeps)") as Array<{ name: string }>;
+      if (!substepCols.some(c => c.name === "repeat_video_frame_area_id")) {
+        migDb.exec("ALTER TABLE substeps ADD COLUMN repeat_video_frame_area_id TEXT DEFAULT NULL");
+      }
+    } finally {
+      migDb.close();
+    }
+  }
+
   // Migrate drawings: add video_frame_area_id (with ON DELETE CASCADE), drop substep_image_id
   {
     const migDb = new Database(dbPath);
@@ -775,6 +796,166 @@ export async function uploadSubstepImage(
       error: err instanceof Error ? err.message : String(err),
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// Preview image upload (shared logic for steps, assemblies, and repeat elements)
+// ---------------------------------------------------------------------------
+
+/** Row shape for the VFA table (typed instead of Record<string, unknown>). */
+interface VideoFrameAreaRow {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  type: string | null;
+  video_id: string | null;
+  frame_number: number | null;
+}
+
+/** Configuration for a preview image upload target entity. */
+interface PreviewUploadTarget {
+  /** DB table name containing the entity (e.g. 'steps', 'assemblies', 'substeps') */
+  table: string;
+  /** Column in the entity table that stores the VFA reference */
+  vfaColumn: string;
+  /** Human-readable entity name for error messages */
+  entityLabel: string;
+}
+
+const PREVIEW_TARGETS = {
+  step: { table: 'steps', vfaColumn: 'video_frame_area_id', entityLabel: 'Step' },
+  assembly: { table: 'assemblies', vfaColumn: 'video_frame_area_id', entityLabel: 'Assembly' },
+  repeat: { table: 'substeps', vfaColumn: 'repeat_video_frame_area_id', entityLabel: 'Substep' },
+} as const satisfies Record<string, PreviewUploadTarget>;
+
+/**
+ * Upload a custom preview image for any entity (step, assembly, or substep repeat).
+ * Creates a video_frame_area of type 'PreviewImage' and links it to the entity.
+ * Cleans up old PreviewImage VFA if present.
+ */
+async function uploadEntityPreviewImage(
+  fnLabel: string,
+  target: PreviewUploadTarget,
+  folderName: string,
+  entityId: string,
+  sourceImagePath: string,
+  crop?: { x: number; y: number; width: number; height: number },
+): Promise<{ success: boolean; vfaId?: string; oldVfaId?: string; error?: string }> {
+  console.debug("[%s] Entry: folder=%s, entity=%s, source=%s", fnLabel, folderName, entityId, sourceImagePath);
+  const basePath = getProjectsBasePath();
+  const dbPath = path.join(basePath, folderName, "montavis.db");
+
+  if (!isInsideBasePath(dbPath) || !fs.existsSync(dbPath)) {
+    console.error("[%s] Project not found: %s", fnLabel, dbPath);
+    return { success: false, error: "Project not found" };
+  }
+
+  const sourceCheck = validateImageSource(sourceImagePath);
+  if (!sourceCheck.valid) {
+    console.error("[%s] Invalid source: %s", fnLabel, sourceCheck.error);
+    return { success: false, error: sourceCheck.error };
+  }
+  const resolvedSource = sourceCheck.resolved;
+
+  const vfaId = crypto.randomUUID();
+  const destDir = path.join(basePath, folderName, "media", "frames", vfaId);
+  const destFile = path.join(destDir, "image.jpg");
+
+  try {
+    const paths = getElectronPaths();
+    const ffmpegBin = resolveFFmpegBinary(
+      paths.isPackaged ? paths.resourcesPath : paths.appPath,
+      paths.isPackaged,
+    );
+    await processImage(ffmpegBin, resolvedSource, destFile, crop, EXPORT_SIZE);
+
+    const db = new Database(dbPath);
+    db.pragma("foreign_keys = ON");
+    db.exec("BEGIN TRANSACTION");
+
+    let oldVfaId: string | undefined;
+
+    try {
+      const audit = createAuditHelper(db);
+
+      // Look up the entity's current VFA reference
+      const entityRow = db.prepare(
+        `SELECT "${target.vfaColumn}" FROM "${target.table}" WHERE id = ?`,
+      ).get(entityId) as Record<string, string | null> | undefined;
+      if (!entityRow) {
+        throw new Error(`${target.entityLabel} not found: ${entityId}`);
+      }
+
+      const currentVfaId = entityRow[target.vfaColumn];
+      if (currentVfaId) {
+        const existingVfa = db.prepare(
+          `SELECT * FROM video_frame_areas WHERE id = ?`,
+        ).get(currentVfaId) as VideoFrameAreaRow | undefined;
+        if (existingVfa && existingVfa.type === 'PreviewImage') {
+          oldVfaId = currentVfaId;
+          audit('video_frame_areas', existingVfa, 'delete');
+          db.prepare(`DELETE FROM video_frame_areas WHERE id = ?`).run(oldVfaId);
+          const oldDir = path.join(basePath, folderName, "media", "frames", oldVfaId);
+          try { fs.rmSync(oldDir, { recursive: true }); } catch { /* ignore if already gone */ }
+        }
+      }
+
+      // Insert new VFA
+      const cx = crop?.x ?? 0;
+      const cy = crop?.y ?? 0;
+      const cw = crop?.width ?? 1;
+      const ch = crop?.height ?? 1;
+
+      db.prepare(
+        `INSERT INTO video_frame_areas (id, x, y, width, height, type)
+         VALUES (?, ?, ?, ?, ?, 'PreviewImage')`,
+      ).run(vfaId, cx, cy, cw, ch);
+      audit('video_frame_areas', { id: vfaId, x: cx, y: cy, width: cw, height: ch, type: 'PreviewImage' }, 'create');
+
+      // Update entity to point to new VFA
+      db.prepare(
+        `UPDATE "${target.table}" SET "${target.vfaColumn}" = ? WHERE id = ?`,
+      ).run(vfaId, entityId);
+      audit(target.table, { id: entityId, [target.vfaColumn]: vfaId }, 'update');
+
+      db.exec("COMMIT");
+      db.close();
+      console.debug("[%s] Success: vfaId=%s, oldVfaId=%s", fnLabel, vfaId, oldVfaId ?? 'none');
+      return { success: true, vfaId, oldVfaId };
+    } catch (txErr) {
+      console.error("[%s] DB transaction failed:", fnLabel, txErr);
+      db.exec("ROLLBACK");
+      db.close();
+      try { fs.rmSync(destDir, { recursive: true }); } catch { /* ignore cleanup errors */ }
+      throw txErr;
+    }
+  } catch (err) {
+    console.error("[%s] Failed:", fnLabel, err);
+    return { success: false, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export function uploadStepPreviewImage(
+  folderName: string, stepId: string, sourceImagePath: string,
+  crop?: { x: number; y: number; width: number; height: number },
+): Promise<{ success: boolean; vfaId?: string; oldVfaId?: string; error?: string }> {
+  return uploadEntityPreviewImage('uploadStepPreviewImage', PREVIEW_TARGETS.step, folderName, stepId, sourceImagePath, crop);
+}
+
+export function uploadAssemblyPreviewImage(
+  folderName: string, assemblyId: string, sourceImagePath: string,
+  crop?: { x: number; y: number; width: number; height: number },
+): Promise<{ success: boolean; vfaId?: string; oldVfaId?: string; error?: string }> {
+  return uploadEntityPreviewImage('uploadAssemblyPreviewImage', PREVIEW_TARGETS.assembly, folderName, assemblyId, sourceImagePath, crop);
+}
+
+export function uploadRepeatPreviewImage(
+  folderName: string, substepId: string, sourceImagePath: string,
+  crop?: { x: number; y: number; width: number; height: number },
+): Promise<{ success: boolean; vfaId?: string; oldVfaId?: string; error?: string }> {
+  return uploadEntityPreviewImage('uploadRepeatPreviewImage', PREVIEW_TARGETS.repeat, folderName, substepId, sourceImagePath, crop);
 }
 
 // ---------------------------------------------------------------------------

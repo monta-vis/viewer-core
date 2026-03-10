@@ -126,6 +126,8 @@ interface InstructionViewProps {
       assemblies: import('@/features/instruction').Assembly[],
       renderAssembly: (assembly: import('@/features/instruction').Assembly) => ReactNode,
     ) => ReactNode;
+    renderPreviewUpload?: (stepId: string) => ReactNode;
+    renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
   };
   /** Web3Forms access key for feedback submission (provided by app layer). */
   web3FormsKey?: string;
@@ -197,6 +199,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
           description: null,
           repeatCount: 1,
           repeatLabel: null,
+          videoFrameAreaId: null,
           substepIds: unassigned.map((s) => s.id),
         });
       }
@@ -757,17 +760,6 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
 
           {/* Right: Feedback + Close */}
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            {/* Problem report button */}
-            <FeedbackButton
-              position="right"
-              isOpen={isFeedbackOpen}
-              onOpenChange={setIsFeedbackOpen}
-              panelRef={feedbackPanelRef}
-              backdropRef={feedbackBackdropRef}
-              instructionName={data?.instructionName ?? undefined}
-              stepNumber={currentIndex + 1}
-              web3FormsKey={web3FormsKey}
-            />
             {/* Playback speed toggle */}
             <Button
               variant="ghost"
@@ -781,6 +773,17 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                 <Gauge className="h-7 w-7 sm:h-8 sm:w-8" />
               </div>
             </Button>
+            {/* Problem report button */}
+            <FeedbackButton
+              position="right"
+              isOpen={isFeedbackOpen}
+              onOpenChange={setIsFeedbackOpen}
+              panelRef={feedbackPanelRef}
+              backdropRef={feedbackBackdropRef}
+              instructionName={data?.instructionName ?? undefined}
+              stepNumber={currentIndex + 1}
+              web3FormsKey={web3FormsKey}
+            />
             {/* Break button - shows Home icon (desktop) or Close icon (mweb) */}
             {onBreak && (
               <Button
@@ -1024,6 +1027,8 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
               onMoveStepToAssembly: editCallbacks?.onMoveStepToAssembly,
               onReorderAssembly: editCallbacks?.onReorderAssembly,
               renderAssemblyList: editCallbacks?.renderAssemblyList,
+              renderPreviewUpload: editCallbacks?.renderPreviewUpload,
+              renderAssemblyPreviewUpload: editCallbacks?.renderAssemblyPreviewUpload,
             } : undefined}
           />
         </Drawer>

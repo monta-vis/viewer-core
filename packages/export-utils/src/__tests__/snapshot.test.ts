@@ -241,6 +241,60 @@ describe("buildSnapshotFromRows", () => {
     expect(substeps["sub-1"]).not.toHaveProperty("reference_row_ids");
   });
 
+  it("includes video_frame_area_id on steps", () => {
+    const data = makeMinimalData({
+      steps: [
+        { id: "step-1", instruction_id: "inst-1", step_number: 1, title: "S", video_frame_area_id: "vfa-1" },
+      ],
+    });
+
+    const result = buildSnapshotFromRows(data);
+    const steps = result.steps as Record<string, Record<string, unknown>>;
+
+    expect(steps["step-1"].video_frame_area_id).toBe("vfa-1");
+  });
+
+  it("defaults video_frame_area_id to null on steps when not set", () => {
+    const data = makeMinimalData({
+      steps: [
+        { id: "step-1", instruction_id: "inst-1", step_number: 1, title: "S" },
+      ],
+    });
+
+    const result = buildSnapshotFromRows(data);
+    const steps = result.steps as Record<string, Record<string, unknown>>;
+
+    expect(steps["step-1"].video_frame_area_id).toBeNull();
+  });
+
+  it("includes repeat_video_frame_area_id on substeps", () => {
+    const data = makeMinimalData({
+      steps: [{ id: "step-1", instruction_id: "inst-1", step_number: 1, title: "S" }],
+      substeps: [
+        { id: "sub-1", step_id: "step-1", step_order: 1, title: "SS", repeat_video_frame_area_id: "vfa-2" },
+      ],
+    });
+
+    const result = buildSnapshotFromRows(data);
+    const substeps = result.substeps as Record<string, Record<string, unknown>>;
+
+    expect(substeps["sub-1"].repeat_video_frame_area_id).toBe("vfa-2");
+  });
+
+  it("defaults repeat_video_frame_area_id to null on substeps when not set", () => {
+    const data = makeMinimalData({
+      steps: [{ id: "step-1", instruction_id: "inst-1", step_number: 1, title: "S" }],
+      substeps: [
+        { id: "sub-1", step_id: "step-1", step_order: 1, title: "SS" },
+      ],
+    });
+
+    const result = buildSnapshotFromRows(data);
+    const substeps = result.substeps as Record<string, Record<string, unknown>>;
+
+    expect(substeps["sub-1"].repeat_video_frame_area_id).toBeNull();
+  });
+
   it("groups substep relations correctly", () => {
     const data = makeMinimalData({
       steps: [{ id: "step-1", instruction_id: "inst-1", step_number: 1, title: "S" }],

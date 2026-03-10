@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Plus, Trash2 } from 'lucide-react';
 import { AssemblyIcon } from '@/lib/icons';
@@ -72,6 +72,10 @@ interface AssemblySectionProps {
   allSteps?: (StepWithPreview & { assemblyId?: string | null })[];
   /** Called to rename a step (edit mode only) */
   onRenameStep?: (stepId: string, title: string) => void;
+  /** Render prop for preview image upload button on step cards (injected by editor-core via app shell) */
+  renderPreviewUpload?: (stepId: string) => ReactNode;
+  /** Render prop for assembly preview image upload button (injected by editor-core via app shell) */
+  renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
 }
 
 /**
@@ -93,6 +97,8 @@ export function AssemblySection({
   onMoveStepToAssembly,
   allSteps,
   onRenameStep,
+  renderPreviewUpload,
+  renderAssemblyPreviewUpload,
 }: AssemblySectionProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -201,6 +207,8 @@ export function AssemblySection({
             {steps.length} {steps.length === 1 ? t('instructionView.step', 'Step') : t('instructionView.steps', 'Steps')}
           </Badge>
 
+          {renderAssemblyPreviewUpload?.(assembly.id)}
+
           {allSteps && onMoveStepToAssembly && (
             <IconButton
               icon={<Plus className="h-4 w-4" />}
@@ -288,6 +296,9 @@ export function AssemblySection({
                   draggable={editMode}
                   editMode={editMode}
                   onRenameStep={onRenameStep}
+                  renderPreviewUpload={renderPreviewUpload
+                    ? () => renderPreviewUpload(step.id)
+                    : undefined}
                 />
               ))}
             </div>
@@ -336,6 +347,8 @@ interface UnassignedSectionProps {
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
   /** Called to rename a step (edit mode only) */
   onRenameStep?: (stepId: string, title: string) => void;
+  /** Render prop for preview image upload button on step cards (injected by editor-core via app shell) */
+  renderPreviewUpload?: (stepId: string) => ReactNode;
 }
 
 /**
@@ -351,6 +364,7 @@ export function UnassignedSection({
   editMode = false,
   onMoveStepToAssembly,
   onRenameStep,
+  renderPreviewUpload,
 }: UnassignedSectionProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -441,6 +455,9 @@ export function UnassignedSection({
                 draggable={editMode}
                 editMode={editMode}
                 onRenameStep={onRenameStep}
+                renderPreviewUpload={renderPreviewUpload
+                  ? () => renderPreviewUpload(step.id)
+                  : undefined}
               />
             ))}
           </div>

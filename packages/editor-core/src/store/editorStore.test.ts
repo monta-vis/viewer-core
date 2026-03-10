@@ -32,6 +32,7 @@ function createMockInstructionData(): InstructionData {
         substepIds: ['substep-1'],
         repeatCount: 1,
         repeatLabel: null,
+        videoFrameAreaId: null,
       },
     },
     substeps: {
@@ -45,6 +46,7 @@ function createMockInstructionData(): InstructionData {
         description: 'First substep',
         repeatCount: 1,
         repeatLabel: null,
+        repeatVideoFrameAreaId: null,
         imageRowIds: [],
         videoSectionRowIds: [],
         partToolRowIds: [],
@@ -917,7 +919,7 @@ describe('useEditorStore - Extended Tests', () => {
         title: 'Assembly 1',
         description: 'First assembly',
         order: 1,
-        previewImageId: null,
+        videoFrameAreaId: null,
         stepIds: [],
       };
 
@@ -940,7 +942,7 @@ describe('useEditorStore - Extended Tests', () => {
           title: 'Assembly 1',
           description: null,
           order: 1,
-          previewImageId: null,
+          videoFrameAreaId: null,
           stepIds: [],
         },
       };
@@ -976,7 +978,7 @@ describe('useEditorStore - Extended Tests', () => {
           title: 'Assembly 1',
           description: null,
           order: 1,
-          previewImageId: null,
+          videoFrameAreaId: null,
           stepIds: ['step-1'],
         },
       };
@@ -1004,7 +1006,7 @@ describe('useEditorStore - Extended Tests', () => {
           title: 'Assembly 1',
           description: null,
           order: 1,
-          previewImageId: null,
+          videoFrameAreaId: null,
           stepIds: [],
         },
       };
@@ -1029,7 +1031,7 @@ describe('useEditorStore - Extended Tests', () => {
           title: 'Assembly 1',
           description: null,
           order: 1,
-          previewImageId: null,
+          videoFrameAreaId: null,
           stepIds: ['step-1'],
         },
         'asm-2': {
@@ -1039,7 +1041,7 @@ describe('useEditorStore - Extended Tests', () => {
           title: 'Assembly 2',
           description: null,
           order: 2,
-          previewImageId: null,
+          videoFrameAreaId: null,
           stepIds: [],
         },
       };
@@ -2419,15 +2421,15 @@ describe('useEditorStore - Extended Tests', () => {
       data.assemblies = {
         'asm-a': {
           id: 'asm-a', versionId: 'ver-1', instructionId: 'inst-1',
-          title: 'Assembly A', description: null, order: 0, previewImageId: null, stepIds: [],
+          title: 'Assembly A', description: null, order: 0, videoFrameAreaId: null, stepIds: [],
         },
         'asm-b': {
           id: 'asm-b', versionId: 'ver-1', instructionId: 'inst-1',
-          title: 'Assembly B', description: null, order: 1, previewImageId: null, stepIds: [],
+          title: 'Assembly B', description: null, order: 1, videoFrameAreaId: null, stepIds: [],
         },
         'asm-c': {
           id: 'asm-c', versionId: 'ver-1', instructionId: 'inst-1',
-          title: 'Assembly C', description: null, order: 2, previewImageId: null, stepIds: [],
+          title: 'Assembly C', description: null, order: 2, videoFrameAreaId: null, stepIds: [],
         },
       };
       return data;

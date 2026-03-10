@@ -59,6 +59,45 @@ const electronAPI = {
         imagePath,
         crop,
       ),
+    uploadStepPreviewImage: (
+      folderName: string,
+      stepId: string,
+      imagePath: string,
+      crop?: { x: number; y: number; width: number; height: number },
+    ) =>
+      ipcRenderer.invoke(
+        "projects:upload-step-preview-image",
+        folderName,
+        stepId,
+        imagePath,
+        crop,
+      ),
+    uploadAssemblyPreviewImage: (
+      folderName: string,
+      assemblyId: string,
+      imagePath: string,
+      crop?: { x: number; y: number; width: number; height: number },
+    ) =>
+      ipcRenderer.invoke(
+        "projects:upload-assembly-preview-image",
+        folderName,
+        assemblyId,
+        imagePath,
+        crop,
+      ),
+    uploadRepeatPreviewImage: (
+      folderName: string,
+      substepId: string,
+      imagePath: string,
+      crop?: { x: number; y: number; width: number; height: number },
+    ) =>
+      ipcRenderer.invoke(
+        "projects:upload-repeat-preview-image",
+        folderName,
+        substepId,
+        imagePath,
+        crop,
+      ),
     uploadSubstepVideo: (
       folderName: string,
       substepId: string,

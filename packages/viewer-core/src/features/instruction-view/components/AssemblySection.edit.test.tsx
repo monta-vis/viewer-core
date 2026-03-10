@@ -52,7 +52,7 @@ const baseAssembly: Assembly = {
   title: 'Main Assembly',
   description: null,
   order: 1,
-  previewImageId: null,
+  videoFrameAreaId: null,
   stepIds: ['s1'],
 };
 

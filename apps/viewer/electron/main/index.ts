@@ -275,6 +275,36 @@ function registerIpcHandlers(): void {
   );
 
   ipcMain.handle(
+    "projects:upload-step-preview-image",
+    (_event, folderName: unknown, stepId: unknown, imagePath: unknown, crop?: { x: number; y: number; width: number; height: number }) => {
+      if (typeof folderName !== "string" || typeof stepId !== "string" || typeof imagePath !== "string") {
+        return { success: false, error: "Invalid arguments" };
+      }
+      return dbWorker.request("uploadStepPreviewImage", folderName, stepId, imagePath, crop);
+    },
+  );
+
+  ipcMain.handle(
+    "projects:upload-assembly-preview-image",
+    (_event, folderName: unknown, assemblyId: unknown, imagePath: unknown, crop?: { x: number; y: number; width: number; height: number }) => {
+      if (typeof folderName !== "string" || typeof assemblyId !== "string" || typeof imagePath !== "string") {
+        return { success: false, error: "Invalid arguments" };
+      }
+      return dbWorker.request("uploadAssemblyPreviewImage", folderName, assemblyId, imagePath, crop);
+    },
+  );
+
+  ipcMain.handle(
+    "projects:upload-repeat-preview-image",
+    (_event, folderName: unknown, substepId: unknown, imagePath: unknown, crop?: { x: number; y: number; width: number; height: number }) => {
+      if (typeof folderName !== "string" || typeof substepId !== "string" || typeof imagePath !== "string") {
+        return { success: false, error: "Invalid arguments" };
+      }
+      return dbWorker.request("uploadRepeatPreviewImage", folderName, substepId, imagePath, crop);
+    },
+  );
+
+  ipcMain.handle(
     "projects:upload-substep-video",
     (_event, folderName: unknown, substepId: unknown, args: unknown) => {
       if (typeof folderName !== "string" || typeof substepId !== "string") {

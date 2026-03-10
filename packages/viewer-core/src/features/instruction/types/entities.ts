@@ -35,6 +35,7 @@ export interface Step {
   stepNumber: number;
   title: string | null;
   description: string | null;
+  videoFrameAreaId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

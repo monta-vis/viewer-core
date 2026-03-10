@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { Card, TextInputModal } from '@/components/ui';
@@ -30,6 +30,8 @@ interface StepOverviewCardProps {
   editMode?: boolean;
   /** Called to rename a step (edit mode only) */
   onRenameStep?: (stepId: string, title: string) => void;
+  /** Render prop for preview image upload button (injected by editor-core via app shell) */
+  renderPreviewUpload?: () => ReactNode;
 }
 
 /**
@@ -50,6 +52,7 @@ export function StepOverviewCard({
   draggable = false,
   editMode = false,
   onRenameStep,
+  renderPreviewUpload,
 }: StepOverviewCardProps) {
   const { t } = useTranslation();
   const [titleModalOpen, setTitleModalOpen] = useState(false);
@@ -112,6 +115,7 @@ export function StepOverviewCard({
               </svg>
             </div>
           )}
+          {editMode && renderPreviewUpload?.()}
         </div>
 
         {/* Info — right side */}

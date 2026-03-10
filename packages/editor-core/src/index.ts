@@ -19,6 +19,7 @@ export {
   type ImageUploadResult,
   type CoverImageUploadResult,
   type SubstepImageUploadResult,
+  type StepPreviewUploadResult,
   type CatalogIconCopyResult,
   type VideoUploadResult,
   type VideoUploadArgs,
@@ -97,6 +98,9 @@ export { PartToolDetailEditor, type PartToolDetailEditorProps } from './componen
 
 // ImageCropDialog (image crop dialog for part/tool images)
 export { ImageCropDialog, type ImageCropDialogProps } from './components/ImageCropDialog';
+
+// PreviewImageUploadButton (upload icon + crop dialog for step preview images)
+export { PreviewImageUploadButton, type PreviewImageUploadButtonProps } from './components/PreviewImageUploadButton';
 
 // MediaEditDialog (shared full-screen modal shell for media annotation editors)
 export { MediaEditDialog, type MediaEditDialogProps } from './components/MediaEditDialog';

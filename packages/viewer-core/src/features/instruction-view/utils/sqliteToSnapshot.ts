@@ -144,7 +144,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
   // Build steps with substep_ids
   const steps: InstructionSnapshot['steps'] = {};
   for (const row of data.steps) {
-    const r = row as { id: string; instruction_id: string; step_number: number; title: string | null; assembly_id?: string | null; repeat_count?: number; repeat_label?: string | null };
+    const r = row as { id: string; instruction_id: string; step_number: number; title: string | null; assembly_id?: string | null; repeat_count?: number; repeat_label?: string | null; video_frame_area_id?: string | null };
     steps[r.id] = {
       id: r.id,
       instruction_id: r.instruction_id,
@@ -154,13 +154,14 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
       assembly_id: r.assembly_id ?? null,
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
+      video_frame_area_id: r.video_frame_area_id ?? null,
     };
   }
 
   // Build substeps with relation arrays
   const substeps: InstructionSnapshot['substeps'] = {};
   for (const row of data.substeps) {
-    const r = row as { id: string; step_id: string; step_order: number; title: string | null; display_mode?: string; repeat_count?: number; repeat_label?: string | null; use_blurred?: number | null };
+    const r = row as { id: string; step_id: string; step_order: number; title: string | null; display_mode?: string; repeat_count?: number; repeat_label?: string | null; use_blurred?: number | null; repeat_video_frame_area_id?: string | null };
     substeps[r.id] = {
       id: r.id,
       step_id: r.step_id,
@@ -170,6 +171,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
       use_blurred: r.use_blurred ?? null,
+      repeat_video_frame_area_id: r.repeat_video_frame_area_id ?? null,
       image_row_ids: imagesBySubstep[r.id] || [],
       video_section_row_ids: vsBySubstep[r.id] || [],
       part_tool_row_ids: ptBySubstep[r.id] || [],

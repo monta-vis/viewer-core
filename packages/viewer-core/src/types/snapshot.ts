@@ -40,6 +40,7 @@ export interface SnapshotStep {
   assembly_id?: string | null;
   repeat_count?: number;
   repeat_label?: string | null;
+  video_frame_area_id?: string | null;
 }
 
 export interface SnapshotAssembly {
@@ -48,6 +49,7 @@ export interface SnapshotAssembly {
   title: string | null;
   description: string | null;
   order: number;
+  video_frame_area_id?: string | null;
 }
 
 export interface SnapshotSubstep {
@@ -59,6 +61,7 @@ export interface SnapshotSubstep {
   repeat_count?: number;
   repeat_label?: string | null;
   use_blurred?: boolean | number | null;
+  repeat_video_frame_area_id?: string | null;
   image_row_ids: string[];
   video_section_row_ids: string[];
   part_tool_row_ids: string[];

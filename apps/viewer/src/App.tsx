@@ -92,6 +92,24 @@ declare global {
           imagePath: string,
           crop?: { x: number; y: number; width: number; height: number },
         ) => Promise<{ success: boolean; vfaId?: string; substepImageId?: string; error?: string }>;
+        uploadStepPreviewImage: (
+          folderName: string,
+          stepId: string,
+          imagePath: string,
+          crop?: { x: number; y: number; width: number; height: number },
+        ) => Promise<{ success: boolean; vfaId?: string; oldVfaId?: string; error?: string }>;
+        uploadAssemblyPreviewImage: (
+          folderName: string,
+          assemblyId: string,
+          imagePath: string,
+          crop?: { x: number; y: number; width: number; height: number },
+        ) => Promise<{ success: boolean; vfaId?: string; oldVfaId?: string; error?: string }>;
+        uploadRepeatPreviewImage: (
+          folderName: string,
+          substepId: string,
+          imagePath: string,
+          crop?: { x: number; y: number; width: number; height: number },
+        ) => Promise<{ success: boolean; vfaId?: string; oldVfaId?: string; error?: string }>;
         uploadSubstepVideo: (
           folderName: string,
           substepId: string,

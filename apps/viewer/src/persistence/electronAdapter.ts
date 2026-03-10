@@ -14,6 +14,7 @@ import type {
   ImageUploadResult,
   CoverImageUploadResult,
   SubstepImageUploadResult,
+  StepPreviewUploadResult,
   CatalogIconCopyResult,
   VideoUploadResult,
   VideoUploadArgs,
@@ -101,6 +102,51 @@ export function createElectronAdapter(): PersistenceAdapter {
       const result = await api.projects.uploadSubstepImage(projectId, substepId, image.path, crop);
       console.log('[electronAdapter.uploadSubstepImage] IPC result:', result);
       return result;
+    },
+
+    async uploadStepPreviewImage(
+      projectId: string,
+      stepId: string,
+      image: ImageSource,
+      crop?: NormalizedCrop,
+    ): Promise<StepPreviewUploadResult> {
+      const api = getAPI();
+      if (image.type !== 'path') {
+        console.warn('[electronAdapter.uploadStepPreviewImage] Only path-based images supported, got:', image.type);
+        return { success: false, error: 'Electron adapter only supports path-based images' };
+      }
+      console.debug('[electronAdapter.uploadStepPreviewImage] Calling IPC: project=%s, step=%s', projectId, stepId);
+      return api.projects.uploadStepPreviewImage(projectId, stepId, image.path, crop);
+    },
+
+    async uploadAssemblyPreviewImage(
+      projectId: string,
+      assemblyId: string,
+      image: ImageSource,
+      crop?: NormalizedCrop,
+    ): Promise<StepPreviewUploadResult> {
+      const api = getAPI();
+      if (image.type !== 'path') {
+        console.warn('[electronAdapter.uploadAssemblyPreviewImage] Only path-based images supported, got:', image.type);
+        return { success: false, error: 'Electron adapter only supports path-based images' };
+      }
+      console.debug('[electronAdapter.uploadAssemblyPreviewImage] Calling IPC: project=%s, assembly=%s', projectId, assemblyId);
+      return api.projects.uploadAssemblyPreviewImage(projectId, assemblyId, image.path, crop);
+    },
+
+    async uploadRepeatPreviewImage(
+      projectId: string,
+      substepId: string,
+      image: ImageSource,
+      crop?: NormalizedCrop,
+    ): Promise<StepPreviewUploadResult> {
+      const api = getAPI();
+      if (image.type !== 'path') {
+        console.warn('[electronAdapter.uploadRepeatPreviewImage] Only path-based images supported, got:', image.type);
+        return { success: false, error: 'Electron adapter only supports path-based images' };
+      }
+      console.debug('[electronAdapter.uploadRepeatPreviewImage] Calling IPC: project=%s, substep=%s', projectId, substepId);
+      return api.projects.uploadRepeatPreviewImage(projectId, substepId, image.path, crop);
     },
 
     async uploadSubstepVideo(

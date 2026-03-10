@@ -157,7 +157,7 @@ export function useEditCallbacks(): EditCallbacks {
       title: null,
       description: null,
       order: maxOrder + 1,
-      previewImageId: null,
+      videoFrameAreaId: null,
       stepIds: [],
     });
   }, []);

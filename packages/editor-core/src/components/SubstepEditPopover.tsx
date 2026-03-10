@@ -25,6 +25,7 @@ import { ImageEditDialog } from './ImageEditDialog';
 import type { NormalizedCrop } from '../persistence/types';
 import { PartToolTable, type PartToolTableItem, type PartToolTableImageCallbacks } from './PartToolTable';
 import type { PartToolImageItem } from './PartToolImagePicker';
+import { PreviewImageUploadButton } from './PreviewImageUploadButton';
 import { VideoTrimDialog } from './VideoTrimDialog';
 import { SectionCard } from './SectionCard';
 import { SafetyIconPicker } from './SafetyIconPicker';
@@ -99,6 +100,8 @@ export interface SubstepEditPopoverProps {
   onUploadSubstepVideo?: (file: File, sections: Array<{ startFrame: number; endFrame: number }> | null) => Promise<void>;
   /** Substep ID (needed for video upload routing) */
   substepId?: string;
+  /** Called when the user uploads a repeat preview image */
+  onUploadRepeatImage?: (file: File, crop: NormalizedCrop) => void;
 }
 
 /* ── Inline edit state types ── */
@@ -195,6 +198,7 @@ export function SubstepEditPopover({
   onDeleteDrawing,
   areaBounds,
   onUploadSubstepVideo,
+  onUploadRepeatImage,
 }: SubstepEditPopoverProps) {
   const { t, i18n } = useTranslation();
   const { canUndo, canRedo, captureSnapshot, undo, redo, reset } = useSessionHistory();
@@ -252,6 +256,17 @@ export function SubstepEditPopover({
     setCropDialogSrc(null);
     pendingFileRef.current = null;
   }, [cropDialogSrc]);
+
+  // Repeat image upload callback that also captures an undo snapshot
+  const handleRepeatImageUpload = useCallback((file: File, crop: NormalizedCrop) => {
+    if (onUploadRepeatImage) {
+      console.debug('[SubstepEditPopover.handleRepeatImageUpload] Uploading repeat image: file=%s', file.name);
+      onUploadRepeatImage(file, crop);
+      captureSnapshot();
+    } else {
+      console.warn('[SubstepEditPopover.handleRepeatImageUpload] No onUploadRepeatImage callback');
+    }
+  }, [onUploadRepeatImage, captureSnapshot]);
 
   // ── Video file-upload state ──
   const videoFileInputRef = useRef<HTMLInputElement>(null);
@@ -947,6 +962,12 @@ export function SubstepEditPopover({
                         {repeatLabel || t('editorCore.repeatLabel', 'Label (optional)')}
                       </span>
                     </button>
+                    {onUploadRepeatImage && (
+                      <PreviewImageUploadButton
+                        onUpload={handleRepeatImageUpload}
+                        variant="inline"
+                      />
+                    )}
                     <button type="button" aria-label={t('editorCore.deleteRepeat', 'Delete repeat')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteRepeat)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>

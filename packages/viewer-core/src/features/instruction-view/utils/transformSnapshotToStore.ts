@@ -63,7 +63,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
           title: a.title,
           description: a.description,
           order: a.order,
-          previewImageId: null,
+          videoFrameAreaId: a.video_frame_area_id ?? null,
           stepIds,
         }];
       })
@@ -79,6 +79,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         description: null,
         repeatCount: s.repeat_count ?? 1,
         repeatLabel: s.repeat_label ?? null,
+        videoFrameAreaId: s.video_frame_area_id ?? null,
         substepIds: s.substep_ids,
       }])
     ),
@@ -95,6 +96,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         repeatCount: s.repeat_count ?? 1,
         repeatLabel: s.repeat_label ?? null,
         useBlurred: s.use_blurred != null ? !!s.use_blurred : null,
+        repeatVideoFrameAreaId: s.repeat_video_frame_area_id ?? null,
         imageRowIds: s.image_row_ids,
         videoSectionRowIds: s.video_section_row_ids,
         partToolRowIds: s.part_tool_row_ids,

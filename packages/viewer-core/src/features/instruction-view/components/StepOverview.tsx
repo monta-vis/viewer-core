@@ -24,6 +24,10 @@ export interface StepOverviewEditCallbacks {
     assemblies: Assembly[],
     renderAssembly: (assembly: Assembly) => ReactNode,
   ) => ReactNode;
+  /** Render prop for preview image upload button on step cards (injected by editor-core via app shell) */
+  renderPreviewUpload?: (stepId: string) => ReactNode;
+  /** Render prop for assembly preview image upload button (injected by editor-core via app shell) */
+  renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
 }
 
 interface StepOverviewProps {
@@ -106,8 +110,19 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
       let previewLocalPath: string | null = null;
       let frameCaptureData: FrameCaptureData | null = null;
 
-      if (lastSubstep) {
-        // Get first image of last substep
+      // Check for explicit step preview override via videoFrameAreaId
+      const stepData = data.steps[step.id];
+      if (stepData?.videoFrameAreaId) {
+        const overrideArea = data.videoFrameAreas[stepData.videoFrameAreaId];
+        if (overrideArea) {
+          previewAreaId = overrideArea.id;
+          previewLocalPath = overrideArea.localPath ?? null;
+          if (useRawVideo && folderName) {
+            frameCaptureData = resolveRawFrameCapture(overrideArea, data.videos, folderName);
+          }
+        }
+      } else if (lastSubstep) {
+        // Fallback: Get first image of last substep
         const firstImageRowId = lastSubstep.imageRowIds[0];
         const imageRow = firstImageRowId ? data.substepImages[firstImageRowId] : null;
         const area = imageRow ? data.videoFrameAreas[imageRow.videoFrameAreaId] : null;
@@ -307,6 +322,8 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                       onRenameAssembly={editCallbacks?.onRenameAssembly}
                       onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
                       onRenameStep={editCallbacks?.onRenameStep}
+                      renderPreviewUpload={editCallbacks?.renderPreviewUpload}
+                      renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
                     />
                   ),
                 )
@@ -324,6 +341,8 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                     onRenameAssembly={editCallbacks?.onRenameAssembly}
                     onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
                     onRenameStep={editCallbacks?.onRenameStep}
+                    renderPreviewUpload={editCallbacks?.renderPreviewUpload}
+                    renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
                   />
                 ))
             }
@@ -351,6 +370,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 editMode={editMode}
                 onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
                 onRenameStep={editCallbacks?.onRenameStep}
+                renderPreviewUpload={editCallbacks?.renderPreviewUpload}
               />
             )}
           </div>
@@ -376,6 +396,10 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 onClick={() => onStepSelect(step.id)}
                 editMode={editMode}
                 onRenameStep={editCallbacks?.onRenameStep}
+                renderPreviewUpload={editCallbacks?.renderPreviewUpload
+                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- narrowed by ternary guard above
+                  ? () => editCallbacks.renderPreviewUpload!(step.id)
+                  : undefined}
               />
             ))}
           </div>

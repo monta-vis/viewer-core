@@ -29,6 +29,8 @@ export interface SubstepRow {
   repeatLabel: string | null; // e.g. "left & right", "all 4 corners"
   /** Per-substep blur flag (true = blur video, false = original, null = not set). */
   useBlurred?: boolean | null;
+  /** Optional preview image for repeat badge — references a VideoFrameArea. */
+  repeatVideoFrameAreaId: string | null;
 }
 
 export interface StepRow {
@@ -41,6 +43,8 @@ export interface StepRow {
   description: string | null;
   repeatCount: number;        // default 1 — "repeat entire step N times"
   repeatLabel: string | null; // e.g. "left & right"
+  /** Optional preview image override — references a VideoFrameArea. */
+  videoFrameAreaId: string | null;
 }
 
 export interface AssemblyRow {
@@ -50,7 +54,8 @@ export interface AssemblyRow {
   title: string | null;
   description: string | null;
   order: number;
-  previewImageId: string | null;
+  /** Optional preview image — references a VideoFrameArea. */
+  videoFrameAreaId: string | null;
 }
 
 export type ProxyStatus = 'Pending' | 'Processing' | 'Completed' | 'Failed' | 'NotNeeded';

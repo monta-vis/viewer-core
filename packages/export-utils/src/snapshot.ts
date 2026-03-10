@@ -87,6 +87,7 @@ export function buildSnapshotFromRows(
       title: r.title,
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
+      video_frame_area_id: r.video_frame_area_id ?? null,
       substep_ids: substepsByStep[r.id] || [],
     };
   }
@@ -103,6 +104,7 @@ export function buildSnapshotFromRows(
       repeat_count: r.repeat_count ?? 1,
       repeat_label: r.repeat_label ?? null,
       use_blurred: r.use_blurred ?? null,
+      repeat_video_frame_area_id: r.repeat_video_frame_area_id ?? null,
       image_row_ids: imagesBySubstep[r.id] || [],
       video_section_row_ids: vsBySubstep[r.id] || [],
       part_tool_row_ids: ptBySubstep[r.id] || [],

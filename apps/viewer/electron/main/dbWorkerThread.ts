@@ -17,6 +17,9 @@ import {
   saveProjectData,
   uploadPartToolImage,
   uploadSubstepImage,
+  uploadStepPreviewImage,
+  uploadAssemblyPreviewImage,
+  uploadRepeatPreviewImage,
   uploadCoverImage,
   copyCatalogIcon,
 } from "./projects.js";
@@ -63,6 +66,27 @@ const handlers: Record<string, HandlerFn> = {
     imagePath: string,
     crop?: { x: number; y: number; width: number; height: number },
   ) => uploadSubstepImage(folderName, substepId, imagePath, crop)) as HandlerFn,
+
+  uploadStepPreviewImage: ((
+    folderName: string,
+    stepId: string,
+    imagePath: string,
+    crop?: { x: number; y: number; width: number; height: number },
+  ) => uploadStepPreviewImage(folderName, stepId, imagePath, crop)) as HandlerFn,
+
+  uploadAssemblyPreviewImage: ((
+    folderName: string,
+    assemblyId: string,
+    imagePath: string,
+    crop?: { x: number; y: number; width: number; height: number },
+  ) => uploadAssemblyPreviewImage(folderName, assemblyId, imagePath, crop)) as HandlerFn,
+
+  uploadRepeatPreviewImage: ((
+    folderName: string,
+    substepId: string,
+    imagePath: string,
+    crop?: { x: number; y: number; width: number; height: number },
+  ) => uploadRepeatPreviewImage(folderName, substepId, imagePath, crop)) as HandlerFn,
 
   uploadSubstepVideo: ((
     folderName: string,

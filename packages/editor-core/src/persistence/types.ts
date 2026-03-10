@@ -69,6 +69,11 @@ export interface SubstepImageUploadResult extends PersistenceResult {
   deletedDrawingIds?: string[];
 }
 
+export interface StepPreviewUploadResult extends PersistenceResult {
+  vfaId?: string;
+  oldVfaId?: string;
+}
+
 export interface PersistenceAdapter {
   listProjects(): Promise<ProjectListItem[]>;
   getProjectData(projectId: string): Promise<unknown>;
@@ -79,5 +84,11 @@ export interface PersistenceAdapter {
   uploadSubstepVideo?(projectId: string, substepId: string, args: VideoUploadArgs): Promise<VideoUploadResult>;
   /** Copy a catalog icon into the project's media folder and create a VFA row. */
   copyCatalogIcon?(projectId: string, catalogType: 'SafetyIcons' | 'PartToolIcons', iconId: string, entryId: string): Promise<CatalogIconCopyResult>;
+  /** Upload a custom preview image for a step. */
+  uploadStepPreviewImage?(projectId: string, stepId: string, image: ImageSource, crop?: NormalizedCrop): Promise<StepPreviewUploadResult>;
+  /** Upload a custom preview image for an assembly. */
+  uploadAssemblyPreviewImage?(projectId: string, assemblyId: string, image: ImageSource, crop?: NormalizedCrop): Promise<StepPreviewUploadResult>;
+  /** Upload a preview image for a substep's repeat element. */
+  uploadRepeatPreviewImage?(projectId: string, substepId: string, image: ImageSource, crop?: NormalizedCrop): Promise<StepPreviewUploadResult>;
   resolveMediaUrl(projectId: string, relativePath: string): string;
 }
