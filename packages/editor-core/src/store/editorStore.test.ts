@@ -838,6 +838,185 @@ describe('videoFrameAreaToViewport', () => {
 
     expect(videoFrameAreaToViewport(area)).toBeNull();
   });
+
+  describe('reorderStep', () => {
+    function createDataWithAssemblySteps(): ReturnType<typeof createMockInstructionData> {
+      const data = createMockInstructionData();
+      data.assemblies = {
+        'asm-a': {
+          id: 'asm-a', versionId: 'ver-1', instructionId: 'inst-1',
+          title: 'Assembly A', description: null, order: 0, videoFrameAreaId: null,
+          stepIds: ['step-1', 'step-2', 'step-3'],
+        },
+        'asm-b': {
+          id: 'asm-b', versionId: 'ver-1', instructionId: 'inst-1',
+          title: 'Assembly B', description: null, order: 1, videoFrameAreaId: null,
+          stepIds: ['step-4', 'step-5'],
+        },
+      };
+      data.steps = {
+        'step-1': { id: 'step-1', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-a', stepNumber: 1, title: 'S1', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-2': { id: 'step-2', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-a', stepNumber: 2, title: 'S2', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-3': { id: 'step-3', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-a', stepNumber: 3, title: 'S3', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-4': { id: 'step-4', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-b', stepNumber: 4, title: 'S4', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-5': { id: 'step-5', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-b', stepNumber: 5, title: 'S5', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-6': { id: 'step-6', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null, stepNumber: 6, title: 'S6', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+      };
+      return data;
+    }
+
+    it('reorders step within assembly and renumbers', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderStep('step-1', 2));
+
+      expect(result.current.data!.assemblies['asm-a'].stepIds).toEqual(['step-2', 'step-3', 'step-1']);
+
+      expect(result.current.data!.steps['step-2'].stepNumber).toBe(1);
+      expect(result.current.data!.steps['step-3'].stepNumber).toBe(2);
+      expect(result.current.data!.steps['step-1'].stepNumber).toBe(3);
+      expect(result.current.data!.steps['step-4'].stepNumber).toBe(4);
+      expect(result.current.data!.steps['step-5'].stepNumber).toBe(5);
+      expect(result.current.data!.steps['step-6'].stepNumber).toBe(6);
+    });
+
+    it('is a no-op when same position', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderStep('step-1', 0));
+
+      expect(result.current.data!.assemblies['asm-a'].stepIds).toEqual(['step-1', 'step-2', 'step-3']);
+      expect(result.current.changes.steps.changed.size).toBe(0);
+    });
+
+    it('is a no-op for unassigned steps', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderStep('step-6', 0));
+
+      expect(result.current.changes.steps.changed.size).toBe(0);
+    });
+
+    it('marks reordered steps as changed', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderStep('step-1', 2));
+
+      expect(result.current.changes.steps.changed.has('step-1')).toBe(true);
+      expect(result.current.changes.steps.changed.has('step-2')).toBe(true);
+      expect(result.current.changes.steps.changed.has('step-3')).toBe(true);
+    });
+  });
+
+  describe('moveStepToAssembly', () => {
+    function createDataWithAssemblySteps(): ReturnType<typeof createMockInstructionData> {
+      const data = createMockInstructionData();
+      data.assemblies = {
+        'asm-a': {
+          id: 'asm-a', versionId: 'ver-1', instructionId: 'inst-1',
+          title: 'Assembly A', description: null, order: 0, videoFrameAreaId: null,
+          stepIds: ['step-1', 'step-2'],
+        },
+        'asm-b': {
+          id: 'asm-b', versionId: 'ver-1', instructionId: 'inst-1',
+          title: 'Assembly B', description: null, order: 1, videoFrameAreaId: null,
+          stepIds: ['step-3'],
+        },
+      };
+      data.steps = {
+        'step-1': { id: 'step-1', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-a', stepNumber: 1, title: 'S1', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-2': { id: 'step-2', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-a', stepNumber: 2, title: 'S2', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-3': { id: 'step-3', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: 'asm-b', stepNumber: 3, title: 'S3', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+        'step-4': { id: 'step-4', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null, stepNumber: 4, title: 'S4', description: null, substepIds: [], repeatCount: 1, repeatLabel: null, videoFrameAreaId: null },
+      };
+      return data;
+    }
+
+    it('moves step from assembly A to B at index 0', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.moveStepToAssembly('step-1', 'asm-b', 0));
+
+      expect(result.current.data!.assemblies['asm-a'].stepIds).toEqual(['step-2']);
+      expect(result.current.data!.assemblies['asm-b'].stepIds).toEqual(['step-1', 'step-3']);
+      expect(result.current.data!.steps['step-1'].assemblyId).toBe('asm-b');
+
+      expect(result.current.data!.steps['step-2'].stepNumber).toBe(1);
+      expect(result.current.data!.steps['step-1'].stepNumber).toBe(2);
+      expect(result.current.data!.steps['step-3'].stepNumber).toBe(3);
+      expect(result.current.data!.steps['step-4'].stepNumber).toBe(4);
+    });
+
+    it('moves step from assembly to unassigned', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.moveStepToAssembly('step-1', null, 0));
+
+      expect(result.current.data!.assemblies['asm-a'].stepIds).toEqual(['step-2']);
+      expect(result.current.data!.steps['step-1'].assemblyId).toBeNull();
+    });
+
+    it('moves step from unassigned to assembly at index', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.moveStepToAssembly('step-4', 'asm-a', 1));
+
+      expect(result.current.data!.assemblies['asm-a'].stepIds).toEqual(['step-1', 'step-4', 'step-2']);
+      expect(result.current.data!.steps['step-4'].assemblyId).toBe('asm-a');
+
+      expect(result.current.data!.steps['step-1'].stepNumber).toBe(1);
+      expect(result.current.data!.steps['step-4'].stepNumber).toBe(2);
+      expect(result.current.data!.steps['step-2'].stepNumber).toBe(3);
+      expect(result.current.data!.steps['step-3'].stepNumber).toBe(4);
+    });
+
+    it('marks all affected steps as changed', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.moveStepToAssembly('step-1', 'asm-b', 0));
+
+      expect(result.current.changes.steps.changed.has('step-1')).toBe(true);
+      expect(result.current.changes.steps.changed.has('step-2')).toBe(true);
+    });
+
+    it('renumberAllSteps correctly numbers across 2 assemblies + unassigned', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblySteps();
+      data.steps['step-1'].stepNumber = 10;
+      data.steps['step-2'].stepNumber = 20;
+      data.steps['step-3'].stepNumber = 30;
+      data.steps['step-4'].stepNumber = 40;
+      act(() => result.current.setData(data));
+
+      act(() => result.current.moveStepToAssembly('step-3', 'asm-b', 0));
+
+      expect(result.current.data!.steps['step-1'].stepNumber).toBe(1);
+      expect(result.current.data!.steps['step-2'].stepNumber).toBe(2);
+      expect(result.current.data!.steps['step-3'].stepNumber).toBe(3);
+      expect(result.current.data!.steps['step-4'].stepNumber).toBe(4);
+    });
+  });
 });
 
 // ============================================

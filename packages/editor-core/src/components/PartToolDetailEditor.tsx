@@ -6,8 +6,6 @@ import { clsx } from 'clsx';
 import type { AggregatedPartTool, PartToolRow } from '@monta-vis/viewer-core';
 import { TextInputModal, PartIcon, ToolIcon } from '@monta-vis/viewer-core';
 import type { FrameCaptureData } from '@monta-vis/viewer-core';
-import { PartToolSelectModal } from './PartToolSelectModal';
-import { toPartToolSelectItems } from './PartToolSelectList';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
 import { ImageCropDialog } from './ImageCropDialog';
 import type { PartToolTableImageCallbacks } from './PartToolTable';
@@ -21,12 +19,6 @@ export interface PartToolDetailEditorProps {
   imageCallbacks?: PartToolTableImageCallbacks;
   /** Resolve all images for the partTool (for image picker gallery) */
   getPartToolImages?: (partToolId: string) => PartToolImageItem[];
-  /** Catalog of all partTools for name/label/partNumber swap */
-  allPartTools?: PartToolRow[];
-  /** Swap the current partTool reference with an existing one */
-  onReplacePartTool?: (oldId: string, newId: string) => void;
-  /** Create a new partTool with the given name and swap the reference */
-  onCreatePartTool?: (oldId: string, newName: string) => void;
   /** Edit the substep-specific amount */
   onEditPartToolAmount?: (partToolId: string, newAmount: string) => void;
   /** Delete the partTool */
@@ -37,6 +29,8 @@ export interface PartToolDetailEditorProps {
   previewImageUrl?: string | null;
   /** Raw frame capture data for Editor preview */
   frameCaptureData?: FrameCaptureData | null;
+  /** Open the full PartToolListPanel instead of inline PartToolSelectModal for name */
+  onOpenPartToolList?: () => void;
 }
 
 /** Tappable field styling class (dashed outline on hover) */
@@ -44,11 +38,6 @@ const EDITABLE_FIELD_CLASS = 'cursor-pointer rounded px-1 -mx-1 hover:outline-2 
 
 /** Which field is currently being edited */
 type EditingField = 'name' | 'label' | 'partNumber' | 'amount' | 'unit' | 'material' | 'dimension' | 'description';
-
-/** Fields that show catalog suggestions (search + swap) */
-function hasCatalogSuggestions(field: EditingField): boolean {
-  return field === 'name' || field === 'label' || field === 'partNumber';
-}
 
 /** Map editing field to input type */
 function getInputType(field: EditingField): 'text' | 'number' | 'textarea' {
@@ -69,14 +58,12 @@ export function PartToolDetailEditor({
   onClose,
   imageCallbacks,
   getPartToolImages,
-  allPartTools,
-  onReplacePartTool,
-  onCreatePartTool,
   onEditPartToolAmount,
   onDeletePartTool,
   onUpdatePartTool,
   previewImageUrl,
   frameCaptureData: _frameCaptureData,
+  onOpenPartToolList,
 }: PartToolDetailEditorProps) {
   const { t } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
@@ -132,9 +119,6 @@ export function PartToolDetailEditor({
     ? t('instructionView.part', 'Part')
     : t('instructionView.tool', 'Tool');
 
-  // Build PartToolSelectItem[] from allPartTools for catalog fields
-  const partToolItems = useMemo(() => toPartToolSelectItems(allPartTools ?? []), [allPartTools]);
-
   /** i18n field labels for the TextInputModal header */
   const fieldLabels: Record<EditingField, string> = useMemo(() => ({
     name: t('instructionView.fieldName', 'Name'),
@@ -160,18 +144,6 @@ export function PartToolDetailEditor({
     }
     setEditingField(null);
   }, [editingField, partToolId, onEditPartToolAmount, onUpdatePartTool]);
-
-  /** Secondary confirm handler: create a new partTool and swap the reference */
-  const handleSecondaryConfirm = useCallback((newValue: string) => {
-    onCreatePartTool?.(partToolId, newValue.trim());
-    setEditingField(null);
-  }, [onCreatePartTool, partToolId]);
-
-  /** Handle catalog suggestion select (swap reference) */
-  const handleNameSelect = useCallback((selectedId: string) => {
-    onReplacePartTool?.(partToolId, selectedId);
-    setEditingField(null);
-  }, [onReplacePartTool, partToolId]);
 
   const handleFieldCancel = useCallback(() => setEditingField(null), []);
 
@@ -334,8 +306,8 @@ export function PartToolDetailEditor({
               className={EDITABLE_FIELD_CLASS}
               role="button"
               tabIndex={0}
-              onClick={() => flushSync(() => setEditingField({ field: 'name', currentValue: item.partTool.name }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') flushSync(() => setEditingField({ field: 'name', currentValue: item.partTool.name })); }}
+              onClick={() => onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'name', currentValue: item.partTool.name }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'name', currentValue: item.partTool.name })); } }}
             >
               <h2
                 id="parttool-editor-title"
@@ -354,8 +326,8 @@ export function PartToolDetailEditor({
               )}
               role="button"
               tabIndex={0}
-              onClick={() => flushSync(() => setEditingField({ field: 'label', currentValue: item.partTool.label ?? '' }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') flushSync(() => setEditingField({ field: 'label', currentValue: item.partTool.label ?? '' })); }}
+              onClick={() => onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'label', currentValue: item.partTool.label ?? '' }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'label', currentValue: item.partTool.label ?? '' })); } }}
             >
               <Tag className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
               {item.partTool.label ? (
@@ -374,8 +346,8 @@ export function PartToolDetailEditor({
               )}
               role="button"
               tabIndex={0}
-              onClick={() => flushSync(() => setEditingField({ field: 'partNumber', currentValue: item.partTool.partNumber ?? '' }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') flushSync(() => setEditingField({ field: 'partNumber', currentValue: item.partTool.partNumber ?? '' })); }}
+              onClick={() => onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'partNumber', currentValue: item.partTool.partNumber ?? '' }))}
+              onKeyDown={(e) => { if (e.key === 'Enter') { onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'partNumber', currentValue: item.partTool.partNumber ?? '' })); } }}
             >
               <Hash className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
               {item.partTool.partNumber ? (
@@ -467,37 +439,16 @@ export function PartToolDetailEditor({
         </div>
       </div>
 
-      {/* Modal for field editing — PartToolSelectModal for catalog fields, TextInputModal otherwise */}
-      {editingField && (() => {
-        const isCatalog = hasCatalogSuggestions(editingField.field);
-        const dualConfirm = isCatalog && !!onCreatePartTool && item.partTool.name !== '';
-        if (isCatalog && partToolItems.length > 0) {
-          return (
-            <PartToolSelectModal
-              label={fieldLabels[editingField.field]}
-              value={editingField.currentValue}
-              inputType="text"
-              onConfirm={handleFieldConfirm}
-              onCancel={handleFieldCancel}
-              items={partToolItems}
-              onSelect={handleNameSelect}
-              getPreviewUrl={previewImageUrl != null ? () => previewImageUrl : undefined}
-              onSecondaryConfirm={dualConfirm ? handleSecondaryConfirm : undefined}
-              secondaryConfirmLabel={dualConfirm ? t('editorCore.createNewPartTool', 'Create new') : undefined}
-              confirmLabel={dualConfirm ? t('editorCore.updateExisting', 'Update') : undefined}
-            />
-          );
-        }
-        return (
-          <TextInputModal
-            label={fieldLabels[editingField.field]}
-            value={editingField.currentValue}
-            inputType={getInputType(editingField.field)}
-            onConfirm={handleFieldConfirm}
-            onCancel={handleFieldCancel}
-          />
-        );
-      })()}
+      {/* Modal for field editing — TextInputModal for non-catalog fields */}
+      {editingField && (
+        <TextInputModal
+          label={fieldLabels[editingField.field]}
+          value={editingField.currentValue}
+          inputType={getInputType(editingField.field)}
+          onConfirm={handleFieldConfirm}
+          onCancel={handleFieldCancel}
+        />
+      )}
 
       {/* Image picker popover */}
       {imageCallbacks && (

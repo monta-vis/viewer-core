@@ -1,7 +1,10 @@
 import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronDown } from 'lucide-react';
+import { clsx } from 'clsx';
 
 import { Card, TextInputModal } from '@/components/ui';
+import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel';
 import { VideoFrameCapture } from './VideoFrameCapture';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 
@@ -32,6 +35,12 @@ interface StepOverviewCardProps {
   onRenameStep?: (stepId: string, title: string) => void;
   /** Render prop for preview image upload button (injected by editor-core via app shell) */
   renderPreviewUpload?: () => ReactNode;
+  /** Whether the substep expansion panel is open */
+  expanded?: boolean;
+  /** Called when the expand/collapse chevron is toggled */
+  onExpandToggle?: () => void;
+  /** Expandable content (substep previews) rendered inside a CollapsiblePanel */
+  children?: ReactNode;
 }
 
 /**
@@ -53,6 +62,9 @@ export function StepOverviewCard({
   editMode = false,
   onRenameStep,
   renderPreviewUpload,
+  expanded,
+  onExpandToggle,
+  children,
 }: StepOverviewCardProps) {
   const { t } = useTranslation();
   const [titleModalOpen, setTitleModalOpen] = useState(false);
@@ -147,11 +159,36 @@ export function StepOverviewCard({
             </p>
           )}
 
-          <p className="text-xs text-[var(--color-text-subtle)] mt-2">
-            {t('instructionView.substepCount', '{{count}} Substeps', { count: substepCount })}
-          </p>
+          {onExpandToggle ? (
+            <button
+              type="button"
+              aria-label={t('instructionView.expandSubsteps', 'Expand substeps')}
+              onClick={(e) => { e.stopPropagation(); onExpandToggle(); }}
+              className="flex items-center gap-1 mt-2 rounded hover:bg-white/10 transition-colors px-1 -mx-1"
+            >
+              <span className="text-xs text-[var(--color-text-subtle)]">
+                {t('instructionView.substepCount', '{{count}} Substeps', { count: substepCount })}
+              </span>
+              <ChevronDown
+                className={clsx(
+                  'h-3.5 w-3.5 text-[var(--color-text-subtle)] transition-transform duration-200',
+                  expanded !== true && '-rotate-90',
+                )}
+              />
+            </button>
+          ) : (
+            <p className="text-xs text-[var(--color-text-subtle)] mt-2">
+              {t('instructionView.substepCount', '{{count}} Substeps', { count: substepCount })}
+            </p>
+          )}
         </div>
       </div>
+
+      {children && (
+        <CollapsiblePanel isOpen={expanded === true}>
+          {children}
+        </CollapsiblePanel>
+      )}
 
       {titleModalOpen && stepId && (
         <TextInputModal

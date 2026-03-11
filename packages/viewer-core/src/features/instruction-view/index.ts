@@ -30,6 +30,8 @@ export { PartToolBadge } from './components/PartToolBadge';
 export { PartToolSearchBar } from './components/PartToolSearchBar';
 export { usePartToolStepMap } from './hooks/usePartToolStepMap';
 export { StepOverviewCard } from './components/StepOverviewCard';
+export { SubstepPreviewCard } from './components/SubstepPreviewCard';
+export type { StepWithPreview } from './components/AssemblySection';
 export { VideoFrameCapture } from './components/VideoFrameCapture';
 export { PartsToolsOverviewCard } from './components/PartsToolsOverviewCard';
 export { StepRangeSlider } from './components/StepRangeSlider';
@@ -62,6 +64,8 @@ export { resolvePartToolImageUrl } from './utils/resolvePartToolImageUrl';
 
 // Hooks
 export { useVisibleStep } from './hooks/useVisibleStep';
+export { useVisibleSubstep } from './hooks/useVisibleSubstep';
+export { usePartToolSubstepMap } from './hooks/usePartToolSubstepMap';
 export {
   useFilteredPartsTools,
   useAllPartsTools,

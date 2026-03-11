@@ -15,6 +15,7 @@ import {
   PdfPreviewDialog,
 } from "@monta-vis/viewer-core";
 import type { SortOption, SortDirection } from "@monta-vis/viewer-core";
+import type { PartToolIconCatalog } from "@monta-vis/editor-core";
 import { ViewPage } from "./pages/ViewPage";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,7 @@ declare global {
             label: Record<string, string>;
           }>;
         }>>;
+        getPartToolIcons: () => Promise<PartToolIconCatalog[]>;
       };
       projects: {
         list: () => Promise<ProjectListItem[]>;

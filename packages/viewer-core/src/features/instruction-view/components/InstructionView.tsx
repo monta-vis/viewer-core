@@ -12,7 +12,7 @@ import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartTool
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
-import { buildMediaUrl, MediaPaths } from '@/lib/media';
+import { buildMediaUrl, MediaPaths, resolveFramePath } from '@/lib/media';
 
 import { PartToolBadge } from './PartToolBadge';
 import { SubstepCard } from './SubstepCard';
@@ -36,12 +36,17 @@ import {
 } from '../hooks/useResponsiveGridColumns';
 import { useSwipeGestures, type DrawerRefs } from '../hooks/useSwipeGestures';
 import { useVisibleStep } from '../hooks/useVisibleStep';
+import { useVisibleSubstep } from '../hooks/useVisibleSubstep';
+import { usePartToolSubstepMap } from '../hooks/usePartToolSubstepMap';
 import { buildVideoEntry, type SubstepVideoEntry } from '../utils/buildVideoEntry';
 import { StepSeparator } from './StepSeparator';
 import { AssemblySeparator } from './AssemblySeparator';
 
 /** Stable empty array to avoid new-reference re-renders in SubstepCard effects */
 const EMPTY_DRAWINGS: DrawingRow[] = [];
+
+/** Stable empty set to avoid new-reference allocations in partTool highlight memo */
+const EMPTY_STRING_SET = new Set<string>();
 
 const ARROW_SIZES = {
   sm: { circle: 'w-6 h-6', icon: 'w-4 h-4' },
@@ -226,6 +231,12 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
     [stepsWithSubsteps],
   );
 
+  // Ordered substep IDs for IntersectionObserver-based auto-highlight
+  const allSubstepIds = useMemo(() => allSubsteps.map(s => s.id), [allSubsteps]);
+
+  // Reverse lookup: partToolId → Set<substepId>
+  const partToolSubstepMap = usePartToolSubstepMap();
+
   const totalSteps = sortedSteps.length;
 
   // Compute separate part/tool counts per assembly (unique partToolIds by type)
@@ -334,6 +345,14 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
     substepId: string;
     stepNumber: number;
   } | null>(null);
+
+  // Desktop reverse-highlight: hovering a PartToolCard highlights substeps that use it
+  const [highlightedPartToolId, setHighlightedPartToolId] = useState<string | null>(null);
+
+  const highlightedSubstepIdsFromPartTool = useMemo(() => {
+    if (!highlightedPartToolId) return EMPTY_STRING_SET;
+    return partToolSubstepMap.get(highlightedPartToolId) ?? EMPTY_STRING_SET;
+  }, [highlightedPartToolId, partToolSubstepMap]);
 
   // Track if user has started the instruction (closed parts drawer at least once)
   // Tutorial mode starts as "started" so drawer opens as narrow variant.
@@ -533,6 +552,9 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
   // Click-to-navigate: scroll to target substep and toggle highlight
   const substepRefsMap = useRef(new Map<string, HTMLDivElement>());
 
+  // Auto-detect topmost visible substep (for mobile auto-highlight)
+  const visibleSubstepId = useVisibleSubstep(substepRefsMap, gridContainerRef, allSubstepIds);
+
   const handleTutorialClick = useCallback((sourceSubstepId: string) => {
     if (!data) return;
 
@@ -580,6 +602,13 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
     return map;
   }, [stepsWithSubsteps]);
 
+  // Mobile auto-highlight: update highlighted substep based on scroll position
+  useEffect(() => {
+    if (!isPartsDrawerOpen || !isSingleColumn || !visibleSubstepId) return;
+    const stepNumber = substepStepNumberMap.get(visibleSubstepId) ?? 0;
+    setHighlightedSubstep({ substepId: visibleSubstepId, stepNumber });
+  }, [isPartsDrawerOpen, isSingleColumn, visibleSubstepId, substepStepNumberMap]);
+
   // Pre-compute per-substep handler maps (stable references for React.memo)
   const substepHandlersMap = useMemo(() => {
     const map = new Map<string, { onClick: () => void; onTutorialClick: () => void; onPartToolClick: () => void }>();
@@ -611,6 +640,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
   const handlePartsDrawerClose = useCallback(() => {
     setIsPartsDrawerOpen(false);
     setHighlightedSubstep(null);
+    setHighlightedPartToolId(null);
     if (!hasStarted) {
       setHasStarted(true);
     }
@@ -816,6 +846,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
           editMode={effectiveEditMode}
           renderPartToolEditor={effectiveEditMode ? renderPartToolEditor : undefined}
           initialStepCount={partsDrawerInitialCount}
+          onPartToolHover={setHighlightedPartToolId}
         />
       </div>
 
@@ -830,12 +861,22 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
 
               return (
               <div key={currentStep.id} ref={(el) => { if (el) stepSectionRefs.current.set(currentStep.id, el); }}>
-                {assemblyChanged && assembly && (
+                {assemblyChanged && assembly && (() => {
+                const assemblyArea = assembly.videoFrameAreaId
+                  ? data.videoFrameAreas[assembly.videoFrameAreaId]
+                  : null;
+                const assemblyImageUrl = assemblyArea
+                  ? (useRawVideo && folderName
+                      ? buildMediaUrl(folderName, resolveFramePath(assembly.videoFrameAreaId!, !!useBlurred, assemblyArea.useBlurred))
+                      : assemblyArea.localPath ?? null)
+                  : null;
+                return (
                   <AssemblySeparator
                     title={assembly.title ?? assembly.id}
                     stepCount={assembly.stepIds.length}
                     partCount={assemblyPartToolCounts.get(assembly.id)?.parts ?? 0}
                     toolCount={assemblyPartToolCounts.get(assembly.id)?.tools ?? 0}
+                    imageUrl={assemblyImageUrl}
                     onPartToolClick={() => {
                       // Scroll to first step of this assembly so PartsDrawer shows correct range
                       const firstStepId = assembly.stepIds[0];
@@ -848,7 +889,8 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                       setHighlightedSubstep(null);
                     }}
                   />
-                )}
+                );
+              })()}
                 {stepIdx > 0 && !assemblyChanged && <StepSeparator stepNumber={currentStep.stepNumber} title={currentStep.title} />}
 
                 {stepSubsteps.length === 0 ? (
@@ -945,6 +987,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                                 folderName={folderName}
                                 videoFrameAreas={data.videoFrameAreas}
                                 noteIconLabels={noteIconLabels}
+                                highlightedByPartTool={highlightedSubstepIdsFromPartTool.has(substep.id)}
                                 editMode={effectiveEditMode}
                                 editCallbacks={substepEditCallbacksMap.get(substep.id)}
                                 substepId={substep.id}

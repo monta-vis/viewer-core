@@ -13,6 +13,7 @@ const electronAPI = {
   signalReady: () => ipcRenderer.send("renderer:ready"),
   catalogs: {
     getSafetyIcons: () => ipcRenderer.invoke("catalogs:get-safety-icons"),
+    getPartToolIcons: () => ipcRenderer.invoke("catalogs:get-parttool-icons"),
   },
   projects: {
     list: () => ipcRenderer.invoke("projects:list"),

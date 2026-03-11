@@ -5,6 +5,8 @@ import { createReadStream, existsSync, statSync } from "fs";
 import { extname } from "path";
 import log from "electron-log/main";
 import { resolveMediaPath } from "./projects.js";
+import { resolveCatalogIconPath } from "./catalogs.js";
+import type { CatalogType } from "./catalogs.js";
 import type { ProjectChanges } from "./projects.js";
 import { importMvisFromPath } from "./import-mvis.js";
 import { exportProject } from "./export.js";
@@ -118,6 +120,7 @@ if (!gotLock) {
 
 protocol.registerSchemesAsPrivileged([
   { scheme: "mvis-media", privileges: { stream: true, supportFetchAPI: true } },
+  { scheme: "mvis-catalog", privileges: { supportFetchAPI: true } },
 ]);
 
 // ---------------------------------------------------------------------------
@@ -214,6 +217,57 @@ function registerProtocol(): void {
         "Content-Type": mimeType,
         "Content-Length": String(fileSize),
         "Accept-Ranges": "bytes",
+        ...securityHeaders,
+      },
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Catalog protocol handler
+// ---------------------------------------------------------------------------
+
+function registerCatalogProtocol(): void {
+  protocol.handle("mvis-catalog", (request) => {
+    const url = new URL(request.url);
+    const catalogType = decodeURIComponent(url.hostname);
+    const pathParts = url.pathname.slice(1).split("/").map(decodeURIComponent);
+
+    if (pathParts.length < 2) {
+      return new Response("Not Found", { status: 404 });
+    }
+
+    const validTypes = ["parttoolicons", "safetyicons"];
+    if (!validTypes.includes(catalogType.toLowerCase())) {
+      return new Response("Not Found", { status: 404 });
+    }
+
+    const filePath = resolveCatalogIconPath(
+      catalogType as CatalogType,
+      pathParts[0],
+      pathParts[1],
+    );
+
+    if (!filePath || !existsSync(filePath)) {
+      return new Response("Not Found", { status: 404 });
+    }
+
+    const stat = statSync(filePath);
+    const mimeType =
+      MEDIA_MIME_TYPES[extname(filePath).toLowerCase()] ??
+      "application/octet-stream";
+
+    // Add CSP to disable script execution in SVG files
+    const securityHeaders: Record<string, string> = mimeType === "image/svg+xml"
+      ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" }
+      : {};
+
+    const stream = createReadStream(filePath);
+    return new Response(createWebReadableStream(stream), {
+      status: 200,
+      headers: {
+        "Content-Type": mimeType,
+        "Content-Length": String(stat.size),
         ...securityHeaders,
       },
     });
@@ -340,6 +394,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle("catalogs:get-safety-icons", () =>
     dbWorker.request("getSafetyIconCatalogs"),
+  );
+
+  ipcMain.handle("catalogs:get-parttool-icons", () =>
+    dbWorker.request("getPartToolIconCatalogs"),
   );
 
   // Export stays on main thread (uses dialog.showSaveDialog)
@@ -509,6 +567,7 @@ void app.whenReady().then(() => {
 
   Menu.setApplicationMenu(null);
   registerProtocol();
+  registerCatalogProtocol();
   registerIpcHandlers();
   createWindow();
 });

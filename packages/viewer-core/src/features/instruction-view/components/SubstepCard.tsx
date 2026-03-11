@@ -111,6 +111,8 @@ interface SubstepCardProps {
   editCallbacks?: SubstepEditCallbacks;
   /** Map of safetyIconId → localized label for note icon tooltips. */
   noteIconLabels?: Record<string, string>;
+  /** When true, highlights this card because a hovered PartToolCard uses it */
+  highlightedByPartTool?: boolean;
   /** Render function for the edit popover (provided by editor-core via app shell) */
   /** Substep ID — forwarded to the edit popover so it can associate uploads with the correct substep */
   substepId?: string;
@@ -168,6 +170,7 @@ export const SubstepCard = memo(function SubstepCard({
   folderName,
   videoFrameAreas,
   noteIconLabels,
+  highlightedByPartTool = false,
   editMode = false,
   editCallbacks,
   substepId,
@@ -521,6 +524,7 @@ export const SubstepCard = memo(function SubstepCard({
       className={clsx(
         landscape && 'h-full flex flex-col',
         tutorialDisplay && 'ring-2 ring-[var(--color-element-tutorial)]/60',
+        highlightedByPartTool && 'ring-2 ring-[var(--color-secondary)]/60',
         isViewed && 'border-l-[0.1875rem] border-l-[var(--color-secondary)]',
       )}
     >
@@ -545,6 +549,7 @@ export const SubstepCard = memo(function SubstepCard({
               <video
                 ref={videoRef}
                 src={videoData.videoSrc}
+                muted
                 playsInline
                 className="w-full h-full"
               />
@@ -862,10 +867,10 @@ export const SubstepCard = memo(function SubstepCard({
           {descriptions.length > 0 ? (
             <div className="space-y-1">
               {descriptions.map((desc) => (
-                <p key={desc.id} className="text-lg text-[var(--color-text-base)] leading-relaxed">
-                  <span className="text-[var(--color-text-muted)] mr-1.5">•</span>
-                  {desc.text}
-                </p>
+                <div key={desc.id} className="flex gap-1.5 text-lg leading-relaxed">
+                  <span className="text-[var(--color-text-muted)] shrink-0">•</span>
+                  <span className="text-[var(--color-text-base)]">{desc.text}</span>
+                </div>
               ))}
             </div>
           ) : (

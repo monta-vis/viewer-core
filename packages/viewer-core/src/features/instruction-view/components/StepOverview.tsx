@@ -6,10 +6,12 @@ import { UNASSIGNED_STEP_ID, sortSubstepsByVideoFrame, buildSortData, type Assem
 import { useViewerData } from '../context';
 import { sortedValues, byOrder, byStepNumber } from '@/lib/sortedValues';
 import { StepOverviewCard } from './StepOverviewCard';
-import { AssemblySection, UnassignedSection, getStepPreviewUrl } from './AssemblySection';
+import { AssemblySection, UnassignedSection, getStepPreviewUrl, type StepWithPreview } from './AssemblySection';
 import { resolveRawFrameCapture, type FrameCaptureData } from '../utils/resolveRawFrameCapture';
+import { buildMediaUrl, MediaPaths } from '@/lib/media';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
 import { PartToolSearchBar } from './PartToolSearchBar';
+import { SubstepPreviewCard } from './SubstepPreviewCard';
 import { usePartToolStepMap } from '../hooks/usePartToolStepMap';
 
 export interface StepOverviewEditCallbacks {
@@ -28,6 +30,17 @@ export interface StepOverviewEditCallbacks {
   renderPreviewUpload?: (stepId: string) => ReactNode;
   /** Render prop for assembly preview image upload button (injected by editor-core via app shell) */
   renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
+  /** Wraps all assembly sections with unified DnD context. When present, replaces renderAssemblyList. */
+  renderStepDndWrapper?: (
+    containers: Array<{ containerId: string; stepIds: string[] }>,
+    children: ReactNode,
+  ) => ReactNode;
+  /** Wraps a step grid with sortable context (editor-core). */
+  renderSortableStepGrid?: (
+    containerId: string,
+    steps: StepWithPreview[],
+    renderStep: (step: StepWithPreview) => ReactNode,
+  ) => ReactNode;
 }
 
 interface StepOverviewProps {
@@ -55,6 +68,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
   const data = useViewerData();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [filteredPartToolId, setFilteredPartToolId] = useState<string | null>(null);
+  const [expandedStepIds, setExpandedStepIds] = useState<Set<string>>(new Set());
   const partToolStepMap = usePartToolStepMap();
 
   const allPartTools = useMemo(
@@ -78,6 +92,18 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
 
   const handlePartToolClear = useCallback(() => {
     setFilteredPartToolId(null);
+  }, []);
+
+  const handleExpandToggle = useCallback((stepId: string) => {
+    setExpandedStepIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(stepId)) {
+        next.delete(stepId);
+      } else {
+        next.add(stepId);
+      }
+      return next;
+    });
   }, []);
 
   // Get sorted steps
@@ -138,6 +164,32 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
         }
       }
 
+      // Build compact substep preview data
+      const substepPreviews = substeps.map((sub, idx) => {
+        let subImageUrl: string | null = null;
+        let subFrameCapture: FrameCaptureData | null = null;
+
+        const firstImageRowId = sub.imageRowIds[0];
+        const imageRow = firstImageRowId ? data.substepImages[firstImageRowId] : null;
+        const area = imageRow ? data.videoFrameAreas[imageRow.videoFrameAreaId] : null;
+
+        if (area) {
+          subImageUrl = area.localPath ?? null;
+        }
+
+        if (useRawVideo && folderName && area) {
+          subFrameCapture = resolveRawFrameCapture(area, data.videos, folderName);
+        }
+
+        return {
+          id: sub.id,
+          order: idx + 1,
+          title: sub.title ?? null,
+          imageUrl: subImageUrl,
+          frameCaptureData: subFrameCapture,
+        };
+      });
+
       return {
         id: step.id,
         order: step.stepNumber,
@@ -148,6 +200,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
         previewAreaId,
         previewLocalPath,
         frameCaptureData,
+        substepPreviews,
       };
     };
 
@@ -257,6 +310,14 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
     ? (hasAssemblies || stepsWithPreview.length === 0)
     : (hasAssemblies && hasAssignedSteps);
 
+  const resolveAssemblyImageUrl = useCallback((assembly: Assembly): string | null => {
+    if (!data || !assembly.videoFrameAreaId) return null;
+    const area = data.videoFrameAreas[assembly.videoFrameAreaId];
+    if (!area) return null;
+    if (useRawVideo && folderName) return buildMediaUrl(folderName, MediaPaths.frame(assembly.videoFrameAreaId));
+    return area.localPath ?? null;
+  }, [data, useRawVideo, folderName]);
+
   // Filter assemblies and their steps by partTool filter
   const filteredAssemblies = useMemo(() => {
     if (!filteredStepIds) return sortedAssemblies;
@@ -287,6 +348,17 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
     return unassignedSteps.filter((s) => filteredStepIds.has(s.id));
   }, [unassignedSteps, filteredStepIds]);
 
+  // Build containers array for DnD wrapper
+  const dndContainers = useMemo(() => [
+    ...filteredAssemblies.map((a) => ({
+      containerId: a.id,
+      stepIds: (filteredAssemblyStepsMap.get(a.id) ?? []).map((s: { id: string }) => s.id),
+    })),
+    ...(visibleUnassigned.length > 0
+      ? [{ containerId: 'unassigned', stepIds: visibleUnassigned.map((s: { id: string }) => s.id) }]
+      : []),
+  ], [filteredAssemblies, filteredAssemblyStepsMap, visibleUnassigned]);
+
   return (
     <div ref={scrollContainerRef} className="h-full overflow-y-auto scrollbar-subtle scroll-pt-20">
       {/* Sticky search bar */}
@@ -304,76 +376,73 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
       <div className="px-4 pb-4 sm:px-6 sm:pb-6">
         {useGroupedLayout ? (
           // Grouped layout: Steps organized by Assembly
-          <div className="flex flex-col gap-6">
-            {/* Assembly Sections — wrap with DnD if renderAssemblyList provided */}
-            {editCallbacks?.renderAssemblyList
-              ? editCallbacks.renderAssemblyList(
-                  filteredAssemblies,
-                  (assembly) => (
-                    <AssemblySection
-                      assembly={assembly}
-                      steps={filteredAssemblyStepsMap.get(assembly.id) ?? []}
-                      onStepSelect={onStepSelect}
-                      useRawVideo={useRawVideo}
-                      editMode={editMode}
-                      allowEmpty={editMode}
-                      allSteps={editMode ? stepsWithPreview : undefined}
-                      onDeleteAssembly={editCallbacks?.onDeleteAssembly}
-                      onRenameAssembly={editCallbacks?.onRenameAssembly}
-                      onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
-                      onRenameStep={editCallbacks?.onRenameStep}
-                      renderPreviewUpload={editCallbacks?.renderPreviewUpload}
-                      renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
-                    />
-                  ),
-                )
-              : filteredAssemblies.map((assembly) => (
-                  <AssemblySection
-                    key={assembly.id}
-                    assembly={assembly}
-                    steps={filteredAssemblyStepsMap.get(assembly.id) ?? []}
-                    onStepSelect={onStepSelect}
-                    useRawVideo={useRawVideo}
-                    editMode={editMode}
-                    allowEmpty={editMode}
-                    allSteps={editMode ? stepsWithPreview : undefined}
-                    onDeleteAssembly={editCallbacks?.onDeleteAssembly}
-                    onRenameAssembly={editCallbacks?.onRenameAssembly}
-                    onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
-                    onRenameStep={editCallbacks?.onRenameStep}
-                    renderPreviewUpload={editCallbacks?.renderPreviewUpload}
-                    renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
-                  />
-                ))
-            }
-
-            {/* Add Assembly button (edit mode only) — before Unassigned */}
-            {editMode && !filteredStepIds && (
-              <button
-                type="button"
-                onClick={() => editCallbacks?.onAddAssembly?.()}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--color-border)] rounded-xl text-[var(--color-text-muted)] hover:text-[var(--color-text-base)] hover:border-[var(--color-text-muted)] transition-colors"
-              >
-                <Plus className="h-4 w-4" />
-                <span className="text-sm font-medium">
-                  {t('editorCore.addAssembly', 'Add assembly')}
-                </span>
-              </button>
-            )}
-
-            {/* Unassigned Steps Section */}
-            {visibleUnassigned.length > 0 && (
-              <UnassignedSection
-                steps={visibleUnassigned}
+          (() => {
+            const renderAssemblySection = (assembly: Assembly) => (
+              <AssemblySection
+                key={assembly.id}
+                assembly={assembly}
+                steps={filteredAssemblyStepsMap.get(assembly.id) ?? []}
                 onStepSelect={onStepSelect}
                 useRawVideo={useRawVideo}
                 editMode={editMode}
+                allowEmpty={editMode}
+                allSteps={editMode ? stepsWithPreview : undefined}
+                onDeleteAssembly={editCallbacks?.onDeleteAssembly}
+                onRenameAssembly={editCallbacks?.onRenameAssembly}
                 onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
                 onRenameStep={editCallbacks?.onRenameStep}
                 renderPreviewUpload={editCallbacks?.renderPreviewUpload}
+                renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
+                renderSortableStepGrid={editCallbacks?.renderSortableStepGrid}
+                assemblyImageUrl={resolveAssemblyImageUrl(assembly)}
               />
-            )}
-          </div>
+            );
+
+            const assemblySections = editCallbacks?.renderStepDndWrapper
+              // renderStepDndWrapper replaces renderAssemblyList (unified DndContext)
+              ? null
+              : editCallbacks?.renderAssemblyList
+                ? editCallbacks.renderAssemblyList(filteredAssemblies, renderAssemblySection)
+                : filteredAssemblies.map(renderAssemblySection);
+
+            const innerContent = (
+              <div className="flex flex-col gap-6">
+                {assemblySections ?? filteredAssemblies.map(renderAssemblySection)}
+
+                {/* Add Assembly button (edit mode only) — before Unassigned */}
+                {editMode && !filteredStepIds && (
+                  <button
+                    type="button"
+                    onClick={() => editCallbacks?.onAddAssembly?.()}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-[var(--color-border)] rounded-xl text-[var(--color-text-muted)] hover:text-[var(--color-text-base)] hover:border-[var(--color-text-muted)] transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      {t('instructionView.addAssembly', 'Add assembly')}
+                    </span>
+                  </button>
+                )}
+
+                {/* Unassigned Steps Section */}
+                {visibleUnassigned.length > 0 && (
+                  <UnassignedSection
+                    steps={visibleUnassigned}
+                    onStepSelect={onStepSelect}
+                    useRawVideo={useRawVideo}
+                    editMode={editMode}
+                    onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
+                    onRenameStep={editCallbacks?.onRenameStep}
+                    renderPreviewUpload={editCallbacks?.renderPreviewUpload}
+                    renderSortableStepGrid={editCallbacks?.renderSortableStepGrid}
+                  />
+                )}
+              </div>
+            );
+
+            return editCallbacks?.renderStepDndWrapper
+              ? editCallbacks.renderStepDndWrapper(dndContainers, innerContent)
+              : innerContent;
+          })()
         ) : (
           // Flat layout: No assemblies or no assigned steps
           <div
@@ -400,7 +469,28 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- narrowed by ternary guard above
                   ? () => editCallbacks.renderPreviewUpload!(step.id)
                   : undefined}
-              />
+                expanded={expandedStepIds.has(step.id)}
+                onExpandToggle={() => handleExpandToggle(step.id)}
+              >
+                {step.substepPreviews.length > 0 && (
+                  <div
+                    className="grid gap-2 p-3"
+                    style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(6rem, 1fr))' }}
+                  >
+                    {step.substepPreviews.map((sub) => (
+                      <SubstepPreviewCard
+                        key={sub.id}
+                        order={sub.order}
+                        title={sub.title}
+                        imageUrl={sub.imageUrl}
+                        frameCaptureData={sub.frameCaptureData}
+                        useRawVideo={useRawVideo}
+                        onClick={() => onStepSelect(step.id)}
+                      />
+                    ))}
+                  </div>
+                )}
+              </StepOverviewCard>
             ))}
           </div>
         )}

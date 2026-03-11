@@ -168,6 +168,11 @@ interface StoreActions {
   // Reorder assemblies
   reorderAssembly(assemblyId: string, newIndex: number): void;
 
+  // Reorder steps within assembly
+  reorderStep(stepId: string, newIndex: number): void;
+  // Move step to another assembly with position control
+  moveStepToAssembly(stepId: string, targetAssemblyId: string | null, targetIndex: number): void;
+
   // Assignment actions
   assignStepToAssembly(stepId: string, assemblyId: string | null): void;
   assignSubstepToStep(substepId: string, stepId: string | null): void;
@@ -276,6 +281,48 @@ interface StoreActions {
   // Progressive step loading
   setStepLoadingState(state: StepLoadingState | null): void;
   appendSteps(chunk: StepChunkData): void;
+}
+
+/**
+ * Renumber all steps sequentially (1-based).
+ * Walks assemblies by order, steps by stepIds position within each assembly,
+ * then unassigned steps by current stepNumber.
+ * Only marks steps as changed if their number actually changed.
+ */
+function renumberAllSteps(
+  data: InstructionData,
+  changes: StoreState['changes'],
+): void {
+  // 1. Gather assembly steps in order: assemblies by .order, steps by stepIds position
+  const sortedAssemblies = Object.values(data.assemblies).sort((a, b) => a.order - b.order);
+  const assignedStepIds = new Set<string>();
+  let counter = 1;
+
+  for (const assembly of sortedAssemblies) {
+    for (const stepId of assembly.stepIds) {
+      const step = data.steps[stepId];
+      if (!step) continue;
+      assignedStepIds.add(stepId);
+      if (step.stepNumber !== counter) {
+        step.stepNumber = counter;
+        changes.steps.changed.add(stepId);
+      }
+      counter++;
+    }
+  }
+
+  // 2. Unassigned steps: sort by current stepNumber, then renumber
+  const unassigned = Object.values(data.steps)
+    .filter((s) => !assignedStepIds.has(s.id))
+    .sort((a, b) => a.stepNumber - b.stepNumber);
+
+  for (const step of unassigned) {
+    if (step.stepNumber !== counter) {
+      step.stepNumber = counter;
+      changes.steps.changed.add(step.id);
+    }
+    counter++;
+  }
 }
 
 // ============================================
@@ -477,6 +524,50 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       }
     }),
 
+    // Reorder step within its current assembly
+    reorderStep: (stepId, newIndex) => set((s) => {
+      if (!s.data?.steps[stepId]) return;
+      const step = s.data.steps[stepId];
+      if (!step.assemblyId) return; // Can't reorder unassigned steps
+      const assembly = s.data.assemblies[step.assemblyId];
+      if (!assembly) return;
+
+      const oldIndex = assembly.stepIds.indexOf(stepId);
+      if (oldIndex === -1 || oldIndex === newIndex) return;
+
+      // Splice: remove from old position, insert at new
+      assembly.stepIds.splice(oldIndex, 1);
+      assembly.stepIds.splice(newIndex, 0, stepId);
+
+      renumberAllSteps(s.data, s.changes);
+    }),
+
+    // Move step to another assembly with position control
+    moveStepToAssembly: (stepId, targetAssemblyId, targetIndex) => set((s) => {
+      if (!s.data?.steps[stepId]) return;
+      const step = s.data.steps[stepId];
+      const oldAssemblyId = step.assemblyId;
+
+      // Remove from old assembly's stepIds
+      if (oldAssemblyId && s.data.assemblies[oldAssemblyId]) {
+        s.data.assemblies[oldAssemblyId].stepIds =
+          s.data.assemblies[oldAssemblyId].stepIds.filter(id => id !== stepId);
+      }
+
+      // Update step's assemblyId
+      step.assemblyId = targetAssemblyId;
+      s.changes.steps.changed.add(stepId);
+
+      // Insert into target assembly's stepIds at targetIndex
+      if (targetAssemblyId && s.data.assemblies[targetAssemblyId]) {
+        const targetStepIds = s.data.assemblies[targetAssemblyId].stepIds;
+        const clampedIndex = Math.min(targetIndex, targetStepIds.length);
+        targetStepIds.splice(clampedIndex, 0, stepId);
+      }
+
+      renumberAllSteps(s.data, s.changes);
+    }),
+
     // Assignment actions
     assignStepToAssembly: (stepId, assemblyId) => set((s) => {
       if (!s.data?.steps[stepId]) return;
@@ -499,6 +590,8 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       // Update step
       step.assemblyId = assemblyId;
       s.changes.steps.changed.add(stepId);
+
+      renumberAllSteps(s.data, s.changes);
     }),
 
     assignSubstepToStep: (substepId, stepId) => set((s) => {

@@ -160,4 +160,95 @@ describe('AssemblySeparator', () => {
     const button = screen.getByRole('button');
     expect(button.getAttribute('aria-label')).toBe('7 Tools');
   });
+
+  it('renders image when imageUrl is provided', () => {
+    render(
+      <AssemblySeparator title="Motor Assembly" stepCount={2} imageUrl="https://example.com/img.png" />,
+    );
+
+    const img = screen.getByRole('img');
+    expect(img).toBeTruthy();
+    expect(img.getAttribute('src')).toBe('https://example.com/img.png');
+    expect(img.getAttribute('alt')).toBe('Motor Assembly');
+  });
+
+  it('does not render image when imageUrl is null', () => {
+    render(
+      <AssemblySeparator title="Motor Assembly" stepCount={2} imageUrl={null} />,
+    );
+
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('does not render image when imageUrl is undefined', () => {
+    render(
+      <AssemblySeparator title="Motor Assembly" stepCount={2} />,
+    );
+
+    expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('shows AssemblyIcon when no imageUrl', () => {
+    const { container } = render(
+      <AssemblySeparator title="Frame" stepCount={1} />,
+    );
+
+    // AssemblyIcon renders an svg
+    expect(container.querySelector('svg')).toBeTruthy();
+  });
+
+  it('hides AssemblyIcon when imageUrl is provided', () => {
+    const { container } = render(
+      <AssemblySeparator title="Frame" stepCount={1} imageUrl="https://example.com/img.png" />,
+    );
+
+    // AssemblyIcon (svg) should not be present when image replaces it
+    expect(container.querySelector('svg')).toBeNull();
+  });
+
+  it('opens image popup when thumbnail is clicked', () => {
+    render(
+      <AssemblySeparator title="Motor" stepCount={2} imageUrl="https://example.com/img.png" />,
+    );
+
+    // No dialog initially
+    expect(screen.queryByRole('dialog')).toBeNull();
+
+    // Click the thumbnail button
+    fireEvent.click(screen.getByLabelText('Open assembly image'));
+
+    // Dialog should appear with full-size image
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toBeTruthy();
+    const imgs = dialog.querySelectorAll('img');
+    expect(imgs.length).toBe(1);
+    expect(imgs[0].getAttribute('src')).toBe('https://example.com/img.png');
+  });
+
+  it('closes image popup when close button is clicked', () => {
+    render(
+      <AssemblySeparator title="Motor" stepCount={2} imageUrl="https://example.com/img.png" />,
+    );
+
+    // Open the popup
+    fireEvent.click(screen.getByLabelText('Open assembly image'));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    // Click close button
+    fireEvent.click(screen.getByLabelText('Close'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes image popup when backdrop is clicked', () => {
+    render(
+      <AssemblySeparator title="Motor" stepCount={2} imageUrl="https://example.com/img.png" />,
+    );
+
+    fireEvent.click(screen.getByLabelText('Open assembly image'));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    // Click the backdrop (the dialog element itself)
+    fireEvent.click(screen.getByTestId('dialog-shell-backdrop'));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
 });

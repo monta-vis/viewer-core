@@ -30,6 +30,8 @@ import {
   VideoEditorDialog,
   createDefaultPartTool,
   type SafetyIconCatalog,
+  type PartToolIconCatalog,
+  type PartToolIconItem,
   type NormalizedCrop,
   type PartToolImageItem,
   type VideoEditorResult,
@@ -78,6 +80,42 @@ export function ViewPage() {
       ?.getSafetyIcons()
       .then((result: SafetyIconCatalog[]) => setSafetyIconCatalogs(result ?? []))
       .catch(() => setSafetyIconCatalogs([]));
+  }, []);
+
+  // PartTool icon catalogs (loaded from disk via Electron API)
+  const [partToolIconCatalogs, setPartToolIconCatalogs] = useState<PartToolIconCatalog[]>([]);
+
+  useEffect(() => {
+    window.electronAPI?.catalogs
+      ?.getPartToolIcons()
+      .then((result: PartToolIconCatalog[]) => setPartToolIconCatalogs(result ?? []))
+      .catch(() => setPartToolIconCatalogs([]));
+  }, []);
+
+  // Transform catalog data to PartToolIconItem[] for the panel
+  const catalogItems: PartToolIconItem[] = useMemo(() => {
+    if (partToolIconCatalogs.length === 0) return [];
+    const items: PartToolIconItem[] = [];
+    for (const catalog of partToolIconCatalogs) {
+      for (const entry of catalog.entries) {
+        const label = entry.label[i18n.language] ?? entry.label.en ?? entry.filename;
+        items.push({
+          id: `${catalog.name}/${entry.filename}`,
+          filename: entry.filename,
+          category: entry.category,
+          label,
+          tags: entry.tags,
+          itemType: entry.itemType,
+          catalogName: catalog.name,
+          catalogDirName: catalog.dirName,
+        });
+      }
+    }
+    return items;
+  }, [partToolIconCatalogs, i18n.language]);
+
+  const getCatalogIconUrl = useCallback((item: PartToolIconItem): string => {
+    return `mvis-catalog://${encodeURIComponent("PartToolIcons")}/${encodeURIComponent(item.catalogDirName ?? item.catalogName ?? "")}/${encodeURIComponent(item.filename)}`;
   }, []);
 
   // Subscribe to store data (reflects edits)
@@ -1013,6 +1051,8 @@ export function ViewPage() {
                   callbacks={partToolListCallbacks}
                   getPreviewUrl={getPartToolPreviewUrl}
                   getPartToolImages={getPartToolImages}
+                  catalogItems={catalogItems.length > 0 ? catalogItems : undefined}
+                  getCatalogIconUrl={catalogItems.length > 0 ? getCatalogIconUrl : undefined}
                 />
               )}
             </ViewerDataProvider>

@@ -195,6 +195,10 @@ export { DraggableList } from './components/DraggableList';
 // DraggableGrid (sortable grid layout with @dnd-kit)
 export { DraggableGrid } from './components/DraggableGrid';
 
+// SortableStepGrid (unified step DnD for multi-container reordering)
+export { StepDndProvider, SortableStepContainer } from './components/SortableStepGrid';
+export type { StepDndProviderProps, SortableStepContainerProps } from './components/SortableStepGrid';
+
 // reorderArray (immutable array reorder utility)
 export { reorderArray } from './utils/reorderArray';
 

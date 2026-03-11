@@ -23,7 +23,7 @@ npm run typecheck    # Typecheck all packages
 ## Behavioral Rules
 
 1. **Read before acting** — never speculate about code you haven't opened. Read relevant files before answering or making changes.
-2. **Check in before major changes** — always present a plan and get approval before multi-file or architectural changes.
+2. **Plan for big changes** — present a plan for approval only for architectural changes or changes spanning 5+ files. Once a plan is approved, execute it fully without re-asking for confirmation at each step.
 3. **Explain changes** — give a high-level summary of what changed after every step.
 4. **Simplicity above all** — every change should be as small and simple as possible. Avoid complex, sweeping changes.
 5. **TDD** — write tests BEFORE implementation. Every plan must include test cases.

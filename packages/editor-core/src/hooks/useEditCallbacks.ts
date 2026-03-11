@@ -12,9 +12,11 @@
 
 import { createElement, type ReactNode, useCallback, useMemo } from 'react';
 import type { Assembly, PartToolRow } from '@monta-vis/viewer-core';
+import type { StepWithPreview } from '@monta-vis/viewer-core';
 import { useEditorStore } from '../store';
 import { createDefaultPartTool } from '../utils/partToolHelpers';
 import { DraggableList } from '../components/DraggableList';
+import { StepDndProvider, SortableStepContainer } from '../components/SortableStepGrid';
 import { PreviewImageUploadButton } from '../components/PreviewImageUploadButton';
 import type { PersistenceAdapter, NormalizedCrop, ImageSource } from '../persistence/types';
 
@@ -59,6 +61,17 @@ export interface EditCallbacks {
   ) => ReactNode;
   renderPreviewUpload?: (stepId: string) => ReactNode;
   renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
+  /** Wraps all assembly sections with unified DnD context. When present, replaces renderAssemblyList. */
+  renderStepDndWrapper?: (
+    containers: Array<{ containerId: string; stepIds: string[] }>,
+    children: ReactNode,
+  ) => ReactNode;
+  /** Wraps a step grid with sortable context (per container). */
+  renderSortableStepGrid?: (
+    containerId: string,
+    steps: StepWithPreview[],
+    renderStep: (step: StepWithPreview) => ReactNode,
+  ) => ReactNode;
 }
 
 export interface UseEditCallbacksOptions {
@@ -291,6 +304,35 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     [handlePreviewUpload, persistence],
   );
 
+  const renderStepDndWrapper = useCallback(
+    (containers: Array<{ containerId: string; stepIds: string[] }>, children: ReactNode) =>
+      createElement(StepDndProvider, {
+        containers,
+        onReorder: (stepId: string, _containerId: string, newIndex: number) => {
+          useEditorStore.getState().reorderStep(stepId, newIndex);
+        },
+        onMove: (stepId: string, targetContainerId: string, targetIndex: number) => {
+          const assemblyId = targetContainerId === 'unassigned' ? null : targetContainerId;
+          useEditorStore.getState().moveStepToAssembly(stepId, assemblyId, targetIndex);
+        },
+        children,
+      }),
+    [],
+  );
+
+  const renderSortableStepGrid = useCallback(
+    (containerId: string, steps: StepWithPreview[], renderStep: (step: StepWithPreview) => ReactNode) =>
+      createElement(SortableStepContainer<StepWithPreview>, {
+        containerId,
+        items: steps,
+        getItemId: (s: StepWithPreview) => s.id,
+        renderItem: renderStep,
+        className: 'grid gap-4',
+        gridStyle: { gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))' },
+      }),
+    [],
+  );
+
   return useMemo(() => ({
     onDeleteDescription,
     onDeleteNote,
@@ -311,6 +353,8 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     renderAssemblyList,
     renderPreviewUpload: canUploadStep ? renderPreviewUpload : undefined,
     renderAssemblyPreviewUpload: canUploadAssembly ? renderAssemblyPreviewUpload : undefined,
+    renderStepDndWrapper,
+    renderSortableStepGrid,
   }), [
     onDeleteDescription,
     onDeleteNote,
@@ -333,5 +377,7 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     canUploadAssembly,
     renderPreviewUpload,
     renderAssemblyPreviewUpload,
+    renderStepDndWrapper,
+    renderSortableStepGrid,
   ]);
 }

@@ -6,8 +6,6 @@ import { TextInputModal, PartIcon, ToolIcon } from '@monta-vis/viewer-core';
 import { computeUsedAmount, isPartToolNameValid } from '../utils/partToolHelpers';
 import { ImageCropDialog } from './ImageCropDialog';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
-import { PartToolSelectModal } from './PartToolSelectModal';
-import { toPartToolSelectItems } from './PartToolSelectList';
 import type { NormalizedCrop } from '../persistence/types';
 
 export interface PartToolTableItem {
@@ -20,10 +18,6 @@ export interface PartToolTableCallbacks {
   onUpdatePartTool: (partToolId: string, updates: Partial<PartToolRow>) => void;
   onUpdateAmount: (rowId: string, amount: number) => void;
   onDelete: (rowId: string) => void;
-  /** Called when user selects a partTool from autocomplete suggestions. */
-  onSelectPartTool?: (rowId: string, partToolId: string) => void;
-  /** Called when user chooses "Create new" in the autocomplete choice dialog. */
-  onCreateAndReplacePartTool?: (rowId: string, field: 'name' | 'label' | 'partNumber', value: string) => void;
 }
 
 export interface PartToolTableImageCallbacks {
@@ -37,8 +31,8 @@ export interface PartToolTableProps {
   callbacks: PartToolTableCallbacks;
   /** All substepPartTools for computing "Used" amounts. */
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
-  /** Instruction-level partTool catalog for autocomplete suggestions. */
-  allPartTools?: PartToolRow[];
+  /** Called when user clicks a catalog field (name/label/partNumber) to open the PartToolListPanel. */
+  onOpenPartToolList?: () => void;
   /** Resolve a partTool ID to a thumbnail URL (or null). */
   getPreviewUrl?: (partToolId: string) => string | null;
   /** Image upload/delete callbacks (enables thumbnail column interaction). */

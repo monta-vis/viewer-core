@@ -1,10 +1,10 @@
 import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, Plus, Trash2, X } from 'lucide-react';
 import { AssemblyIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
-import { Card, Badge, IconButton } from '@/components/ui';
+import { Card, Badge, IconButton, DialogShell } from '@/components/ui';
 import { StepAssignmentDialog } from './StepAssignmentDialog';
 import type { Assembly } from '@/features/instruction';
 import { StepOverviewCard } from './StepOverviewCard';
@@ -76,6 +76,14 @@ interface AssemblySectionProps {
   renderPreviewUpload?: (stepId: string) => ReactNode;
   /** Render prop for assembly preview image upload button (injected by editor-core via app shell) */
   renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
+  /** Resolved assembly preview image URL (from videoFrameAreaId) */
+  assemblyImageUrl?: string | null;
+  /** Render prop for sortable step grid (injected by editor-core). When present, replaces raw steps.map(). */
+  renderSortableStepGrid?: (
+    containerId: string,
+    steps: StepWithPreview[],
+    renderStep: (step: StepWithPreview) => ReactNode,
+  ) => ReactNode;
 }
 
 /**
@@ -99,6 +107,8 @@ export function AssemblySection({
   onRenameStep,
   renderPreviewUpload,
   renderAssemblyPreviewUpload,
+  assemblyImageUrl,
+  renderSortableStepGrid,
 }: AssemblySectionProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -106,6 +116,7 @@ export function AssemblySection({
   const [editTitle, setEditTitle] = useState(assembly.title ?? '');
   const [isDragOver, setIsDragOver] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (steps.length === 0 && !allowEmpty) return null;
@@ -167,9 +178,9 @@ export function AssemblySection({
         'overflow-hidden transition-shadow',
         isDragOver && 'ring-2 ring-[var(--color-secondary)]',
       )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={renderSortableStepGrid ? undefined : handleDragOver}
+      onDragLeave={renderSortableStepGrid ? undefined : handleDragLeave}
+      onDrop={renderSortableStepGrid ? undefined : handleDrop}
     >
       {/* Header */}
       {editMode ? (
@@ -180,7 +191,18 @@ export function AssemblySection({
             isExpanded && 'shadow-sm'
           )}
         >
-          <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
+          {assemblyImageUrl ? (
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(true)}
+              aria-label={t('instructionView.openAssemblyImage', 'Open assembly image')}
+              className="flex-shrink-0 cursor-pointer"
+            >
+              <img src={assemblyImageUrl} alt={assembly.title ?? ''} className="h-6 w-6 rounded object-cover" />
+            </button>
+          ) : (
+            <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
+          )}
 
           {isEditingTitle ? (
             <input
@@ -255,7 +277,20 @@ export function AssemblySection({
             isExpanded && 'shadow-sm'
           )}
         >
-          <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
+          {assemblyImageUrl ? (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={(e) => { e.stopPropagation(); setPreviewOpen(true); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setPreviewOpen(true); } }}
+              aria-label={t('instructionView.openAssemblyImage', 'Open assembly image')}
+              className="flex-shrink-0 cursor-pointer"
+            >
+              <img src={assemblyImageUrl} alt={assembly.title ?? ''} className="h-6 w-6 rounded object-cover" />
+            </span>
+          ) : (
+            <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
+          )}
           <span className="flex-1 font-medium text-[var(--color-text-base)] truncate">
             {assembly.title}
           </span>
@@ -274,16 +309,9 @@ export function AssemblySection({
       {/* Content - Step Grid */}
       {isExpanded && (
         <div className="p-4">
-          {steps.length > 0 ? (
-            <div
-              className="grid gap-4"
-              style={{
-                gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))',
-              }}
-            >
-              {steps.map((step) => (
+          {renderSortableStepGrid
+            ? renderSortableStepGrid(assembly.id, steps, (step) => (
                 <StepOverviewCard
-                  key={step.id}
                   stepNumber={step.order}
                   title={step.title}
                   description={step.description}
@@ -293,20 +321,47 @@ export function AssemblySection({
                   frameCaptureData={step.frameCaptureData}
                   onClick={() => onStepSelect(step.id)}
                   stepId={step.id}
-                  draggable={editMode}
                   editMode={editMode}
                   onRenameStep={onRenameStep}
                   renderPreviewUpload={renderPreviewUpload
                     ? () => renderPreviewUpload(step.id)
                     : undefined}
                 />
-              ))}
-            </div>
-          ) : (
-            <p className="text-sm text-[var(--color-text-muted)] italic">
-              {t('editorCore.emptyAssembly', 'No steps — drag steps here')}
-            </p>
-          )}
+              ))
+            : steps.length > 0 ? (
+              <div
+                className="grid gap-4"
+                style={{
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))',
+                }}
+              >
+                {steps.map((step) => (
+                  <StepOverviewCard
+                    key={step.id}
+                    stepNumber={step.order}
+                    title={step.title}
+                    description={step.description}
+                    substepCount={step.substepCount}
+                    previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
+                    useRawVideo={useRawVideo}
+                    frameCaptureData={step.frameCaptureData}
+                    onClick={() => onStepSelect(step.id)}
+                    stepId={step.id}
+                    draggable={editMode}
+                    editMode={editMode}
+                    onRenameStep={onRenameStep}
+                    renderPreviewUpload={renderPreviewUpload
+                      ? () => renderPreviewUpload(step.id)
+                      : undefined}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-[var(--color-text-muted)] italic">
+                {t('instructionView.emptyAssembly', 'No steps — drag steps here')}
+              </p>
+            )
+          }
         </div>
       )}
 
@@ -325,6 +380,32 @@ export function AssemblySection({
           }))}
           onMoveStepToAssembly={onMoveStepToAssembly}
         />
+      )}
+
+      {/* Image preview popup */}
+      {assemblyImageUrl && (
+        <DialogShell
+          open={previewOpen}
+          onClose={() => setPreviewOpen(false)}
+          maxWidth="max-w-2xl"
+          className="p-0 overflow-hidden"
+        >
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setPreviewOpen(false)}
+              aria-label={t('common.close', 'Close')}
+              className="absolute top-2 right-2 z-10 rounded-full bg-black/50 p-1.5 text-white hover:bg-black/70 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={assemblyImageUrl}
+              alt={assembly.title ?? ''}
+              className="w-full h-auto"
+            />
+          </div>
+        </DialogShell>
       )}
     </Card>
   );
@@ -349,6 +430,12 @@ interface UnassignedSectionProps {
   onRenameStep?: (stepId: string, title: string) => void;
   /** Render prop for preview image upload button on step cards (injected by editor-core via app shell) */
   renderPreviewUpload?: (stepId: string) => ReactNode;
+  /** Render prop for sortable step grid (injected by editor-core). When present, replaces raw steps.map(). */
+  renderSortableStepGrid?: (
+    containerId: string,
+    steps: StepWithPreview[],
+    renderStep: (step: StepWithPreview) => ReactNode,
+  ) => ReactNode;
 }
 
 /**
@@ -365,6 +452,7 @@ export function UnassignedSection({
   onMoveStepToAssembly,
   onRenameStep,
   renderPreviewUpload,
+  renderSortableStepGrid,
 }: UnassignedSectionProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -402,9 +490,9 @@ export function UnassignedSection({
         'overflow-hidden transition-shadow',
         isDragOver && 'ring-2 ring-[var(--color-secondary)]',
       )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
+      onDragOver={renderSortableStepGrid ? undefined : handleDragOver}
+      onDragLeave={renderSortableStepGrid ? undefined : handleDragLeave}
+      onDrop={renderSortableStepGrid ? undefined : handleDrop}
     >
       {/* Header */}
       <button
@@ -434,33 +522,55 @@ export function UnassignedSection({
       {/* Content - Step Grid */}
       {isExpanded && (
         <div className="p-4">
-          <div
-            className="grid gap-4"
-            style={{
-              gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))',
-            }}
-          >
-            {steps.map((step) => (
-              <StepOverviewCard
-                key={step.id}
-                stepNumber={step.order}
-                title={step.title}
-                description={step.description}
-                substepCount={step.substepCount}
-                previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
-                useRawVideo={useRawVideo}
-                frameCaptureData={step.frameCaptureData}
-                onClick={() => onStepSelect(step.id)}
-                stepId={step.id}
-                draggable={editMode}
-                editMode={editMode}
-                onRenameStep={onRenameStep}
-                renderPreviewUpload={renderPreviewUpload
-                  ? () => renderPreviewUpload(step.id)
-                  : undefined}
-              />
-            ))}
-          </div>
+          {renderSortableStepGrid
+            ? renderSortableStepGrid('unassigned', steps, (step) => (
+                <StepOverviewCard
+                  stepNumber={step.order}
+                  title={step.title}
+                  description={step.description}
+                  substepCount={step.substepCount}
+                  previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
+                  useRawVideo={useRawVideo}
+                  frameCaptureData={step.frameCaptureData}
+                  onClick={() => onStepSelect(step.id)}
+                  stepId={step.id}
+                  editMode={editMode}
+                  onRenameStep={onRenameStep}
+                  renderPreviewUpload={renderPreviewUpload
+                    ? () => renderPreviewUpload(step.id)
+                    : undefined}
+                />
+              ))
+            : (
+              <div
+                className="grid gap-4"
+                style={{
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(20rem, 1fr))',
+                }}
+              >
+                {steps.map((step) => (
+                  <StepOverviewCard
+                    key={step.id}
+                    stepNumber={step.order}
+                    title={step.title}
+                    description={step.description}
+                    substepCount={step.substepCount}
+                    previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
+                    useRawVideo={useRawVideo}
+                    frameCaptureData={step.frameCaptureData}
+                    onClick={() => onStepSelect(step.id)}
+                    stepId={step.id}
+                    draggable={editMode}
+                    editMode={editMode}
+                    onRenameStep={onRenameStep}
+                    renderPreviewUpload={renderPreviewUpload
+                      ? () => renderPreviewUpload(step.id)
+                      : undefined}
+                  />
+                ))}
+              </div>
+            )
+          }
         </div>
       )}
     </Card>

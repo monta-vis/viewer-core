@@ -66,6 +66,8 @@ interface PartsDrawerProps {
   renderPartToolEditor?: (props: { item: AggregatedPartTool; onClose: () => void }) => ReactNode;
   /** Initial step count to show when drawer opens. Default: 1 */
   initialStepCount?: number | 'all' | 'assembly';
+  /** Called when a PartToolCard is hovered (id) or unhovered (null). Desktop reverse-highlight. */
+  onPartToolHover?: (partToolId: string | null) => void;
 }
 
 /**
@@ -90,6 +92,7 @@ export function PartsDrawer({
   editMode = false,
   renderPartToolEditor,
   initialStepCount,
+  onPartToolHover,
 }: PartsDrawerProps) {
   const { t } = useTranslation();
   const data = useViewerData();
@@ -248,6 +251,7 @@ export function PartsDrawer({
                   videos={data?.videos}
                   editMode={editMode}
                   onEditClick={renderPartToolEditor ? () => setEditingItemId(item.partTool.id) : undefined}
+                  onPartToolHover={onPartToolHover}
                 />
               ))}
             </div>
@@ -350,6 +354,7 @@ export function PartToolCard({
   videos,
   editMode = false,
   onEditClick,
+  onPartToolHover,
 }: {
   item: AggregatedPartTool;
   onClick: () => void;
@@ -362,6 +367,7 @@ export function PartToolCard({
   videos?: Record<string, VideoRow>;
   editMode?: boolean;
   onEditClick?: () => void;
+  onPartToolHover?: (partToolId: string | null) => void;
 }) {
   const { t } = useTranslation();
   const Icon = item.partTool.type === 'Part' ? PartIcon : ToolIcon;
@@ -422,6 +428,8 @@ export function PartToolCard({
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick?.(); } }}
+      onMouseEnter={() => onPartToolHover?.(item.partTool.id)}
+      onMouseLeave={() => onPartToolHover?.(null)}
       className={clsx(
         'shrink-0 md:shrink flex flex-row items-stretch h-22 rounded-lg overflow-hidden border-l-4 text-left transition-all cursor-pointer',
         'shadow-md hover:shadow-lg hover:scale-[1.02] active:scale-[0.98]',

@@ -26,7 +26,7 @@ import {
 import type { ProjectChanges } from "./projects.js";
 import { uploadSubstepVideo } from "./video.js";
 import type { VideoUploadArgs } from "./video.js";
-import { getSafetyIconCatalogs } from "./catalogs.js";
+import { getSafetyIconCatalogs, getPartToolIconCatalogs } from "./catalogs.js";
 import type { CatalogType } from "./catalogs.js";
 
 // Initialize path config from workerData (passed by DbWorker constructor)
@@ -102,6 +102,7 @@ const handlers: Record<string, HandlerFn> = {
   ) => copyCatalogIcon(folderName, catalogType, iconId, entryId)) as HandlerFn,
 
   getSafetyIconCatalogs: (() => getSafetyIconCatalogs()) as HandlerFn,
+  getPartToolIconCatalogs: (() => getPartToolIconCatalogs()) as HandlerFn,
 };
 
 // ---------------------------------------------------------------------------
