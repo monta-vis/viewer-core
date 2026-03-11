@@ -109,6 +109,7 @@ export async function renderImageWithDrawings(
     ctx.drawImage(img, imgX, imgY, imgW, imgH);
 
     // Draw each annotation using normalized 0–1 coords → canvas pixel space
+    // Coords are container-relative (0-1 of 1:1 square), so map to full canvas
     for (const d of drawings) {
       renderDrawingToCanvas(ctx, d, canvasW, canvasH);
     }

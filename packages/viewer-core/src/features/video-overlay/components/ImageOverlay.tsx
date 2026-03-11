@@ -317,7 +317,8 @@ export function ImageOverlay({
             'absolute',
             annotationsFullContainer && 'inset-0',
             isDrawMode && 'cursor-crosshair',
-            isResizing && 'cursor-nwse-resize'
+            isResizing && 'cursor-nwse-resize',
+            (isDrawing || annotationDrawing?.isDrawing) && 'select-none'
           )}
           style={annotationsFullContainer ? undefined : {
             left: imageBounds!.x,

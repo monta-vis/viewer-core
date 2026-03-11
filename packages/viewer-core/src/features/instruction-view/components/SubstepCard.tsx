@@ -14,6 +14,7 @@ import type {
   SubstepDescriptionRow,
   ViewportKeyframeRow,
 } from '@/features/instruction';
+import type { Rectangle } from '@/features/video-overlay';
 import { interpolateVideoViewport, viewportToTransform, useVideo } from '@/features/video-player';
 import { ShapeLayer } from '@/features/video-overlay';
 import { getVisibleVideoDrawings } from '../utils/filterSubstepDrawings';
@@ -24,10 +25,10 @@ import { NoteCard, getNoteSortPriority } from './NoteCard';
 import type { SafetyIconCategory } from '@/features/instruction';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { computeContentBounds } from '../utils/computeContentBounds';
-import type { Rectangle } from '@/features/video-overlay';
 import { useLongPress } from '../hooks/useLongPress';
 import { useDoubleTap } from '../hooks/useDoubleTap';
 
+/** Full container bounds — maps 0-1 storage coords → 0-100% for ShapeRenderer (no letterbox transform). */
 const FULL_BOUNDS: Rectangle = { x: 0, y: 0, width: 100, height: 100 };
 
 // Module-level: only the last card that started playing responds to ESC
@@ -731,7 +732,7 @@ export const SubstepCard = memo(function SubstepCard({
               shapes={activeDrawings}
               containerWidth={imageAreaSize.width}
               containerHeight={imageAreaSize.height}
-              bounds={isPlayingInline ? contentBounds : FULL_BOUNDS}
+              bounds={FULL_BOUNDS}
             />
           </div>
         )}

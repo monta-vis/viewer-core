@@ -434,7 +434,8 @@ export function VideoOverlay({
           className={clsx(
             'absolute',
             isDrawMode && 'cursor-crosshair',
-            isResizing && 'cursor-nwse-resize'
+            isResizing && 'cursor-nwse-resize',
+            (isDrawing || annotationDrawing?.isDrawing) && 'select-none'
           )}
           style={{
             left: videoBounds.x,

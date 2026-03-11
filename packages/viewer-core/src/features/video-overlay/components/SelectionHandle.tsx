@@ -30,6 +30,7 @@ export function SelectionHandle({
       cursor="pointer"
       style={{ pointerEvents: 'auto' }}
       onMouseDown={(e) => {
+        e.preventDefault();
         e.stopPropagation();
         onMouseDown?.(handleType, e);
       }}

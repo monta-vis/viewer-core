@@ -404,6 +404,7 @@ export function ShapeRenderer<T extends ShapeData>({
 
   // Stop mousedown from bubbling to container (prevents background click handler)
   const handleMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
     if (isSelected) {
       onHandleMouseDown?.('move', e);

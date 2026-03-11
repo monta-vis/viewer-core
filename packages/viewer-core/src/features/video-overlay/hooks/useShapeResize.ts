@@ -346,6 +346,7 @@ export function useShapeResize<T extends ResizableShape>({
 
   const updateResize = useCallback(
     (e: MouseEvent) => {
+      e.preventDefault();
       if (!state.isResizing || !initialShapeRef.current || !state.activeHandle) return;
 
       const pos = getRelativePosition(e);
