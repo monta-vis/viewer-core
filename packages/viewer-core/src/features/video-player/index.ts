@@ -13,6 +13,7 @@ export {
   useViewportInterpolation,
   interpolateViewport,
   viewportToTransform,
+  applyViewportTransformToElement,
 } from './hooks/useViewportInterpolation';
 
 // Video-wide viewport interpolation (simplified - no inheritance needed)
@@ -35,6 +36,24 @@ export {
 
 // Video shortcuts hook (-, +, F keys)
 export { useVideoShortcuts } from './hooks/useVideoShortcuts';
+
+// Section playback utility
+export {
+  startSectionPlaybackLoop,
+  type SectionPlaybackContext,
+} from './utils/sectionPlaybackLoop';
+
+// Shared playback hooks (used by SubstepCard & VideoEditorDialog)
+export {
+  useSectionPlayback,
+  type SectionPlaybackConfig,
+} from './hooks/useSectionPlayback';
+
+export {
+  useViewportPlaybackSync,
+  type ViewportPlaybackSyncConfig,
+  type ViewportPlaybackSyncReturn,
+} from './hooks/useViewportPlaybackSync';
 
 // Components
 export { VideoPlayer } from './components/VideoPlayer';

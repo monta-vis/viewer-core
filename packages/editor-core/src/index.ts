@@ -31,7 +31,7 @@ export {
 export { EditorProvider } from './EditorProvider';
 
 // Edit callbacks hook
-export { useEditCallbacks, type EditCallbacks } from './hooks/useEditCallbacks';
+export { useEditCallbacks, type EditCallbacks, type UseEditCallbacksOptions } from './hooks/useEditCallbacks';
 
 // Editor-only types (moved from viewer-core)
 export type {
@@ -41,6 +41,8 @@ export type {
   CatalogEntry,
   CatalogCategory,
   SafetyIconCatalog,
+  PartToolIconEntry,
+  PartToolIconCatalog,
 } from './types';
 
 // Auto-save hook (debounced persistence)
@@ -85,6 +87,20 @@ export {
   type PartToolListPanelProps,
   type PartToolListPanelCallbacks,
 } from './components/PartToolListPanel';
+
+// PartToolCatalogGrid (catalog icon browser with search + category tabs)
+export {
+  PartToolCatalogGrid,
+  type PartToolCatalogGridProps,
+  type PartToolIconItem,
+} from './components/PartToolCatalogGrid';
+
+// PartToolAddForm (compact form for adding part/tool from catalog)
+export {
+  PartToolAddForm,
+  type PartToolAddFormProps,
+  type PartToolAddFormValues,
+} from './components/PartToolAddForm';
 
 // PartToolImagePicker (gallery picker for partTool images)
 export {

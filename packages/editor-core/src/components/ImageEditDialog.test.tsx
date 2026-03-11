@@ -55,4 +55,45 @@ describe('ImageEditDialog', () => {
     const allButtons = document.querySelectorAll('[role="dialog"] button');
     expect(allButtons.length).toBeGreaterThanOrEqual(4);
   });
+
+  it('renders with frameCaptureData without error', () => {
+    const frameCaptureData = {
+      videoId: 'vid-1',
+      videoSrc: 'test-video.mp4',
+      fps: 30,
+      frameNumber: 45,
+      cropArea: { x: 0.1, y: 0.1, width: 0.5, height: 0.5 },
+    };
+
+    expect(() => {
+      render(
+        <ImageEditDialog
+          {...defaultProps}
+          imageSrc={undefined}
+          frameCaptureData={frameCaptureData}
+        />,
+      );
+    }).not.toThrow();
+  });
+
+  it('renders without imageSrc when frameCaptureData is provided', () => {
+    const frameCaptureData = {
+      videoId: 'vid-1',
+      videoSrc: 'test-video.mp4',
+      fps: 30,
+      frameNumber: 45,
+      cropArea: { x: 0.1, y: 0.1, width: 0.5, height: 0.5 },
+    };
+
+    render(
+      <ImageEditDialog
+        {...defaultProps}
+        imageSrc={undefined}
+        frameCaptureData={frameCaptureData}
+      />,
+    );
+
+    const dialogs = screen.getAllByRole('dialog');
+    expect(dialogs.length).toBeGreaterThanOrEqual(1);
+  });
 });

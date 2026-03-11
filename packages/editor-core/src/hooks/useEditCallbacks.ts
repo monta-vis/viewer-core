@@ -15,6 +15,8 @@ import type { Assembly, PartToolRow } from '@monta-vis/viewer-core';
 import { useEditorStore } from '../store';
 import { createDefaultPartTool } from '../utils/partToolHelpers';
 import { DraggableList } from '../components/DraggableList';
+import { PreviewImageUploadButton } from '../components/PreviewImageUploadButton';
+import type { PersistenceAdapter, NormalizedCrop, ImageSource } from '../persistence/types';
 
 /**
  * EditCallbacks matches the `editCallbacks` prop shape of InstructionView.
@@ -55,6 +57,17 @@ export interface EditCallbacks {
     assemblies: Assembly[],
     renderAssembly: (assembly: Assembly) => ReactNode,
   ) => ReactNode;
+  renderPreviewUpload?: (stepId: string) => ReactNode;
+  renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
+}
+
+export interface UseEditCallbacksOptions {
+  /** Persistence adapter for upload operations. */
+  persistence?: PersistenceAdapter;
+  /** Project identifier (e.g. folder name) for upload operations. */
+  projectId?: string;
+  /** Resolve a File to an ImageSource (e.g. path-based for Electron). Falls back to { type: 'file', file }. */
+  resolveImageSource?: (file: File) => ImageSource | null;
 }
 
 /**
@@ -62,7 +75,8 @@ export interface EditCallbacks {
  * Operations requiring UI (dialogs, pickers) are left undefined —
  * the app shell should merge its own handlers via spread.
  */
-export function useEditCallbacks(): EditCallbacks {
+export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbacks {
+  const { persistence, projectId, resolveImageSource } = options ?? {};
   const onDeleteDescription = useCallback((descId: string) => {
     useEditorStore.getState().deleteSubstepDescription(descId);
   }, []);
@@ -163,7 +177,6 @@ export function useEditCallbacks(): EditCallbacks {
   }, []);
 
   const onDeleteAssembly = useCallback((assemblyId: string) => {
-    if (!window.confirm('Delete this assembly? Steps will become unassigned.')) return;
     useEditorStore.getState().deleteAssembly(assemblyId);
   }, []);
 
@@ -197,6 +210,87 @@ export function useEditCallbacks(): EditCallbacks {
     [],
   );
 
+  const canUploadStep = !!(persistence?.uploadStepPreviewImage && projectId);
+  const canUploadAssembly = !!(persistence?.uploadAssemblyPreviewImage && projectId);
+
+  /** Shared upload logic for step/assembly preview images. */
+  const handlePreviewUpload = useCallback(
+    (
+      entityId: string,
+      file: File,
+      crop: NormalizedCrop,
+      uploadFn: (pid: string, eid: string, src: ImageSource, crop: NormalizedCrop) => Promise<{ success: boolean; vfaId?: string; error?: string }>,
+      updateEntity: (store: ReturnType<typeof useEditorStore.getState>, entityId: string, vfaId: string) => void,
+      logPrefix: string,
+    ) => {
+      const imageSource = resolveImageSource ? resolveImageSource(file) : { type: 'file' as const, file };
+      if (!imageSource) return;
+      uploadFn(projectId!, entityId, imageSource, crop)
+        .then((result) => {
+          if (!result.success) {
+            console.error(`[useEditCallbacks.${logPrefix}] Upload failed:`, result.error);
+            return;
+          }
+          if (!result.vfaId) {
+            console.warn(`[useEditCallbacks.${logPrefix}] Upload succeeded but no vfaId returned`);
+            return;
+          }
+          const store = useEditorStore.getState();
+          const versionId = store.data?.currentVersionId ?? '';
+          store.addVideoFrameArea({
+            id: result.vfaId,
+            versionId,
+            videoId: null,
+            frameNumber: null,
+            x: crop.x,
+            y: crop.y,
+            width: crop.width,
+            height: crop.height,
+            type: 'PreviewImage',
+            localPath: persistence!.resolveMediaUrl(projectId!, `media/frames/${result.vfaId}/image`),
+          });
+          updateEntity(store, entityId, result.vfaId);
+        })
+        .catch((err: unknown) => {
+          console.error(`[useEditCallbacks.${logPrefix}] Upload error:`, err);
+        });
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [persistence, projectId, resolveImageSource],
+  );
+
+  const renderPreviewUpload = useCallback(
+    (stepId: string): ReactNode =>
+      createElement(PreviewImageUploadButton, {
+        variant: 'thumbnail',
+        onUpload: (file: File, crop: NormalizedCrop) => {
+          handlePreviewUpload(
+            stepId, file, crop,
+            persistence!.uploadStepPreviewImage!,
+            (store, id, vfaId) => store.updateStep(id, { videoFrameAreaId: vfaId }),
+            'renderPreviewUpload',
+          );
+        },
+      }),
+    [handlePreviewUpload, persistence],
+  );
+
+  const renderAssemblyPreviewUpload = useCallback(
+    (assemblyId: string): ReactNode =>
+      createElement(PreviewImageUploadButton, {
+        variant: 'inline',
+        onUpload: (file: File, crop: NormalizedCrop) => {
+          handlePreviewUpload(
+            assemblyId, file, crop,
+            persistence!.uploadAssemblyPreviewImage!,
+            (store, id, vfaId) => store.updateAssembly(id, { videoFrameAreaId: vfaId }),
+            'renderAssemblyPreviewUpload',
+          );
+        },
+      }),
+    [handlePreviewUpload, persistence],
+  );
+
   return useMemo(() => ({
     onDeleteDescription,
     onDeleteNote,
@@ -215,6 +309,8 @@ export function useEditCallbacks(): EditCallbacks {
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,
+    renderPreviewUpload: canUploadStep ? renderPreviewUpload : undefined,
+    renderAssemblyPreviewUpload: canUploadAssembly ? renderAssemblyPreviewUpload : undefined,
   }), [
     onDeleteDescription,
     onDeleteNote,
@@ -233,5 +329,9 @@ export function useEditCallbacks(): EditCallbacks {
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,
+    canUploadStep,
+    canUploadAssembly,
+    renderPreviewUpload,
+    renderAssemblyPreviewUpload,
   ]);
 }

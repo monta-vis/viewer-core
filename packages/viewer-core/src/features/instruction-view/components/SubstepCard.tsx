@@ -15,7 +15,7 @@ import type {
   ViewportKeyframeRow,
 } from '@/features/instruction';
 import type { Rectangle } from '@/features/video-overlay';
-import { interpolateVideoViewport, viewportToTransform, useVideo } from '@/features/video-player';
+import { useSectionPlayback, useViewportPlaybackSync, useVideo, type SectionPlaybackContext } from '@/features/video-player';
 import { ShapeLayer } from '@/features/video-overlay';
 import { getVisibleVideoDrawings } from '../utils/filterSubstepDrawings';
 import { computeSkipTime, computeSeekTime, SKIP_SECONDS, type CardSpeed } from '../utils/substepPlaybackControls';
@@ -190,6 +190,7 @@ export const SubstepCard = memo(function SubstepCard({
   const [imageAreaSize, setImageAreaSize] = useState({ width: 0, height: 0 });
   const [contentNaturalSize, setContentNaturalSize] = useState<{ width: number; height: number } | null>(null);
   const [visibleVideoDrawingIds, setVisibleVideoDrawingIds] = useState<ReadonlySet<string>>(new Set());
+  const lastVisibleIdsKeyRef = useRef('');
 
   // Loupe (magnifying glass) state
   const [loupePos, setLoupePos] = useState<{ x: number; y: number } | null>(null);
@@ -272,129 +273,57 @@ export const SubstepCard = memo(function SubstepCard({
     }
   }, []);
 
-  // Helper to apply viewport transform to the video element
-  const applyViewportTransform = useCallback((videoEl: HTMLVideoElement, frame: number) => {
-    if (!videoData || videoData.viewportKeyframes.length === 0) {
-      if (videoEl.style.transform) {
-        videoEl.style.transform = '';
-        videoEl.style.transformOrigin = '';
-      }
-      return;
-    }
-    const vp = interpolateVideoViewport(frame, videoData.viewportKeyframes, videoData.videoAspectRatio);
-    const tf = viewportToTransform(vp);
-    videoEl.style.transform = `scale(${tf.scale}) translate(${tf.translateX}%, ${tf.translateY}%)`;
-    videoEl.style.transformOrigin = 'center center';
-  }, [videoData]);
+  // Sections for playback (used by shared hooks + skip/seek handlers)
+  const sections = useMemo(
+    () => videoData
+      ? videoData.sections ?? [{ startFrame: videoData.startFrame, endFrame: videoData.endFrame }]
+      : [],
+    [videoData],
+  );
 
-  // When isPlayingInline becomes true, seek and play the video
-  // Supports multiple sections (raw editor mode) — plays each section sequentially
-  useEffect(() => {
-    if (!isPlayingInline || !videoRef.current || !videoData) return;
+  // Shared viewport sync hook — replaces manual applyViewportTransformToElement calls
+  const viewportSync = useViewportPlaybackSync({
+    videoRef,
+    viewportKeyframes: videoData?.viewportKeyframes ?? [],
+    videoAspectRatio: videoData?.videoAspectRatio ?? 16 / 9,
+    fps: videoData?.fps ?? 30,
+  });
 
-    const video = videoRef.current;
-    const fps = videoData.fps;
-
-    // Build sections list: if videoData.sections exists use it, otherwise single section
-    const sections = videoData.sections ?? [{ startFrame: videoData.startFrame, endFrame: videoData.endFrame }];
-    const totalDuration = sections.reduce((sum, s) => sum + (s.endFrame - s.startFrame) / fps, 0);
-
-    let currentSectionIndex = 0;
-    let elapsedBeforeCurrent = 0; // seconds elapsed in previous sections
-    let rafId = 0;
-
-    const startSection = (idx: number) => {
-      if (idx >= sections.length) {
-        // All sections played
-        video.pause();
-        if (progressBarRef.current) progressBarRef.current.style.width = '100%';
-        endTimerRef.current = setTimeout(() => {
-          setSpeedOverride(null);
-          setIsPlayingInline(false);
-        }, 200);
-        return;
-      }
-      currentSectionIndex = idx;
-      // Calculate elapsed time from all previous sections
-      elapsedBeforeCurrent = 0;
-      for (let i = 0; i < idx; i++) {
-        elapsedBeforeCurrent += (sections[i].endFrame - sections[i].startFrame) / fps;
-      }
-      const sec = sections[idx];
-      video.currentTime = sec.startFrame / fps;
+  // Shared section playback hook — replaces manual seek/play/loop effect
+  useSectionPlayback({
+    videoRef,
+    sections,
+    fps: videoData?.fps ?? 30,
+    isPlaying: isPlayingInline,
+    onBeforePlay: useCallback((video: HTMLVideoElement, startFrame: number) => {
       video.playbackRate = cardSpeedRef.current;
-      applyViewportTransform(video, sec.startFrame);
-      video.play().catch((err) => {
-        console.debug('Video play failed:', err);
-        setIsPlayingInline(false);
-      });
-    };
-
-    // Start first section
-    startSection(0);
-
-    // rAF loop for smooth progress bar + viewport updates + section transitions
-    const tick = () => {
-      const sec = sections[currentSectionIndex];
-      if (!sec) return;
-      const sectionStartTime = sec.startFrame / fps;
-      const sectionEndTime = sec.endFrame / fps;
-
-      // Overall progress across all sections
-      if (progressBarRef.current && totalDuration > 0) {
-        const currentSectionElapsed = Math.max(0, video.currentTime - sectionStartTime);
-        const totalElapsed = elapsedBeforeCurrent + currentSectionElapsed;
-        const pct = Math.min(totalElapsed / totalDuration, 1) * 100;
-        progressBarRef.current.style.width = `${pct}%`;
+      viewportSync.applyAtFrame(startFrame);
+    }, [viewportSync]),
+    onTick: useCallback((ctx: SectionPlaybackContext) => {
+      // Progress bar
+      if (progressBarRef.current && ctx.totalDuration > 0) {
+        progressBarRef.current.style.width = `${ctx.overallPercent}%`;
       }
-
-      // Update viewport transform each frame
-      const currentFrame = Math.round(video.currentTime * fps);
-      applyViewportTransform(video, currentFrame);
-
-      // Update visible video drawings (only re-render when set changes)
-      // Convert absolute frame to percentage of total substep duration
+      // Viewport transform
+      viewportSync.applyAtFrame(ctx.frame);
+      // Video drawings visibility (avoid allocating Set every frame)
       if (videoDrawings.length > 0) {
-        const currentPercent = totalDuration > 0
-          ? Math.min(((elapsedBeforeCurrent + Math.max(0, video.currentTime - (sec.startFrame / fps))) / totalDuration) * 100, 100)
-          : 0;
-        const visible = getVisibleVideoDrawings(videoDrawings, currentPercent);
-        const newIds = new Set(visible.map(d => d.id));
-        setVisibleVideoDrawingIds(prev => {
-          if (prev.size !== newIds.size) return newIds;
-          for (const id of newIds) { if (!prev.has(id)) return newIds; }
-          return prev;
-        });
-      }
-
-      // Check if current section ended
-      if (video.currentTime >= sectionEndTime) {
-        video.pause();
-        startSection(currentSectionIndex + 1);
-        if (currentSectionIndex < sections.length) {
-          rafId = requestAnimationFrame(tick);
+        const visible = getVisibleVideoDrawings(videoDrawings, ctx.overallPercent);
+        const key = visible.map(d => d.id).join(',');
+        if (key !== lastVisibleIdsKeyRef.current) {
+          lastVisibleIdsKeyRef.current = key;
+          setVisibleVideoDrawingIds(new Set(visible.map(d => d.id)));
         }
-        return;
       }
-      rafId = requestAnimationFrame(tick);
-    };
-    rafId = requestAnimationFrame(tick);
-
-    const handleEnded = () => {
+    }, [viewportSync, videoDrawings]),
+    onComplete: useCallback(() => {
+      if (progressBarRef.current) progressBarRef.current.style.width = '100%';
       endTimerRef.current = setTimeout(() => {
         setSpeedOverride(null);
         setIsPlayingInline(false);
       }, 200);
-    };
-    video.addEventListener('ended', handleEnded);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-      video.removeEventListener('ended', handleEnded);
-      video.pause();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- cardSpeed synced via separate effect to avoid restarting playback
-  }, [isPlayingInline, videoData, applyViewportTransform, videoDrawings]);
+    }, []),
+  });
 
   // Sync effective speed to video playbackRate live (without restarting playback effect)
   useEffect(() => {
@@ -410,7 +339,6 @@ export const SubstepCard = memo(function SubstepCard({
     if (!video || !videoData || !isPlayingInline) return;
 
     const fps = videoData.fps;
-    const sections = videoData.sections ?? [{ startFrame: videoData.startFrame, endFrame: videoData.endFrame }];
 
     // Find current section bounds
     let sectionStartSec = sections[0].startFrame / fps;
@@ -425,13 +353,13 @@ export const SubstepCard = memo(function SubstepCard({
 
     const newTime = computeSkipTime(video.currentTime, deltaSec, sectionStartSec, sectionEndSec);
     video.currentTime = newTime;
-    applyViewportTransform(video, Math.round(newTime * fps));
+    viewportSync.applyAtFrame(Math.round(newTime * fps));
 
     // If skipped to end, pause
     if (newTime >= sectionEndSec) {
       video.pause();
     }
-  }, [videoData, isPlayingInline, applyViewportTransform]);
+  }, [videoData, isPlayingInline, sections, viewportSync]);
 
   // Double-tap to skip ±5s during inline playback
   const { handleTap: handleDoubleTap } = useDoubleTap({
@@ -448,12 +376,9 @@ export const SubstepCard = memo(function SubstepCard({
     const rect = e.currentTarget.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
 
-    const fps = videoData.fps;
-    const sections = videoData.sections ?? [{ startFrame: videoData.startFrame, endFrame: videoData.endFrame }];
-
-    video.currentTime = computeSeekTime(pct, sections, fps);
-    applyViewportTransform(video, Math.round(video.currentTime * fps));
-  }, [videoData, applyViewportTransform]);
+    video.currentTime = computeSeekTime(pct, sections, videoData.fps);
+    viewportSync.applyAtFrame(Math.round(video.currentTime * videoData.fps));
+  }, [videoData, sections, viewportSync]);
 
   // Cleanup on unmount
   useEffect(() => () => {
@@ -931,7 +856,7 @@ export const SubstepCard = memo(function SubstepCard({
       {/* Footer - descriptions */}
       {!hideFooter && (
         <div
-          className="px-4 py-3 shadow-[0_-1px_2px_rgba(0,0,0,0.08)]"
+          className="px-4 py-3 shadow-[0_-0.0625rem_0.125rem_rgba(0,0,0,0.08)]"
           onClick={(e) => e.stopPropagation()}
         >
           {descriptions.length > 0 ? (

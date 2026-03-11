@@ -1,5 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
+import { isValidElement, type ReactElement } from 'react';
+import type { PersistenceAdapter, NormalizedCrop, StepPreviewUploadResult } from '../persistence/types';
 
 const mockDeleteSubstepDescription = vi.fn();
 const mockDeleteSubstepNote = vi.fn();
@@ -13,6 +15,7 @@ const mockDeleteAssembly = vi.fn();
 const mockUpdateAssembly = vi.fn();
 const mockAssignStepToAssembly = vi.fn();
 const mockUpdateStep = vi.fn();
+const mockAddVideoFrameArea = vi.fn();
 
 let mockData: Record<string, Record<string, Record<string, unknown>>> | null = null;
 
@@ -34,6 +37,7 @@ vi.mock('../store', () => ({
         updateAssembly: mockUpdateAssembly,
         assignStepToAssembly: mockAssignStepToAssembly,
         updateStep: mockUpdateStep,
+        addVideoFrameArea: mockAddVideoFrameArea,
       }),
     }
   ),
@@ -221,5 +225,160 @@ describe('useEditCallbacks', () => {
     expect(second.onRenameAssembly).toBe(first.onRenameAssembly);
     expect(second.onRenameStep).toBe(first.onRenameStep);
     expect(second.onMoveStepToAssembly).toBe(first.onMoveStepToAssembly);
+  });
+
+  describe('renderPreviewUpload', () => {
+    function createMockPersistence(overrides?: Partial<PersistenceAdapter>): PersistenceAdapter {
+      return {
+        listProjects: vi.fn(),
+        getProjectData: vi.fn(),
+        saveChanges: vi.fn(),
+        resolveMediaUrl: vi.fn((pid, rel) => `http://test/${pid}/${rel}`),
+        ...overrides,
+      } as PersistenceAdapter;
+    }
+
+    it('is undefined when no persistence is provided', () => {
+      const { result } = renderHook(() => useEditCallbacks());
+      expect(result.current.renderPreviewUpload).toBeUndefined();
+    });
+
+    it('is undefined when no projectId is provided', () => {
+      const persistence = createMockPersistence({
+        uploadStepPreviewImage: vi.fn(),
+      });
+      const { result } = renderHook(() => useEditCallbacks({ persistence }));
+      expect(result.current.renderPreviewUpload).toBeUndefined();
+    });
+
+    it('is undefined when adapter has no uploadStepPreviewImage', () => {
+      const persistence = createMockPersistence();
+      const { result } = renderHook(() => useEditCallbacks({ persistence, projectId: 'proj-1' }));
+      expect(result.current.renderPreviewUpload).toBeUndefined();
+    });
+
+    it('returns a ReactNode when persistence + projectId + adapter method are available', () => {
+      const persistence = createMockPersistence({
+        uploadStepPreviewImage: vi.fn(),
+      });
+      const { result } = renderHook(() => useEditCallbacks({ persistence, projectId: 'proj-1' }));
+      expect(result.current.renderPreviewUpload).toBeDefined();
+      const node = result.current.renderPreviewUpload!('step-1');
+      expect(isValidElement(node)).toBe(true);
+    });
+
+    it('calls persistence.uploadStepPreviewImage and updates store on upload', async () => {
+      mockData = {
+        currentVersionId: 'v1',
+      } as unknown as typeof mockData;
+
+      const uploadResult: StepPreviewUploadResult = { success: true, vfaId: 'vfa-new' };
+      const mockUpload = vi.fn().mockResolvedValue(uploadResult);
+      const persistence = createMockPersistence({
+        uploadStepPreviewImage: mockUpload,
+        resolveMediaUrl: vi.fn(() => 'http://test/proj-1/media/frames/vfa-new/image'),
+      });
+
+      const resolveImageSource = (file: File) => ({ type: 'file' as const, file });
+      const { result } = renderHook(() => useEditCallbacks({ persistence, projectId: 'proj-1', resolveImageSource }));
+
+      // Extract the onUpload callback from the rendered element
+      const node = result.current.renderPreviewUpload!('step-1');
+      expect(isValidElement(node)).toBe(true);
+      const element = node as ReactElement<{ onUpload: (file: File, crop: NormalizedCrop) => void }>;
+      const onUpload = element.props.onUpload;
+
+      const file = new File(['test'], 'test.png', { type: 'image/png' });
+      const crop = { x: 0, y: 0, width: 1, height: 1 };
+      onUpload(file, crop);
+
+      await vi.waitFor(() => {
+        expect(mockUpload).toHaveBeenCalledWith('proj-1', 'step-1', { type: 'file', file }, crop);
+      });
+
+      await vi.waitFor(() => {
+        expect(mockUpdateStep).toHaveBeenCalledWith('step-1', { videoFrameAreaId: 'vfa-new' });
+      });
+
+      expect(mockAddVideoFrameArea).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'vfa-new',
+        versionId: 'v1',
+        type: 'PreviewImage',
+        localPath: 'http://test/proj-1/media/frames/vfa-new/image',
+      }));
+    });
+  });
+
+  describe('renderAssemblyPreviewUpload', () => {
+    function createMockPersistence(overrides?: Partial<PersistenceAdapter>): PersistenceAdapter {
+      return {
+        listProjects: vi.fn(),
+        getProjectData: vi.fn(),
+        saveChanges: vi.fn(),
+        resolveMediaUrl: vi.fn((pid, rel) => `http://test/${pid}/${rel}`),
+        ...overrides,
+      } as PersistenceAdapter;
+    }
+
+    it('is undefined when no persistence is provided', () => {
+      const { result } = renderHook(() => useEditCallbacks());
+      expect(result.current.renderAssemblyPreviewUpload).toBeUndefined();
+    });
+
+    it('is undefined when adapter has no uploadAssemblyPreviewImage', () => {
+      const persistence = createMockPersistence();
+      const { result } = renderHook(() => useEditCallbacks({ persistence, projectId: 'proj-1' }));
+      expect(result.current.renderAssemblyPreviewUpload).toBeUndefined();
+    });
+
+    it('returns a ReactNode when persistence + projectId + adapter method are available', () => {
+      const persistence = createMockPersistence({
+        uploadAssemblyPreviewImage: vi.fn(),
+      });
+      const { result } = renderHook(() => useEditCallbacks({ persistence, projectId: 'proj-1' }));
+      expect(result.current.renderAssemblyPreviewUpload).toBeDefined();
+      const node = result.current.renderAssemblyPreviewUpload!('asm-1');
+      expect(isValidElement(node)).toBe(true);
+    });
+
+    it('calls persistence.uploadAssemblyPreviewImage and updates store on upload', async () => {
+      mockData = {
+        currentVersionId: 'v1',
+      } as unknown as typeof mockData;
+
+      const uploadResult: StepPreviewUploadResult = { success: true, vfaId: 'vfa-asm' };
+      const mockUpload = vi.fn().mockResolvedValue(uploadResult);
+      const persistence = createMockPersistence({
+        uploadAssemblyPreviewImage: mockUpload,
+        resolveMediaUrl: vi.fn(() => 'http://test/proj-1/media/frames/vfa-asm/image'),
+      });
+
+      const resolveImageSource = (file: File) => ({ type: 'file' as const, file });
+      const { result } = renderHook(() => useEditCallbacks({ persistence, projectId: 'proj-1', resolveImageSource }));
+
+      const node = result.current.renderAssemblyPreviewUpload!('asm-1');
+      expect(isValidElement(node)).toBe(true);
+      const element = node as ReactElement<{ onUpload: (file: File, crop: NormalizedCrop) => void }>;
+      const onUpload = element.props.onUpload;
+
+      const file = new File(['test'], 'test.png', { type: 'image/png' });
+      const crop = { x: 0, y: 0, width: 1, height: 1 };
+      onUpload(file, crop);
+
+      await vi.waitFor(() => {
+        expect(mockUpload).toHaveBeenCalledWith('proj-1', 'asm-1', { type: 'file', file }, crop);
+      });
+
+      await vi.waitFor(() => {
+        expect(mockUpdateAssembly).toHaveBeenCalledWith('asm-1', { videoFrameAreaId: 'vfa-asm' });
+      });
+
+      expect(mockAddVideoFrameArea).toHaveBeenCalledWith(expect.objectContaining({
+        id: 'vfa-asm',
+        versionId: 'v1',
+        type: 'PreviewImage',
+        localPath: 'http://test/proj-1/media/frames/vfa-asm/image',
+      }));
+    });
   });
 });

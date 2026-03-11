@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import type { ViewportKeyframe, ViewportKeyframeRow } from '@/features/instruction';
+import { interpolateVideoViewport } from './useSubstepViewportInterpolation';
 
 interface UseViewportInterpolationProps {
   currentFrame: number;
@@ -176,6 +177,30 @@ export function useViewportInterpolation({
 
     return { viewport, transform, style };
   }, [currentFrame, keyframes, prepared]);
+}
+
+/**
+ * Apply viewport CSS transform to a video element at a given frame.
+ * Reusable across SubstepCard, VideoEditorDialog, etc.
+ * No-op when keyframes are empty.
+ */
+export function applyViewportTransformToElement(
+  videoEl: HTMLVideoElement,
+  frame: number,
+  viewportKeyframes: ViewportKeyframeRow[],
+  videoAspectRatio: number,
+): void {
+  if (!viewportKeyframes.length) {
+    if (videoEl.style.transform) {
+      videoEl.style.transform = '';
+      videoEl.style.transformOrigin = '';
+    }
+    return;
+  }
+  const vp = interpolateVideoViewport(frame, viewportKeyframes, videoAspectRatio);
+  const tf = viewportToTransform(vp);
+  videoEl.style.transform = `scale(${tf.scale}) translate(${tf.translateX}%, ${tf.translateY}%)`;
+  videoEl.style.transformOrigin = 'center center';
 }
 
 // Export utility functions for testing

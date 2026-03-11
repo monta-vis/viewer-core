@@ -33,6 +33,7 @@ import {
   type NormalizedCrop,
   type PartToolImageItem,
   type VideoEditorResult,
+  type ImageSource,
 } from "@monta-vis/editor-core";
 import { createElectronAdapter } from "../persistence/electronAdapter";
 
@@ -316,6 +317,7 @@ export function ViewPage() {
     for (const spt of sptRows) {
       store.deleteSubstepPartTool(spt.id);
     }
+    store.deletePartTool(partToolId);
   }, []);
 
   const onAddSubstepPartTool = useCallback((substepId: string) => {
@@ -357,16 +359,34 @@ export function ViewPage() {
     store.updateSubstepPartTool(substepPartToolId, { partToolId: pt.id });
   }, [getVersionId, getInstructionId]);
 
+  // --- Resolve File → path-based ImageSource for Electron ---
+  const resolveImageSource = useCallback((file: File): ImageSource | null => {
+    const filePath = window.electronAPI?.getFilePath(file);
+    if (!filePath) {
+      console.warn('[ViewPage.resolveImageSource] Could not resolve file path for:', file.name);
+      return null;
+    }
+    return { type: 'path', path: filePath };
+  }, []);
+
   // --- Assembly operations (from editor-core hook) ---
   const {
     onAddAssembly,
-    onDeleteAssembly,
+    onDeleteAssembly: deleteAssembly,
     onRenameAssembly,
     onRenameStep,
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,
-  } = useEditCallbacks();
+    renderPreviewUpload,
+    renderAssemblyPreviewUpload,
+  } = useEditCallbacks({ persistence: adapter, projectId: decodedFolderName ?? undefined, resolveImageSource });
+
+  // Wrap with confirmation dialog (i18n at app layer, not in library)
+  const onDeleteAssembly = useCallback((assemblyId: string) => {
+    if (!window.confirm(t('editorCore.deleteAssemblyConfirm', 'Delete this assembly? Steps will become unassigned.'))) return;
+    deleteAssembly?.(assemblyId);
+  }, [deleteAssembly, t]);
 
   // ── Video upload callback factory ──
   const createUploadSubstepVideo = useCallback((substepId: string) => {
@@ -790,6 +810,8 @@ export function ViewPage() {
     onMoveStepToAssembly,
     onReorderAssembly,
     renderAssemblyList,
+    renderPreviewUpload,
+    renderAssemblyPreviewUpload,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
     onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
@@ -799,6 +821,7 @@ export function ViewPage() {
     onReplaceSubstepPartTool, onCreateAndReplacePartTool,
     onAddAssembly, onDeleteAssembly, onRenameAssembly, onRenameStep, onMoveStepToAssembly,
     onReorderAssembly, renderAssemblyList,
+    renderPreviewUpload, renderAssemblyPreviewUpload,
   ]);
 
   // Memoized partTools array (avoids new array on every render prop call)

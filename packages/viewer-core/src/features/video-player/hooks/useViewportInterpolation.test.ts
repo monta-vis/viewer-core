@@ -7,6 +7,7 @@ import {
   useViewportInterpolation,
   interpolateViewport,
   viewportToTransform,
+  applyViewportTransformToElement,
   lerp,
   lerpViewport,
   keyframeRowToViewport,
@@ -413,5 +414,61 @@ describe('useViewportInterpolation', () => {
 
     // Should be a new object
     expect(result.current).not.toBe(firstResult);
+  });
+});
+
+describe('applyViewportTransformToElement', () => {
+  function createMockVideoEl(): HTMLVideoElement {
+    const el = document.createElement('video');
+    return el;
+  }
+
+  const createKeyframe = (
+    frameNumber: number,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    interpolation?: 'hold' | 'linear'
+  ): ViewportKeyframeRow => ({
+    id: `kf-${frameNumber}`,
+    videoId: 'video-1',
+    versionId: 'ver-1',
+    frameNumber,
+    x,
+    y,
+    width,
+    height,
+    interpolation,
+  });
+
+  it('applies correct CSS transform when keyframes exist', () => {
+    const el = createMockVideoEl();
+    const keyframes = [createKeyframe(0, 0.25, 0.25, 0.5, 0.5)];
+
+    applyViewportTransformToElement(el, 0, keyframes, 16 / 9);
+
+    expect(el.style.transform).toContain('scale(');
+    expect(el.style.transform).toContain('translate(');
+    expect(el.style.transformOrigin).toBe('center center');
+  });
+
+  it('clears transform when keyframes are empty and element had existing transform', () => {
+    const el = createMockVideoEl();
+    el.style.transform = 'scale(2) translate(10%, 10%)';
+    el.style.transformOrigin = 'center center';
+
+    applyViewportTransformToElement(el, 0, [], 16 / 9);
+
+    expect(el.style.transform).toBe('');
+    expect(el.style.transformOrigin).toBe('');
+  });
+
+  it('no-op when keyframes are empty and no existing transform', () => {
+    const el = createMockVideoEl();
+
+    applyViewportTransformToElement(el, 0, [], 16 / 9);
+
+    expect(el.style.transform).toBe('');
   });
 });

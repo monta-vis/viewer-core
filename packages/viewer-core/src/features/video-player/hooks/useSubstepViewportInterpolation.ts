@@ -64,6 +64,10 @@ function getDefaultViewport(aspectRatio?: number): ViewportKeyframe {
  * In the editor, keyframes are converted to absolute frame numbers before being passed here.
  * Returns default viewport (centered, true square) if no keyframes exist.
  */
+// Reference-based cache to avoid re-sorting on every rAF frame
+let _cachedKeyframesRef: ViewportKeyframeRow[] | null = null;
+let _cachedSorted: ViewportKeyframeRow[] | null = null;
+
 function interpolateVideoViewport(
   currentFrame: number,
   keyframes: ViewportKeyframeRow[],
@@ -74,8 +78,12 @@ function interpolateVideoViewport(
     return getDefaultViewport(videoAspectRatio);
   }
 
-  // Sort by frame number
-  const sorted = [...keyframes].sort((a, b) => a.frameNumber - b.frameNumber);
+  // Sort by frame number (cached by array reference)
+  if (keyframes !== _cachedKeyframesRef) {
+    _cachedSorted = [...keyframes].sort((a, b) => a.frameNumber - b.frameNumber);
+    _cachedKeyframesRef = keyframes;
+  }
+  const sorted = _cachedSorted!;
 
   // Single keyframe = static viewport
   if (sorted.length === 1) {

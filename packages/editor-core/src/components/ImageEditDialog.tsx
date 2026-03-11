@@ -1,13 +1,15 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ImageOverlay,
   TextInputModal,
+  VideoFrameCapture,
   useAnnotationDrawing,
   useAnnotationResize,
   type Rectangle,
   type DrawingRow,
   type ImageOverlayMode,
+  type FrameCaptureData,
 } from '@monta-vis/viewer-core';
 import { useImageDrawing } from '../hooks/useImageDrawing';
 import { useDrawingDeleteKey } from '../hooks/useDrawingDeleteKey';
@@ -19,7 +21,9 @@ const FULL_IMAGE_BOUNDS: Rectangle = { x: 0, y: 0, width: 100, height: 100 };
 export interface ImageEditDialogProps {
   open: boolean;
   onClose: () => void;
-  imageSrc: string;
+  imageSrc?: string;
+  /** Frame capture data — when provided, captures a frame from raw video as image source */
+  frameCaptureData?: FrameCaptureData;
   /** Drawing data + callbacks */
   videoFrameAreaId: string | null;
   versionId: string;
@@ -51,6 +55,7 @@ export function ImageEditDialog({
   open,
   onClose,
   imageSrc,
+  frameCaptureData,
   videoFrameAreaId,
   versionId,
   drawings,
@@ -59,6 +64,15 @@ export function ImageEditDialog({
   onDeleteDrawing,
 }: ImageEditDialogProps) {
   const { t } = useTranslation();
+
+  // Frame capture support: capture a frame from raw video as image source
+  const [capturedImageSrc, setCapturedImageSrc] = useState<string | null>(null);
+  const effectiveImageSrc = capturedImageSrc ?? imageSrc ?? '';
+
+  // Reset captured image when frameCaptureData changes
+  useEffect(() => {
+    setCapturedImageSrc(null);
+  }, [frameCaptureData?.videoSrc, frameCaptureData?.frameNumber]);
 
   // Drawing state management
   const imageDrawing = useImageDrawing({
@@ -197,11 +211,23 @@ export function ImageEditDialog({
         />
       }
     >
+      {/* Frame capture (hidden, captures frame from raw video) */}
+      {frameCaptureData && !capturedImageSrc && (
+        <VideoFrameCapture
+          videoId={frameCaptureData.videoId}
+          videoSrc={frameCaptureData.videoSrc}
+          fps={frameCaptureData.fps}
+          frameNumber={frameCaptureData.frameNumber}
+          cropArea={frameCaptureData.cropArea}
+          onCapture={(_size, dataUrl) => setCapturedImageSrc(dataUrl)}
+        />
+      )}
+
       {/* Image overlay area — square container, bg-black provides letterbox bars */}
       <div className="h-full flex items-center justify-center">
         <div className="aspect-square h-full max-w-full overflow-hidden">
           <ImageOverlay
-            imageSrc={imageSrc}
+            imageSrc={effectiveImageSrc}
             mode={overlayMode}
             annotations={imageDrawing.annotations}
             selectedAnnotationId={imageDrawing.selectedDrawingId}

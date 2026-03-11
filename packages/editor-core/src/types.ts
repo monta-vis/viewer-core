@@ -78,3 +78,25 @@ export interface SafetyIconCatalog {
   categories: CatalogCategory[];
   entries: CatalogEntry[];
 }
+
+// ── Part/tool icon catalog types ──
+
+/** A single part/tool icon entry from a catalog.json file. */
+export interface PartToolIconEntry {
+  id: string;
+  filename: string;
+  category: string;
+  label: Record<string, string>;
+  tags: string[];
+  itemType: 'Part' | 'Tool';
+  matchTerms?: string[];
+}
+
+/** A part/tool icon catalog loaded from disk. */
+export interface PartToolIconCatalog {
+  name: string;
+  dirName: string;
+  assetsDir: string;
+  categories: CatalogCategory[];
+  entries: PartToolIconEntry[];
+}

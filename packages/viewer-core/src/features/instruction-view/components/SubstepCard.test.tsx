@@ -23,6 +23,14 @@ vi.mock('@/features/video-player', () => ({
   useVideo: () => ({ playbackSpeed: mockPlaybackSpeed.current, setPlaybackSpeed: vi.fn() }),
   interpolateVideoViewport: () => ({ x: 0, y: 0, width: 1, height: 1, rotation: 0 }),
   viewportToTransform: () => ({ scale: 1, translateX: 0, translateY: 0 }),
+  applyViewportTransformToElement: vi.fn(),
+  startSectionPlaybackLoop: vi.fn(() => vi.fn()),
+  useSectionPlayback: vi.fn(),
+  useViewportPlaybackSync: vi.fn(() => ({
+    applyAtFrame: vi.fn(),
+    applyAtCurrentTime: vi.fn(),
+    hasViewport: false,
+  })),
 }));
 
 // Mock react-i18next

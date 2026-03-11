@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PartToolListPanel, type PartToolListPanelCallbacks, type PartToolListPanelProps } from './PartToolListPanel';
+import type { PartToolIconItem } from './PartToolCatalogGrid';
 import type { PartToolRow } from '@monta-vis/viewer-core';
 
 // Mock react-image-crop
@@ -11,6 +12,23 @@ vi.mock('react-image-crop', () => ({
   ),
 }));
 vi.mock('react-image-crop/dist/ReactCrop.css', () => ({}));
+
+// Mock viewer-core — provide SearchInput + fuzzySearch for CatalogGrid
+vi.mock('@monta-vis/viewer-core', async () => {
+  const actual = await vi.importActual<Record<string, unknown>>('@monta-vis/viewer-core');
+  return {
+    ...actual,
+    SearchInput: ({ value, onChange, placeholder, 'aria-label': ariaLabel }: { value: string; onChange: (v: string) => void; placeholder?: string; 'aria-label'?: string }) => (
+      <input type="text" value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
+    ),
+    fuzzySearch: (items: PartToolIconItem[], query: string, getTerms: (item: PartToolIconItem) => string[]) => {
+      const q = query.toLowerCase();
+      return items
+        .filter((item: PartToolIconItem) => getTerms(item).some((term: string) => term.toLowerCase().includes(q)))
+        .map((item: PartToolIconItem) => ({ item, score: 1 }));
+    },
+  };
+});
 
 afterEach(() => {
   cleanup();
@@ -195,5 +213,71 @@ describe('PartToolListPanel', () => {
       getPreviewUrl: () => 'http://example.com/img.jpg',
     });
     expect(screen.getByTestId('parttool-list-row-delete-image-p1')).toBeInTheDocument();
+  });
+});
+
+// ============================================================
+// Tab layout (catalog integration)
+// ============================================================
+
+const catalogItems: PartToolIconItem[] = [
+  { id: 'cat1/bolt.png', filename: 'bolt.png', category: 'Fasteners', label: 'Bolt M6', tags: ['DIN 931'], itemType: 'Part', catalogDirName: 'cat1' },
+  { id: 'cat1/wrench.png', filename: 'wrench.png', category: 'Tools', label: 'Wrench', tags: [], itemType: 'Tool', catalogDirName: 'cat1' },
+];
+
+describe('PartToolListPanel — tabs', () => {
+  it('does not show tabs when catalogItems is absent', () => {
+    renderPanel();
+    expect(screen.queryByTestId('parttool-list-tab-instruction')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('parttool-list-tab-add')).not.toBeInTheDocument();
+  });
+
+  it('shows tabs when catalogItems is provided', () => {
+    renderPanel({ catalogItems, getCatalogIconUrl: () => '/icon.png' });
+    expect(screen.getByTestId('parttool-list-tab-instruction')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-list-tab-add')).toBeInTheDocument();
+  });
+
+  it('instruction tab shows PartToolTable by default', () => {
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools, catalogItems, getCatalogIconUrl: () => '/icon.png' });
+    // Table row should be visible
+    expect(screen.getByTestId('parttool-list-row-p1')).toBeInTheDocument();
+  });
+
+  it('add tab shows catalog grid and form', async () => {
+    const user = userEvent.setup();
+    renderPanel({ catalogItems, getCatalogIconUrl: () => '/icon.png' });
+
+    await user.click(screen.getByTestId('parttool-list-tab-add'));
+
+    // Form and grid should be visible
+    expect(screen.getByTestId('add-form-name')).toBeInTheDocument();
+    expect(screen.getByTestId('add-form-submit')).toBeInTheDocument();
+  });
+
+  it('selecting catalog entry fills form and submitting calls onAddPartTool', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    renderPanel({
+      catalogItems,
+      getCatalogIconUrl: () => '/icon.png',
+      callbacks: cbs,
+    });
+
+    // Switch to Add tab
+    await user.click(screen.getByTestId('parttool-list-tab-add'));
+
+    // Click catalog icon
+    await user.click(screen.getByRole('button', { name: 'Bolt M6' }));
+
+    // Form should now have the name filled — submit should be enabled
+    const submitBtn = screen.getByTestId('add-form-submit');
+    expect(submitBtn).not.toBeDisabled();
+
+    await user.click(submitBtn);
+    expect(cbs.onAddPartTool).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Bolt M6', type: 'Part', iconId: 'cat1/bolt.png' }),
+    );
   });
 });
