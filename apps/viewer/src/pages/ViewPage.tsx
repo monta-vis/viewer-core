@@ -18,7 +18,7 @@ import {
   Navbar,
   useTheme,
 } from "@monta-vis/viewer-core";
-import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, AggregatedPartTool, DrawingRow } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, AggregatedPartTool, DrawingRow, ViewportKeyframeRow } from "@monta-vis/viewer-core";
 import { buildMediaUrl, MediaPaths, DEFAULT_FPS } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
@@ -400,49 +400,61 @@ export function ViewPage() {
     };
   }, [decodedFolderName, adapter, folderName, i18n.language]);
 
+  // ── Shared helper: extract video metadata across all sections for a substep ──
+  const getSubstepVideoMeta = useCallback((substepId: string, data: InstructionData) => {
+    const substep = data.substeps[substepId];
+    if (!substep || substep.videoSectionRowIds.length === 0) return null;
+
+    const firstJunctionId = substep.videoSectionRowIds[0];
+    const firstJunction = data.substepVideoSections[firstJunctionId];
+    if (!firstJunction?.videoSectionId) return null;
+    const firstSection = data.videoSections[firstJunction.videoSectionId];
+    if (!firstSection) return null;
+    const video = firstSection.videoId ? data.videos[firstSection.videoId] : undefined;
+    const fps = video?.fps ?? firstSection.fps ?? DEFAULT_FPS;
+
+    let totalFrames = 0;
+    const allSections: { startFrame: number; endFrame: number }[] = [];
+    const allKeyframes: ViewportKeyframeRow[] = [];
+    for (const rowId of substep.videoSectionRowIds) {
+      const row = data.substepVideoSections[rowId];
+      if (!row?.videoSectionId) continue;
+      const sec = data.videoSections[row.videoSectionId];
+      if (!sec) continue;
+      const sectionDuration = sec.endFrame - sec.startFrame;
+      allSections.push({ startFrame: totalFrames, endFrame: totalFrames + sectionDuration });
+      for (const kfId of sec.viewportKeyframeIds) {
+        const kf = data.viewportKeyframes[kfId];
+        if (kf) allKeyframes.push({ ...kf, frameNumber: kf.frameNumber + totalFrames });
+      }
+      totalFrames += sectionDuration;
+    }
+
+    return { firstSection, video, fps, totalFrames, allSections, allKeyframes };
+  }, []);
+
   // ── Video editor dialog state ──
   const [editingVideoSubstepId, setEditingVideoSubstepId] = useState<string | null>(null);
 
   const videoEditorData = useMemo(() => {
-    if (!editingVideoSubstepId || !viewerData) return null;
-    const substep = viewerData.substeps[editingVideoSubstepId];
-    if (!substep) return null;
-    const firstJunctionId = substep.videoSectionRowIds[0];
-    if (!firstJunctionId) return null;
-    const junction = viewerData.substepVideoSections[firstJunctionId];
-    if (!junction?.videoSectionId) return null;
-    const section = viewerData.videoSections[junction.videoSectionId];
-    if (!section) return null;
-    const video = section.videoId ? viewerData.videos[section.videoId] : undefined;
+    if (!editingVideoSubstepId || !viewerData || !decodedFolderName) return null;
+    const meta = getSubstepVideoMeta(editingVideoSubstepId, viewerData);
+    if (!meta) return null;
 
-    const kfRows = section.viewportKeyframeIds
-      .map((id) => viewerData.viewportKeyframes[id])
-      .filter(Boolean);
-
-    const sectionDuration = section.endFrame - section.startFrame;
-
-    const fps = video?.fps ?? section.fps ?? DEFAULT_FPS;
-    if (!video && !decodedFolderName) return null;
-
-    // Standalone uploaded video (no parent videos row) — use substep video path
-    const videoSrc = video
-      ? (section.localPath ?? '')
-      : resolveStandaloneVideoSrc(editingVideoSubstepId, decodedFolderName!);
-    const videoAspectRatio = video
-      ? (video.width ?? 16) / (video.height ?? 9)
-      : 1;
+    const videoSrc = resolveStandaloneVideoSrc(editingVideoSubstepId, decodedFolderName);
+    const videoAspectRatio = meta.video ? (meta.video.width ?? 16) / (meta.video.height ?? 9) : 1;
 
     return {
       videoSrc,
       startFrame: 0,
-      endFrame: sectionDuration,
-      fps,
-      viewportKeyframes: kfRows,
+      endFrame: meta.totalFrames,
+      fps: meta.fps,
+      viewportKeyframes: meta.allKeyframes,
       videoAspectRatio,
-      contentAspectRatio: section.contentAspectRatio,
-      sections: [{ startFrame: 0, endFrame: sectionDuration }],
+      contentAspectRatio: meta.firstSection.contentAspectRatio,
+      sections: meta.allSections.length > 1 ? meta.allSections : undefined,
     };
-  }, [editingVideoSubstepId, viewerData, decodedFolderName]);
+  }, [editingVideoSubstepId, viewerData, decodedFolderName, getSubstepVideoMeta]);
 
   // ── Video annotations dialog state (mode='view') ──
   const [annotatingVideoSubstepId, setAnnotatingVideoSubstepId] = useState<string | null>(null);
@@ -452,39 +464,27 @@ export function ViewPage() {
   const videoAnnotationDataRef = useRef<{ videoSrc: string; fps: number; durationSeconds: number; contentAspectRatio?: number | null } | null>(null);
 
   const videoAnnotationData = useMemo(() => {
-    if (!annotatingVideoSubstepId || !viewerData) {
+    if (!annotatingVideoSubstepId || !viewerData || !decodedFolderName) {
       videoAnnotationDataRef.current = null;
       return null;
     }
-    const substep = viewerData.substeps[annotatingVideoSubstepId];
-    if (!substep) return null;
-    const firstJunctionId = substep.videoSectionRowIds[0];
-    if (!firstJunctionId) return null;
-    const junction = viewerData.substepVideoSections[firstJunctionId];
-    if (!junction?.videoSectionId) return null;
-    const section = viewerData.videoSections[junction.videoSectionId];
-    if (!section) return null;
-    const video = section.videoId ? viewerData.videos[section.videoId] : undefined;
+    const meta = getSubstepVideoMeta(annotatingVideoSubstepId, viewerData);
+    if (!meta) return null;
 
-    const fps = video?.fps ?? section.fps ?? DEFAULT_FPS;
-    const durationFrames = section.endFrame - section.startFrame;
-    if (!video && !decodedFolderName) return null;
-    const videoSrc = video
-      ? (section.localPath ?? '')
-      : resolveStandaloneVideoSrc(annotatingVideoSubstepId, decodedFolderName!);
-    const durationSeconds = durationFrames / fps;
-    const contentAspectRatio = section.contentAspectRatio;
+    const videoSrc = resolveStandaloneVideoSrc(annotatingVideoSubstepId, decodedFolderName);
+    const durationSeconds = meta.totalFrames / meta.fps;
+    const contentAspectRatio = meta.firstSection.contentAspectRatio;
 
     // Return the cached object if values haven't changed
     const prev = videoAnnotationDataRef.current;
-    if (prev && prev.videoSrc === videoSrc && prev.fps === fps && prev.durationSeconds === durationSeconds && prev.contentAspectRatio === contentAspectRatio) {
+    if (prev && prev.videoSrc === videoSrc && prev.fps === meta.fps && prev.durationSeconds === durationSeconds && prev.contentAspectRatio === contentAspectRatio) {
       return prev;
     }
 
-    const next = { videoSrc, fps, durationSeconds, contentAspectRatio };
+    const next = { videoSrc, fps: meta.fps, durationSeconds, contentAspectRatio };
     videoAnnotationDataRef.current = next;
     return next;
-  }, [annotatingVideoSubstepId, viewerData, decodedFolderName]);
+  }, [annotatingVideoSubstepId, viewerData, decodedFolderName, getSubstepVideoMeta]);
 
   const onAnnotateVideo = useCallback((substepId: string) => {
     setAnnotatingVideoSubstepId(substepId);

@@ -497,26 +497,6 @@ function VideoEditorViewMode({
     return () => ro.disconnect();
   }, []);
 
-  // Compute content area: where actual video content sits within the container
-  const contentArea = useMemo(() => {
-    if (containerSize.width <= 0 || containerSize.height <= 0) return null;
-    // Step 1: Square video (1:1) in container
-    const video = computeLetterboxBounds(containerSize.width, containerSize.height, 1, 1);
-    if (video.width <= 0) return null;
-
-    // Step 2: Content in square video (if contentAspectRatio available)
-    const car = videoData.contentAspectRatio;
-    if (!car) return video; // No letterbox within video — content IS the video
-
-    const content = computeLetterboxBounds(video.width, video.height, car, 1);
-    return {
-      offsetX: video.offsetX + content.offsetX,
-      offsetY: video.offsetY + content.offsetY,
-      width: content.width,
-      height: content.height,
-    };
-  }, [containerSize, videoData.contentAspectRatio]);
-
   const effectiveDuration = videoData.durationSeconds || playback.duration;
   const totalFrames = effectiveDuration * videoData.fps;
   const currentFrame = timeToFrame(playback.currentTime, videoData.fps);
@@ -758,102 +738,96 @@ function VideoEditorViewMode({
         />
       }
     >
-      {/* Video + playback area */}
-      <div className="flex-1 flex flex-col min-w-0 p-4 gap-3 h-full">
-        {/* Video player with drawing overlay */}
-        <div className="relative flex-1 min-h-0 flex items-center justify-center">
-        <div
-          ref={svgContainerRef}
-          className="relative overflow-hidden rounded bg-black"
-          style={{ aspectRatio: '1', maxHeight: '100%', maxWidth: '100%', width: '100%' }}
-        >
-          <video
-            ref={videoRef}
-            src={videoData.videoSrc}
-            className="absolute inset-0 h-full w-full object-contain"
-            playsInline
-            preload="auto"
-          />
-
-          {/* Video error overlay */}
-          {playback.hasError && (
+      <div className="h-full flex flex-col">
+        {/* Video area — matches ImageEditDialog centering + 1:1 pattern */}
+        <div className="flex-1 min-h-0 flex items-center justify-center">
+          <div className="aspect-square h-full max-w-full overflow-hidden">
             <div
-              className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80"
-              data-testid="video-error-overlay"
+              ref={svgContainerRef}
+              className="relative w-full h-full overflow-hidden rounded bg-black"
             >
-              <Film className="h-8 w-8 text-[var(--color-text-muted)]" />
-              <p className="text-sm text-[var(--color-text-muted)]">
-                {t('editorCore.videoEditor.videoLoadError', 'Video could not be loaded')}
-              </p>
-            </div>
-          )}
+              <video
+                ref={videoRef}
+                src={videoData.videoSrc}
+                className="absolute inset-0 h-full w-full object-contain"
+                playsInline
+                preload="auto"
+              />
 
-          {/* Drawing overlay — positioned exactly over the video content area */}
-          {contentArea && contentArea.width > 0 && (
-            <div
-              ref={setDrawingOverlayRef}
-              className={clsx('absolute', videoDrawing.drawingTool && 'cursor-crosshair')}
-              style={{
-                left: contentArea.offsetX,
-                top: contentArea.offsetY,
-                width: contentArea.width,
-                height: contentArea.height,
-              }}
-              data-testid="drawing-overlay"
-              onMouseDown={handleOverlayMouseDown}
-              onMouseMove={handleOverlayMouseMove}
-              onMouseUp={handleOverlayMouseUp}
-            >
-              {/* Existing drawings (pointer-events-none wrapper, shapes have pointer-events: auto) */}
-              <div className="absolute inset-0 pointer-events-none">
-                <DrawingLayer
-                  drawings={drawingsWithLiveCoords}
-                  containerWidth={contentArea.width}
-                  containerHeight={contentArea.height}
-                  selectedId={videoDrawing.selectedDrawingId}
-                  selectedIds={videoDrawing.selectedDrawingIds}
-                  onSelect={handleDrawingClick}
-                  onSelectWithEvent={handleDrawingClickWithEvent}
-                  onDeselect={videoDrawing.deselectDrawing}
-                  onHandleMouseDown={handleDrawingHandleMouseDown}
-                  onDoubleClick={videoDrawing.handleTextEdit}
-                  bounds={FULL_BOUNDS}
-                />
-              </div>
-
-              {/* Drawing preview (pointer-events-none so it doesn't block shape interaction) */}
-              {annotationDrawingHook.isDrawing && annotationDrawingHook.startPoint && annotationDrawingHook.currentPoint && videoDrawing.drawingTool && videoDrawing.drawingTool !== 'text' && (
-                <svg
-                  className="absolute inset-0 w-full h-full pointer-events-none"
-                  data-testid="drawing-preview-svg"
+              {/* Video error overlay */}
+              {playback.hasError && (
+                <div
+                  className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/80"
+                  data-testid="video-error-overlay"
                 >
-                  <DrawingPreview
-                    tool={videoDrawing.drawingTool}
-                    color={videoDrawing.drawingColor}
-                    startPoint={annotationDrawingHook.startPoint}
-                    currentPoint={annotationDrawingHook.currentPoint}
-                    containerWidth={contentArea.width}
-                    containerHeight={contentArea.height}
-                  />
-                </svg>
+                  <Film className="h-8 w-8 text-[var(--color-text-muted)]" />
+                  <p className="text-sm text-[var(--color-text-muted)]">
+                    {t('editorCore.videoEditor.videoLoadError', 'Video could not be loaded')}
+                  </p>
+                </div>
+              )}
+
+              {/* Drawing overlay — covers full 1:1 container so users can draw over letterbox areas */}
+              {containerSize.width > 0 && containerSize.height > 0 && (
+                <div
+                  ref={setDrawingOverlayRef}
+                  className={clsx('absolute inset-0', videoDrawing.drawingTool && 'cursor-crosshair')}
+                  data-testid="drawing-overlay"
+                  onMouseDown={handleOverlayMouseDown}
+                  onMouseMove={handleOverlayMouseMove}
+                  onMouseUp={handleOverlayMouseUp}
+                >
+                  {/* Existing drawings (pointer-events-none wrapper, shapes have pointer-events: auto) */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    <DrawingLayer
+                      drawings={drawingsWithLiveCoords}
+                      containerWidth={containerSize.width}
+                      containerHeight={containerSize.height}
+                      selectedId={videoDrawing.selectedDrawingId}
+                      selectedIds={videoDrawing.selectedDrawingIds}
+                      onSelect={handleDrawingClick}
+                      onSelectWithEvent={handleDrawingClickWithEvent}
+                      onDeselect={videoDrawing.deselectDrawing}
+                      onHandleMouseDown={handleDrawingHandleMouseDown}
+                      onDoubleClick={videoDrawing.handleTextEdit}
+                      bounds={FULL_BOUNDS}
+                    />
+                  </div>
+
+                  {/* Drawing preview (pointer-events-none so it doesn't block shape interaction) */}
+                  {annotationDrawingHook.isDrawing && annotationDrawingHook.startPoint && annotationDrawingHook.currentPoint && videoDrawing.drawingTool && videoDrawing.drawingTool !== 'text' && (
+                    <svg
+                      className="absolute inset-0 w-full h-full pointer-events-none"
+                      data-testid="drawing-preview-svg"
+                    >
+                      <DrawingPreview
+                        tool={videoDrawing.drawingTool}
+                        color={videoDrawing.drawingColor}
+                        startPoint={annotationDrawingHook.startPoint}
+                        currentPoint={annotationDrawingHook.currentPoint}
+                        containerWidth={containerSize.width}
+                        containerHeight={containerSize.height}
+                      />
+                    </svg>
+                  )}
+                </div>
               )}
             </div>
-          )}
-
-          {/* Text editing modal */}
-          {videoDrawing.textInputState.isOpen && (
-            <TextInputModal
-              label={t('editorCore.editText', 'Edit text')}
-              value={videoDrawing.textInputState.initialText ?? ''}
-              onConfirm={(text: string) => videoDrawing.handleTextSubmit(text, videoDrawing.textInputState.initialFontSize ?? 5)}
-              onCancel={videoDrawing.handleTextCancel}
-            />
-          )}
-        </div>
+          </div>
         </div>
 
-        {/* Playback controls */}
-        <div className="shrink-0">
+        {/* Text input modal (outside video container, sibling like ImageEditDialog) */}
+        {videoDrawing.textInputState.isOpen && (
+          <TextInputModal
+            label={t('editorCore.editText', 'Edit text')}
+            value={videoDrawing.textInputState.initialText ?? ''}
+            onConfirm={(text: string) => videoDrawing.handleTextSubmit(text, videoDrawing.textInputState.initialFontSize ?? 5)}
+            onCancel={videoDrawing.handleTextCancel}
+          />
+        )}
+
+        {/* Playback controls + timeline — compact below video */}
+        <div className="shrink-0 px-4 pb-3 pt-2 flex flex-col gap-2">
           <TrimPlaybackControls
             isPlaying={playback.isPlaying}
             currentTime={playback.currentTime}
@@ -861,30 +835,28 @@ function VideoEditorViewMode({
             onTogglePlay={playback.togglePlay}
             fps={videoData.fps}
           />
-        </div>
-
-        {/* Timeline with playhead */}
-        <div className="shrink-0 relative" data-timeline-track>
-          <div
-            className="relative h-6 w-full rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-base)] cursor-pointer"
-            onClick={handleTimelineClick}
-          >
+          <div className="relative" data-timeline-track>
             <div
-              className="absolute top-1 bottom-1 left-0 right-0 rounded-sm"
-              style={{
-                backgroundColor: 'var(--color-element-drawing)',
-                opacity: 0.6,
-              }}
+              className="relative h-6 w-full rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-base)] cursor-pointer"
+              onClick={handleTimelineClick}
+            >
+              <div
+                className="absolute top-1 bottom-1 left-0 right-0 rounded-sm"
+                style={{
+                  backgroundColor: 'var(--color-element-drawing)',
+                  opacity: 0.6,
+                }}
+              />
+            </div>
+            <Playhead
+              position={currentPercent}
+              trackHeight={2}
+              currentTime={playback.currentTime}
+              currentFrame={currentFrame}
+              fps={videoData.fps}
+              onDrag={handleSeekPercent}
             />
           </div>
-          <Playhead
-            position={currentPercent}
-            trackHeight={2}
-            currentTime={playback.currentTime}
-            currentFrame={currentFrame}
-            fps={videoData.fps}
-            onDrag={handleSeekPercent}
-          />
         </div>
       </div>
     </MediaEditDialog>
