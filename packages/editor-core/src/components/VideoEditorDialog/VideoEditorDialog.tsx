@@ -16,6 +16,9 @@ import {
   type ViewportKeyframeRow,
   type DrawingRow,
   applyLiveCoords,
+  useSectionPlayback,
+  useViewportPlaybackSync,
+  type SectionPlaybackContext,
 } from '@monta-vis/viewer-core';
 import { MediaEditDialog } from '../MediaEditDialog';
 import { useDrawingDeleteKey } from '../../hooks/useDrawingDeleteKey';
@@ -66,7 +69,14 @@ interface VideoEditorEditProps extends VideoEditorBaseProps {
 
 interface VideoEditorViewProps extends VideoEditorBaseProps {
   mode: 'view';
-  videoData: { videoSrc: string; fps: number; durationSeconds: number; contentAspectRatio?: number | null };
+  videoData: {
+    videoSrc: string;
+    fps: number;
+    durationSeconds: number;
+    contentAspectRatio?: number | null;
+    viewportKeyframes?: ViewportKeyframeRow[];
+    videoAspectRatio?: number;
+  };
   substepId: string;
   versionId: string;
   drawings: Record<string, DrawingRow>;
@@ -438,6 +448,11 @@ function VideoEditorViewMode({
   const drawingOverlayRef = useRef<HTMLDivElement>(null);
   const playback = useVideoPlayback(videoRef, videoData.videoSrc);
 
+  // Local playing state decoupled from native video events.
+  // This prevents the infinite loop where sectionPlaybackLoop's internal
+  // pause→seek→play triggers native events that restart the section loop.
+  const [isPlayingInline, setIsPlayingInline] = useState(false);
+
   // Bounds for coordinate space: the overlay div IS the content area,
   // so full bounds converts container % (0-100) ↔ local space (0-1).
   const FULL_BOUNDS = useMemo(() => ({ x: 0, y: 0, width: 100, height: 100 }), []);
@@ -611,33 +626,40 @@ function VideoEditorViewMode({
   // Delete key handler (multi-select aware)
   useDrawingDeleteKey(open, videoDrawing.selectedDrawingId, videoDrawing.handleDrawingDelete, videoDrawing.selectedDrawingIds);
 
-  // Constrain playback within section boundaries (ref-based to avoid 60fps effect re-runs)
-  const currentFrameRef = useRef(currentFrame);
-  currentFrameRef.current = currentFrame;
-  const preparedSectionsRef = useRef(preparedSections);
-  preparedSectionsRef.current = preparedSections;
+  // Shared viewport sync — replaces manual applyViewportTransformToElement + mount effect
+  const viewportSync = useViewportPlaybackSync({
+    videoRef,
+    viewportKeyframes: videoData.viewportKeyframes ?? [],
+    videoAspectRatio: videoData.videoAspectRatio ?? 16 / 9,
+    fps: videoData.fps,
+    continuousSync: playback.isPlaying && !sections?.length, // viewport-only rAF (non-section playback)
+  });
 
-  useEffect(() => {
-    if (!playback.isPlaying) return;
-    const id = setInterval(() => {
-      const sections = preparedSectionsRef.current;
-      if (!sections) return;
-      const frame = currentFrameRef.current;
-      const { sorted } = sections;
-      // Check if inside any section
-      for (const sec of sorted) {
-        if (frame >= sec.startFrame && frame < sec.endFrame) return;
-      }
-      // Outside all sections — find next section to jump to, or pause at end
-      const nextSection = sorted.find((s) => s.startFrame > frame);
-      if (nextSection) {
-        playback.seek(frameToTime(nextSection.startFrame, videoData.fps));
-      } else {
-        playback.pause();
-      }
-    }, 100); // Check every 100ms instead of every frame
-    return () => clearInterval(id);
-  }, [playback.isPlaying, playback.seek, playback.pause, videoData.fps]);
+  // Shared section playback — replaces manual playback loop effect
+  useSectionPlayback({
+    videoRef,
+    sections: sections ?? [],
+    fps: videoData.fps,
+    isPlaying: isPlayingInline && !!sections?.length,
+    onBeforePlay: useCallback(
+      (_video: HTMLVideoElement, startFrame: number) => viewportSync.applyAtFrame(startFrame),
+      [viewportSync],
+    ),
+    onTick: useCallback(
+      (ctx: SectionPlaybackContext) => viewportSync.applyAtFrame(ctx.frame),
+      [viewportSync],
+    ),
+    onComplete: useCallback(() => setIsPlayingInline(false), []),
+  });
+
+  // Toggle play: use local state for section playback, native toggle otherwise
+  const handleTogglePlay = useCallback(() => {
+    if (sections?.length) {
+      setIsPlayingInline((prev) => !prev);
+    } else {
+      playback.togglePlay();
+    }
+  }, [sections?.length, playback.togglePlay]);
 
   // Seek by percent (section-aware when sections exist)
   const handleSeekPercent = useCallback(
@@ -646,11 +668,12 @@ function VideoEditorViewMode({
         ? substepPercentToFrame(percent, preparedSections)
         : Math.round((percent / 100) * totalFrames);
       playback.seek(frameToTime(frame, videoData.fps));
+      viewportSync.applyAtFrame(frame);
     },
-    [preparedSections, totalFrames, playback.seek, videoData.fps],
+    [preparedSections, totalFrames, playback.seek, videoData.fps, viewportSync],
   );
 
-  // Click-to-seek on timeline bar
+  // Click-to-seek on timeline bar (viewport transform applied via handleSeekPercent)
   const handleTimelineClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const rect = e.currentTarget.getBoundingClientRect();
@@ -665,6 +688,7 @@ function VideoEditorViewMode({
     (drawingId: string, handle: string, e: React.MouseEvent) => {
       const drawing = drawings[drawingId];
       if (!drawing) return;
+      setIsPlayingInline(false);
       playback.pause();
 
       // Group operations: if the shape is part of a multi-selection
@@ -829,10 +853,10 @@ function VideoEditorViewMode({
         {/* Playback controls + timeline — compact below video */}
         <div className="shrink-0 px-4 pb-3 pt-2 flex flex-col gap-2">
           <TrimPlaybackControls
-            isPlaying={playback.isPlaying}
+            isPlaying={isPlayingInline || playback.isPlaying}
             currentTime={playback.currentTime}
             duration={playback.duration}
-            onTogglePlay={playback.togglePlay}
+            onTogglePlay={handleTogglePlay}
             fps={videoData.fps}
           />
           <div className="relative" data-timeline-track>

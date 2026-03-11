@@ -8,16 +8,18 @@ vi.mock('react-i18next', () => ({
 
 // Mock useVideoPlayback
 let mockHasError = false;
+let mockIsPlaying = false;
+const mockPause = vi.fn();
 vi.mock('../../hooks/useVideoPlayback', () => ({
   useVideoPlayback: () => ({
-    isPlaying: false,
+    isPlaying: mockIsPlaying,
     currentTime: 1.5,
     duration: 10,
     playbackSpeed: 1,
     hasError: mockHasError,
     togglePlay: vi.fn(),
     play: vi.fn(),
-    pause: vi.fn(),
+    pause: mockPause,
     seek: vi.fn(),
     stepFrame: vi.fn(),
     setPlaybackSpeed: vi.fn(),
@@ -26,6 +28,23 @@ vi.mock('../../hooks/useVideoPlayback', () => ({
     setDuration: vi.fn(),
   }),
 }));
+
+// Mock shared playback hooks — used by VideoEditorDialog for section playback
+const mockUseSectionPlayback = vi.fn();
+const mockUseViewportPlaybackSync = vi.fn(() => ({
+  applyAtFrame: vi.fn(),
+  applyAtCurrentTime: vi.fn(),
+  hasViewport: false,
+}));
+
+vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@monta-vis/viewer-core')>();
+  return {
+    ...actual,
+    useSectionPlayback: (...args: unknown[]) => mockUseSectionPlayback(...args),
+    useViewportPlaybackSync: (...args: unknown[]) => mockUseViewportPlaybackSync(...args),
+  };
+});
 
 // Mock ResizeObserver
 vi.stubGlobal(
@@ -294,5 +313,155 @@ describe('VideoEditorDialog view mode', () => {
     if (previewSvg) {
       expect(previewSvg).toHaveClass('pointer-events-none');
     }
+  });
+
+  it('accepts viewportKeyframes and videoAspectRatio in videoData without error', () => {
+    const viewDataWithViewport = {
+      ...viewVideoData,
+      viewportKeyframes: [
+        { id: 'kf-1', videoId: 'v1', versionId: 'ver-1', frameNumber: 0, x: 0.25, y: 0.25, width: 0.5, height: 0.5 },
+      ] as ViewportKeyframeRow[],
+      videoAspectRatio: 16 / 9,
+    };
+
+    expect(() => {
+      render(
+        <VideoEditorDialog
+          open={true}
+          onClose={vi.fn()}
+          mode="view"
+          videoData={viewDataWithViewport}
+          substepId="sub-1"
+          versionId="v1"
+          drawings={{}}
+          onAddDrawing={vi.fn()}
+          onUpdateDrawing={vi.fn()}
+          onDeleteDrawing={vi.fn()}
+        />,
+      );
+    }).not.toThrow();
+  });
+
+  it('works without viewportKeyframes (backward compat)', () => {
+    expect(() => {
+      render(
+        <VideoEditorDialog
+          open={true}
+          onClose={vi.fn()}
+          mode="view"
+          videoData={viewVideoData}
+          substepId="sub-1"
+          versionId="v1"
+          drawings={{}}
+          onAddDrawing={vi.fn()}
+          onUpdateDrawing={vi.fn()}
+          onDeleteDrawing={vi.fn()}
+        />,
+      );
+    }).not.toThrow();
+  });
+
+  it('passes sections to useSectionPlayback when playing with sections', () => {
+    mockIsPlaying = true;
+    const sections = [
+      { startFrame: 150, endFrame: 300 },
+      { startFrame: 450, endFrame: 600 },
+    ];
+
+    render(
+      <VideoEditorDialog
+        open={true}
+        onClose={vi.fn()}
+        mode="view"
+        videoData={{ ...viewVideoData, fps: 30 }}
+        substepId="sub-1"
+        versionId="v1"
+        drawings={{}}
+        onAddDrawing={vi.fn()}
+        onUpdateDrawing={vi.fn()}
+        onDeleteDrawing={vi.fn()}
+        sections={sections}
+      />,
+    );
+
+    // useSectionPlayback should have been called with the sections
+    // Initially isPlaying should be false (local isPlayingInline state starts false)
+    expect(mockUseSectionPlayback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sections,
+        fps: 30,
+        isPlaying: false,
+      }),
+    );
+
+    mockIsPlaying = false;
+    mockUseSectionPlayback.mockClear();
+  });
+
+  it('uses local isPlayingInline state for section playback (not native video events)', () => {
+    // Native video events set playback.isPlaying = true, but section playback
+    // should use local isPlayingInline state to avoid the infinite loop bug
+    mockIsPlaying = true; // simulate native play event
+    const sections = [
+      { startFrame: 0, endFrame: 150 },
+      { startFrame: 150, endFrame: 300 },
+    ];
+
+    render(
+      <VideoEditorDialog
+        open={true}
+        onClose={vi.fn()}
+        mode="view"
+        videoData={{ ...viewVideoData, fps: 30 }}
+        substepId="sub-1"
+        versionId="v1"
+        drawings={{}}
+        onAddDrawing={vi.fn()}
+        onUpdateDrawing={vi.fn()}
+        onDeleteDrawing={vi.fn()}
+        sections={sections}
+      />,
+    );
+
+    // Even though playback.isPlaying is true (native event), useSectionPlayback
+    // should receive isPlaying=false because local isPlayingInline starts as false
+    expect(mockUseSectionPlayback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        isPlaying: false,
+      }),
+    );
+
+    mockIsPlaying = false;
+    mockUseSectionPlayback.mockClear();
+  });
+
+  it('passes onComplete callback that resets playing state', () => {
+    const sections = [
+      { startFrame: 0, endFrame: 150 },
+      { startFrame: 150, endFrame: 300 },
+    ];
+
+    render(
+      <VideoEditorDialog
+        open={true}
+        onClose={vi.fn()}
+        mode="view"
+        videoData={{ ...viewVideoData, fps: 30 }}
+        substepId="sub-1"
+        versionId="v1"
+        drawings={{}}
+        onAddDrawing={vi.fn()}
+        onUpdateDrawing={vi.fn()}
+        onDeleteDrawing={vi.fn()}
+        sections={sections}
+      />,
+    );
+
+    // onComplete should be a function (stable callback to reset isPlayingInline)
+    const call = mockUseSectionPlayback.mock.calls[mockUseSectionPlayback.mock.calls.length - 1];
+    expect(call[0]).toHaveProperty('onComplete');
+    expect(typeof call[0].onComplete).toBe('function');
+
+    mockUseSectionPlayback.mockClear();
   });
 });
