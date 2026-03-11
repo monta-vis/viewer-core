@@ -8,7 +8,7 @@ interface ColorPaletteProps {
   size?: 'sm' | 'md' | 'lg';
 }
 
-const PALETTE_COLORS: ShapeColor[] = ['black', 'white', 'red', 'teal'];
+const PALETTE_COLORS: ShapeColor[] = ['black', 'white', 'red', 'teal', 'yellow', 'blue'];
 
 export function ColorPalette({
   activeColor,

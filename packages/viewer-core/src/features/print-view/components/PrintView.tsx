@@ -14,9 +14,8 @@ interface PrintViewProps {
   folderName: string;
 }
 
-/** Default render dimensions for image compositing */
+/** Default render size for image compositing (square canvas) */
 const RENDER_WIDTH = 1200;
-const RENDER_HEIGHT = 1200;
 
 /**
  * Root print view component — renders instruction data as a multi-page
@@ -82,7 +81,6 @@ export function PrintView({ folderName }: PrintViewProps) {
             imageUrl: printData.imageUrl!,
             drawings: printData.imageDrawings,
             width: RENDER_WIDTH,
-            height: RENDER_HEIGHT,
           });
           const isDataUrl = url.startsWith('data:');
           console.debug(

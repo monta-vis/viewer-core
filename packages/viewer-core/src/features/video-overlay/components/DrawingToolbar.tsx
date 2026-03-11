@@ -35,7 +35,7 @@ export function DrawingToolbar({ activeTool, onToolSelect }: DrawingToolbarProps
           aria-label={t(i18nKey, defaultLabel)}
           onClick={() => handleToolClick(type)}
           variant={activeTool === type ? 'primary' : 'ghost'}
-          size="md"
+          size="sm"
         />
       ))}
     </div>

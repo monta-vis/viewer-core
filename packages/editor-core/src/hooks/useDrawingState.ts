@@ -11,7 +11,7 @@ function useLatestRef<T>(value: T) {
 }
 
 export interface UseDrawingStateProps {
-  drawings: Record<string, { color?: string; type?: string; fontSize?: number | null }>;
+  drawings: Record<string, { color?: string; type?: string; fontSize?: number | null; strokeWidth?: number | null }>;
   updateDrawing: (id: string, updates: Record<string, unknown>) => void;
   deleteDrawing: (id: string) => void;
 }
@@ -29,6 +29,7 @@ export function useDrawingState({
 }: UseDrawingStateProps) {
   const [drawingTool, setDrawingTool] = useState<ShapeType | null>(null);
   const [drawingColor, setDrawingColor] = useState<ShapeColor>('black');
+  const [drawingStrokeWidth, setDrawingStrokeWidth] = useState(2);
   const [selectedDrawingIds, setSelectedDrawingIds] = useState<ReadonlySet<string>>(new Set());
   const selectedDrawingIdsRef = useLatestRef(selectedDrawingIds);
   const [primarySelectedId, setPrimarySelectedId] = useState<string | null>(null);
@@ -40,6 +41,8 @@ export function useDrawingState({
   const selectedDrawingColor = selectedDrawing ? (selectedDrawing.color as ShapeColor) : null;
   const selectedDrawingFontSize =
     selectedDrawing?.type === 'text' ? (selectedDrawing.fontSize ?? 5) : null;
+  const selectedDrawingStrokeWidth =
+    selectedDrawing ? (selectedDrawing.strokeWidth ?? 2) : null;
 
   const handleDrawingSelect = useCallback((id: string) => {
     setSelectedDrawingIds(new Set([id]));
@@ -154,6 +157,22 @@ export function useDrawingState({
     [updateDrawing, selectedDrawingIdsRef, drawingsRef],
   );
 
+  const handleDrawingStrokeWidthSelect = useCallback(
+    (strokeWidth: number) => {
+      setDrawingStrokeWidth(strokeWidth);
+      const currentIds = selectedDrawingIdsRef.current;
+      const currentDrawings = drawingsRef.current;
+      if (currentIds.size > 0) {
+        currentIds.forEach((selectedId) => {
+          if (currentDrawings[selectedId]) {
+            updateDrawing(selectedId, { strokeWidth });
+          }
+        });
+      }
+    },
+    [updateDrawing, selectedDrawingIdsRef, drawingsRef],
+  );
+
   const deselectDrawing = useCallback(() => {
     setSelectedDrawingIds(EMPTY_SET);
     setPrimarySelectedId(null);
@@ -172,10 +191,12 @@ export function useDrawingState({
   return {
     drawingTool,
     drawingColor,
+    drawingStrokeWidth,
     selectedDrawingId,
     selectedDrawingIds,
     selectedDrawingColor,
     selectedDrawingFontSize,
+    selectedDrawingStrokeWidth,
     setSelectedDrawingId,
     handleDrawingSelect,
     handleDrawingMultiSelect,
@@ -183,6 +204,7 @@ export function useDrawingState({
     handleDrawingToolSelect,
     handleDrawingColorSelect,
     handleDrawingFontSizeSelect,
+    handleDrawingStrokeWidthSelect,
     deselectDrawing,
     deselectAll: deselectDrawing,
   };

@@ -1,18 +1,20 @@
 import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, ArrowUpRight, Minus, Circle, Square, Type, Pencil, Image, Video } from 'lucide-react';
+import { X, ArrowUpRight, Minus, Circle, Square, Type, Pencil } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import {
   DrawingToolbar,
   ColorPalette,
   TEXT_SIZES,
+  STROKE_WIDTHS,
+  getShapeColorValue,
   type ShapeType,
   type ShapeColor,
 } from '@monta-vis/viewer-core';
 
 /**
- * Drawing data for minicards - can be either Image Annotation or Video Drawing
+ * Drawing data for list rows - can be either Image Annotation or Video Drawing
  */
 export interface DrawingCardData {
   id: string;
@@ -30,9 +32,12 @@ interface DrawingEditorProps {
   // Drawing tools
   activeTool: ShapeType | null;
   activeColor: ShapeColor;
+  activeStrokeWidth?: number;
   selectedDrawingColor?: ShapeColor | null;
+  selectedDrawingStrokeWidth?: number | null;
   onToolSelect: (tool: ShapeType | null) => void;
   onColorSelect: (color: ShapeColor) => void;
+  onStrokeWidthSelect?: (strokeWidth: number) => void;
 
   // All drawings (image annotations + video drawings)
   drawings?: DrawingCardData[];
@@ -60,7 +65,7 @@ interface DrawingEditorProps {
   isInVideoSection?: boolean; // Is playhead inside a VideoSection?
   drawingMode: DrawingMode; // Current mode (image or video)
 
-  /** Called when a minicard click changes the active section type */
+  /** Called when a drawing row click changes the active section type */
   onDrawingSectionChange?: (section: 'image' | 'video') => void;
 
   // Actions
@@ -78,6 +83,56 @@ const getShapeIcon = (shapeType: string) => {
     default: return Pencil; // freehand or unknown
   }
 };
+
+// Shape type → { i18nKey, defaultLabel }
+const SHAPE_I18N: Record<string, { key: string; label: string }> = {
+  arrow: { key: 'editorCore.shapeArrow', label: 'Arrow' },
+  line: { key: 'editorCore.shapeLine', label: 'Line' },
+  circle: { key: 'editorCore.shapeCircle', label: 'Circle' },
+  rectangle: { key: 'editorCore.shapeRectangle', label: 'Rectangle' },
+  text: { key: 'editorCore.shapeText', label: 'Text' },
+  freehand: { key: 'editorCore.shapeFreehand', label: 'Freehand' },
+};
+const DEFAULT_SHAPE_I18N = SHAPE_I18N.freehand;
+
+/** Uppercase section label */
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="text-[0.5625rem] uppercase tracking-[0.08em] text-[var(--color-text-muted)] font-medium block mb-1.5 select-none">
+      {children}
+    </span>
+  );
+}
+
+/** Segmented toggle button for stroke width / font size */
+function TogglePill({
+  label,
+  active,
+  onClick,
+  ariaLabel,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={ariaLabel}
+      aria-pressed={active}
+      className={clsx(
+        'flex-1 py-1 text-[0.6875rem] font-semibold rounded transition-colors text-center',
+        active
+          ? 'bg-[var(--color-primary)] text-white'
+          : 'bg-[var(--color-bg-surface)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]'
+      )}
+    >
+      {label}
+    </button>
+  );
+}
 
 /** Small drag handle for the drawing timeline range. */
 function TimelineMarker({
@@ -99,8 +154,8 @@ function TimelineMarker({
       className={clsx(
         'absolute top-0 bottom-0 w-3 cursor-ew-resize',
         'flex items-center justify-center',
-        'hover:bg-white/20 transition-colors',
-        isDragging && 'bg-white/30'
+        'hover:bg-[var(--color-bg-hover)] transition-colors',
+        isDragging && 'bg-[var(--item-bg-active)]'
       )}
       style={{
         left: `calc(${position}% - 0.375rem)`,
@@ -109,7 +164,7 @@ function TimelineMarker({
       onMouseDown={onMouseDown}
       aria-label={ariaLabel}
     >
-      <div className="w-0.5 h-4 bg-white rounded-full" />
+      <div className="w-0.5 h-4 bg-[var(--color-text-base)] rounded-full" />
     </button>
   );
 }
@@ -117,15 +172,18 @@ function TimelineMarker({
 /**
  * DrawingEditor - Unified editor for both Image Annotations and Video Drawings.
  *
- * Mode is driven by element selection in the parent (image element → image mode,
- * video section element → video mode). Only context-relevant minicards are shown.
+ * Redesigned with grouped sections, icon-only tool row, expanded color palette,
+ * stroke width selector, and list-row drawing items.
  */
 export function DrawingEditor({
   activeTool,
   activeColor,
+  activeStrokeWidth = 2,
   selectedDrawingColor,
+  selectedDrawingStrokeWidth,
   onToolSelect,
   onColorSelect,
+  onStrokeWidthSelect,
   drawings = [],
   selectedDrawingId,
   onDrawingSelect,
@@ -145,23 +203,21 @@ export function DrawingEditor({
 }: DrawingEditorProps) {
   const { t } = useTranslation();
 
-  // Tools disabled based on current mode:
-  // - Image mode: enabled (ImageArea must exist for checkbox to appear)
-  // - Video mode: only enabled when playhead is inside a VideoSection
-  const isToolsDisabled = drawingMode === 'image' ? false : !isInVideoSection;
+  // Tools disabled when in video mode and playhead is outside a VideoSection
+  const isToolsDisabled = drawingMode === 'video' && !isInVideoSection;
 
   // Get selected drawing data
   const selectedDrawing = useMemo(() => {
     return drawings.find((d) => d.id === selectedDrawingId) ?? null;
   }, [drawings, selectedDrawingId]);
 
-  // Derive effective selection set (backward compat: single selectedDrawingId → Set)
+  // Derive effective selection set
   const effectiveSelectedIds = useMemo(
     () => selectedDrawingIdsProp ?? (selectedDrawingId ? new Set([selectedDrawingId]) : new Set<string>()),
     [selectedDrawingIdsProp, selectedDrawingId],
   );
 
-  // Selected video drawings with valid frame range (used for timeline drag + render)
+  // Selected video drawings with valid frame range
   const selectedVideoDrawings = useMemo(
     () =>
       drawings.filter(
@@ -176,6 +232,8 @@ export function DrawingEditor({
 
   // Show selected drawing's color if one is selected, otherwise show active color
   const displayColor = selectedDrawingColor ?? activeColor;
+  // Show selected drawing's stroke width if one is selected, otherwise show active
+  const displayStrokeWidth = selectedDrawingStrokeWidth ?? activeStrokeWidth;
 
   // Split drawings into image and video arrays
   const imageDrawings = useMemo(
@@ -186,6 +244,9 @@ export function DrawingEditor({
     () => drawings.filter((d) => d.type === 'video').sort((a, b) => (a.startFrame ?? 0) - (b.startFrame ?? 0)),
     [drawings],
   );
+
+  // Active drawings list based on mode
+  const activeDrawings = drawingMode === 'image' ? imageDrawings : videoDrawings;
 
   // Local state for timeline dragging
   const [isDragging, setIsDragging] = useState<'start' | 'end' | null>(null);
@@ -237,7 +298,7 @@ export function DrawingEditor({
     }
   }, [isDragging, handleMouseMove, handleMouseUp]);
 
-  // Keyboard shortcut: Escape to close (ref avoids re-registering on every onClose identity change)
+  // Keyboard shortcut: Escape to close
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
 
@@ -252,192 +313,210 @@ export function DrawingEditor({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Render a single minicard button
-  const renderMinicard = (drawing: DrawingCardData, section: 'image' | 'video') => {
-    const Icon = getShapeIcon(drawing.shapeType);
-    const isInSelection = effectiveSelectedIds.has(drawing.id);
-    const bgColor = drawing.type === 'image'
-      ? 'var(--color-element-image)'
-      : 'var(--color-element-drawing)';
-    const TypeIcon = drawing.type === 'image' ? Image : Video;
+  // Handle drawing list row click
+  const handleDrawingRowClick = useCallback((drawing: DrawingCardData, e: React.MouseEvent) => {
+    onDrawingSectionChange?.(drawing.type);
+    if (onDrawingMultiSelect) {
+      const modifier = (e.ctrlKey || e.metaKey) ? 'ctrl' : e.shiftKey ? 'shift' : null;
+      onDrawingMultiSelect(drawing.id, modifier);
+    } else {
+      onDrawingSelect?.(drawing.id);
+    }
+  }, [onDrawingSectionChange, onDrawingMultiSelect, onDrawingSelect]);
 
-    const handleMinicardClick = (e: React.MouseEvent) => {
-      onDrawingSectionChange?.(section);
-      if (onDrawingMultiSelect) {
-        if (e.ctrlKey || e.metaKey) {
-          onDrawingMultiSelect(drawing.id, 'ctrl');
-        } else if (e.shiftKey) {
-          onDrawingMultiSelect(drawing.id, 'shift');
-        } else {
-          onDrawingMultiSelect(drawing.id, null);
-        }
-      } else {
-        onDrawingSelect?.(drawing.id);
-      }
-    };
-
-    return (
-      <button
-        key={drawing.id}
-        type="button"
-        onClick={handleMinicardClick}
-        className={clsx(
-          'relative w-7 h-7 rounded flex items-center justify-center transition-all',
-          'hover:scale-110',
-          isInSelection && 'ring-2 ring-white',
-        )}
-        style={{ backgroundColor: bgColor }}
-        aria-label={t('editorCore.selectDrawing')}
-        aria-pressed={isInSelection}
-      >
-        <Icon className="h-3.5 w-3.5 text-white" />
-        <TypeIcon
-          className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 text-white opacity-80"
-          style={{ filter: 'drop-shadow(0 0 1px rgba(0,0,0,0.5))' }}
-        />
-      </button>
-    );
-  };
+  // Format time from percent
+  const formatTime = useCallback((percent: number): string => {
+    const seconds = (percent / 100) * duration;
+    return `${seconds.toFixed(1)}s`;
+  }, [duration]);
 
   return (
-    <div className="flex flex-col gap-2 p-3">
-      {/* Header row: Close button */}
-      <div className="flex items-center justify-end">
+    <div className="flex flex-col p-3 gap-3">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between">
+        <h3 className="text-xs font-semibold text-[var(--color-text-base)] tracking-wide">
+          {t('editorCore.drawingTools', 'Drawing Tools')}
+        </h3>
         <button
           type="button"
           onClick={onClose}
-          className="p-1 rounded hover:bg-[var(--item-bg-hover)] transition-colors"
+          className="p-1 rounded-md hover:bg-[var(--item-bg-hover)] transition-colors"
           aria-label={t('common.close')}
           data-testid="drawing-editor-close"
         >
-          <X className="h-4 w-4 text-[var(--color-text-muted)]" />
+          <X className="h-3.5 w-3.5 text-[var(--color-text-muted)]" />
         </button>
       </div>
 
-      {/* Tools row: Drawing tools | Colors */}
+      {/* ── Tools ── */}
       <div
         data-testid="drawing-tools-row"
-        className={clsx(
-          'flex items-center gap-2 flex-wrap',
-          isToolsDisabled && 'opacity-40 pointer-events-none'
-        )}
+        className={clsx(isToolsDisabled && 'opacity-40 pointer-events-none')}
       >
-        <DrawingToolbar
-          activeTool={activeTool}
-          onToolSelect={onToolSelect}
-        />
-        <div className="h-5 w-px bg-[var(--color-border-base)]" />
+        <SectionLabel>{t('editorCore.sectionShape', 'Shape')}</SectionLabel>
+        <DrawingToolbar activeTool={activeTool} onToolSelect={onToolSelect} />
+      </div>
+
+      {/* ── Divider ── */}
+      <div className="h-px bg-[var(--color-border-base)]" />
+
+      {/* ── Color ── */}
+      <div className={clsx(isToolsDisabled && 'opacity-40 pointer-events-none')}>
+        <SectionLabel>{t('editorCore.sectionColor', 'Color')}</SectionLabel>
         <ColorPalette activeColor={displayColor} onColorSelect={onColorSelect} />
       </div>
 
-      {/* Font size buttons - only visible when a text drawing is selected */}
-      {selectedDrawing?.shapeType === 'text' && onFontSizeSelect && (
-        <div className="flex items-center gap-1">
-          {TEXT_SIZES.map(({ label, value, ariaLabel }) => (
-            <button
+      {/* ── Stroke width ── */}
+      <div className={clsx(isToolsDisabled && 'opacity-40 pointer-events-none')}>
+        <SectionLabel>{t('editorCore.sectionStroke', 'Stroke')}</SectionLabel>
+        <div className="flex gap-1">
+          {STROKE_WIDTHS.map(({ label, value, ariaLabel }) => (
+            <TogglePill
               key={label}
-              type="button"
-              onClick={() => onFontSizeSelect(value)}
-              aria-label={ariaLabel}
-              className={clsx(
-                'px-2 py-0.5 text-xs rounded font-medium transition-colors',
-                (selectedDrawingFontSize ?? 5) === value
-                  ? 'bg-[var(--color-primary)] text-white'
-                  : 'bg-[var(--color-bg-base)] text-[var(--color-text-muted)] hover:bg-[var(--color-bg-hover)]'
-              )}
-            >
-              {label}
-            </button>
+              label={label}
+              active={displayStrokeWidth === value}
+              onClick={() => onStrokeWidthSelect?.(value)}
+              ariaLabel={t(`editorCore.stroke${label}`, ariaLabel)}
+            />
           ))}
         </div>
-      )}
+      </div>
 
-      {/* Drawing Minicards - only show section matching current mode */}
-      {drawingMode === 'image' && imageDrawings.length > 0 && (
-        <div className="mt-1" data-testid="image-drawings-section">
-          <div className="flex items-center gap-1 mb-1">
-            <Image className="h-3 w-3 text-[var(--color-element-image)]" />
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {t('editorCore.imageDrawings', 'Image')}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {imageDrawings.map((drawing) => renderMinicard(drawing, 'image'))}
-          </div>
-        </div>
-      )}
-      {drawingMode === 'video' && videoDrawings.length > 0 && (
-        <div className="mt-1" data-testid="video-drawings-section">
-          <div className="flex items-center gap-1 mb-1">
-            <Video className="h-3 w-3 text-[var(--color-element-drawing)]" />
-            <span className="text-xs text-[var(--color-text-muted)]">
-              {t('editorCore.videoDrawings', 'Video')}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1">
-            {videoDrawings.map((drawing) => renderMinicard(drawing, 'video'))}
+      {/* ── Font size (text drawings only) ── */}
+      {selectedDrawing?.shapeType === 'text' && onFontSizeSelect && (
+        <div>
+          <SectionLabel>{t('editorCore.sectionFontSize', 'Font Size')}</SectionLabel>
+          <div className="flex gap-1">
+            {TEXT_SIZES.map(({ label, value, ariaLabel }) => (
+              <TogglePill
+                key={label}
+                label={label}
+                active={(selectedDrawingFontSize ?? 5) === value}
+                onClick={() => onFontSizeSelect(value)}
+                ariaLabel={ariaLabel}
+              />
+            ))}
           </div>
         </div>
       )}
 
-      {/* Timeline for video mode */}
+      {/* ── Drawings list ── */}
+      {activeDrawings.length > 0 && (
+        <>
+          <div className="h-px bg-[var(--color-border-base)]" />
+          <div>
+            <SectionLabel>
+              {t('editorCore.sectionDrawings', 'Drawings')}
+              <span className="ml-1 text-[var(--color-text-subtle)]">
+                {activeDrawings.length}
+              </span>
+            </SectionLabel>
+            <div className="flex flex-col gap-0.5" data-testid={`${drawingMode}-drawings-section`}>
+              {activeDrawings.map((drawing) => {
+                const Icon = getShapeIcon(drawing.shapeType);
+                const isSelected = effectiveSelectedIds.has(drawing.id);
+                const colorValue = getShapeColorValue(drawing.color);
+
+                return (
+                  <button
+                    key={drawing.id}
+                    type="button"
+                    onClick={(e) => handleDrawingRowClick(drawing, e)}
+                    className={clsx(
+                      'group flex items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                      'border-l-2',
+                      isSelected
+                        ? 'bg-[var(--item-bg-selected)] border-l-[var(--color-primary)]'
+                        : 'bg-transparent hover:bg-[var(--item-bg-hover)]'
+                    )}
+                    style={isSelected ? undefined : { borderLeftColor: colorValue }}
+                    aria-label={t('editorCore.selectDrawing')}
+                    aria-pressed={isSelected}
+                  >
+                    <Icon
+                      className="h-3.5 w-3.5 shrink-0"
+                      style={{ color: colorValue }}
+                    />
+                    <span className={clsx(
+                      'text-[0.6875rem] truncate flex-1',
+                      isSelected
+                        ? 'text-[var(--color-text-base)]'
+                        : 'text-[var(--color-text-secondary)] group-hover:text-[var(--color-text-base)]'
+                    )}>
+                      {(() => {
+                        const { key, label } = SHAPE_I18N[drawing.shapeType] ?? DEFAULT_SHAPE_I18N;
+                        return t(key, label);
+                      })()}
+                    </span>
+                    {drawing.type === 'video' && drawing.startFrame != null && drawing.endFrame != null && (
+                      <span className="text-[0.5625rem] tabular-nums text-[var(--color-text-muted)] whitespace-nowrap">
+                        {formatTime(drawing.startFrame)}–{formatTime(drawing.endFrame)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Timeline (video mode only) ── */}
       {drawingMode === 'video' && (
-        <div className="mt-2">
-          {/* Timeline track */}
-          <div
-            ref={trackRef}
-            className="relative h-6 bg-[var(--color-bg-surface)] rounded border border-[var(--color-border-base)]"
-          >
-            {/* Drawing range bar - supports multi-select combined range */}
-            {(() => {
-              if (selectedVideoDrawings.length === 0) return null;
+        <>
+          <div className="h-px bg-[var(--color-border-base)]" />
+          <div>
+            <SectionLabel>{t('editorCore.sectionTimeline', 'Timeline')}</SectionLabel>
+            <div
+              ref={trackRef}
+              className="relative h-5 rounded bg-[var(--color-bg-surface)] border border-[var(--color-border-base)]"
+            >
+              {(() => {
+                if (selectedVideoDrawings.length === 0) return null;
 
-              const combinedStart = Math.min(...selectedVideoDrawings.map((d) => d.startFrame ?? 0));
-              const combinedEnd = Math.max(...selectedVideoDrawings.map((d) => d.endFrame ?? 100));
+                const combinedStart = Math.min(...selectedVideoDrawings.map((d) => d.startFrame ?? 0));
+                const combinedEnd = Math.max(...selectedVideoDrawings.map((d) => d.endFrame ?? 100));
 
-              return (
-                <>
-                  <div
-                    className="absolute top-1 bottom-1 rounded-sm"
-                    style={{
-                      left: `${combinedStart}%`,
-                      width: `${combinedEnd - combinedStart}%`,
-                      backgroundColor: 'var(--color-element-drawing)',
-                      opacity: 0.6,
-                    }}
-                  />
-
-                  {/* Start/End markers */}
-                  <TimelineMarker
-                    position={combinedEnd}
-                    isDragging={isDragging === 'end'}
-                    zIndex={combinedEnd - combinedStart < 5 ? 1 : 2}
-                    onMouseDown={handleMouseDown('end')}
-                    ariaLabel={t('editorCore.drawingEnd', 'End')}
-                  />
-                  <TimelineMarker
-                    position={combinedStart}
-                    isDragging={isDragging === 'start'}
-                    zIndex={combinedEnd - combinedStart < 5 ? 2 : 1}
-                    onMouseDown={handleMouseDown('start')}
-                    ariaLabel={t('editorCore.drawingStart', 'Start')}
-                  />
-                </>
-              );
-            })()}
+                return (
+                  <>
+                    <div
+                      className="absolute top-0.5 bottom-0.5 rounded-sm"
+                      style={{
+                        left: `${combinedStart}%`,
+                        width: `${combinedEnd - combinedStart}%`,
+                        backgroundColor: 'var(--color-element-drawing)',
+                        opacity: 0.6,
+                      }}
+                    />
+                    <TimelineMarker
+                      position={combinedEnd}
+                      isDragging={isDragging === 'end'}
+                      zIndex={combinedEnd - combinedStart < 5 ? 1 : 2}
+                      onMouseDown={handleMouseDown('end')}
+                      ariaLabel={t('editorCore.drawingEnd', 'End')}
+                    />
+                    <TimelineMarker
+                      position={combinedStart}
+                      isDragging={isDragging === 'start'}
+                      zIndex={combinedEnd - combinedStart < 5 ? 2 : 1}
+                      onMouseDown={handleMouseDown('start')}
+                      ariaLabel={t('editorCore.drawingStart', 'Start')}
+                    />
+                  </>
+                );
+              })()}
+            </div>
+            <div className="flex justify-between text-[0.5625rem] tabular-nums text-[var(--color-text-muted)] mt-0.5 px-0.5">
+              <span>0s</span>
+              <span>{duration.toFixed(1)}s</span>
+            </div>
           </div>
-
-          {/* Time labels */}
-          <div className="flex justify-between text-xs text-[var(--color-text-subtle)] mt-0.5">
-            <span>0s</span>
-            <span>{duration.toFixed(1)}s</span>
-          </div>
-        </div>
+        </>
       )}
 
-      {/* Info text when tools are disabled (only in video mode outside VideoSection) */}
+      {/* ── Disabled info ── */}
       {isToolsDisabled && (
-        <p className="text-xs text-[var(--color-text-muted)] mt-1">
+        <p className="text-[0.6875rem] text-[var(--color-text-muted)] leading-snug">
           {t('editorCore.moveToVideoSection', 'Move playhead inside a video section to draw')}
         </p>
       )}

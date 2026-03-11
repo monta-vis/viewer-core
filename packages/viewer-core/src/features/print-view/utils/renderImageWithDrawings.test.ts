@@ -35,6 +35,7 @@ function createMockCtx() {
     fill: vi.fn(),
     closePath: vi.fn(),
     strokeRect: vi.fn(),
+    fillRect: vi.fn(),
     ellipse: vi.fn(),
     fillText: vi.fn(),
     measureText: vi.fn().mockReturnValue({ width: 100 }),
@@ -122,11 +123,12 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [mockDrawing],
       width: 800,
-      height: 600,
     });
 
     expect(result).toBe('data:image/png;base64,canvasOutput123');
     expect(mockCtx.scale).toHaveBeenCalledWith(2, 2);
+    // Black background fill + image draw
+    expect(mockCtx.fillRect).toHaveBeenCalledWith(0, 0, 800, 800);
     expect(mockCtx.drawImage).toHaveBeenCalledTimes(1);
   });
 
@@ -135,7 +137,6 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [mockDrawing],
       width: 800,
-      height: 600,
     });
 
     // Arrow draws a line then an arrowhead
@@ -156,7 +157,6 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [rectDrawing],
       width: 800,
-      height: 600,
     });
 
     expect(mockCtx.strokeRect).toHaveBeenCalledTimes(1);
@@ -172,7 +172,6 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [circleDrawing],
       width: 800,
-      height: 600,
     });
 
     expect(mockCtx.ellipse).toHaveBeenCalledTimes(1);
@@ -197,7 +196,6 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [textDrawing],
       width: 800,
-      height: 600,
     });
 
     // Should measure text for card sizing
@@ -225,7 +223,6 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [freehandDrawing],
       width: 800,
-      height: 600,
     });
 
     expect(mockCtx.moveTo).toHaveBeenCalledTimes(1);
@@ -240,7 +237,6 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [mockDrawing],
       width: 800,
-      height: 600,
     });
 
     expect(result).toBe('mvis-media://folder/media/frames/vfa-1/image');
@@ -251,7 +247,6 @@ describe('renderImageWithDrawings', () => {
       imageUrl: 'mvis-media://folder/media/frames/vfa-1/image',
       drawings: [],
       width: 800,
-      height: 600,
     });
 
     expect(result).toBe('mvis-media://folder/media/frames/vfa-1/image');

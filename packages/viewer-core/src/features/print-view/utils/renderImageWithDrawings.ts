@@ -3,8 +3,8 @@ import type { DrawingRow } from '@/features/instruction';
 interface RenderImageWithDrawingsOptions {
   imageUrl: string;
   drawings: DrawingRow[];
+  /** Canvas size in CSS pixels (renders a square 1:1 canvas) */
   width: number;
-  height: number;
 }
 
 /**
@@ -69,10 +69,9 @@ export async function renderImageWithDrawings(
 
     const img = await loadImage(base64Url);
 
-    // Size canvas to requested width, preserve aspect ratio
-    const aspectRatio = img.naturalHeight / img.naturalWidth;
+    // 1:1 square canvas with letterboxed image
     const canvasW = width;
-    const canvasH = Math.round(width * aspectRatio);
+    const canvasH = width;
 
     const pixelRatio = 2;
     const canvas = document.createElement('canvas');
@@ -86,8 +85,28 @@ export async function renderImageWithDrawings(
     }
     ctx.scale(pixelRatio, pixelRatio);
 
-    // Draw base image filling entire canvas (no letterboxing)
-    ctx.drawImage(img, 0, 0, canvasW, canvasH);
+    // Fill black background for letterbox areas
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, canvasW, canvasH);
+
+    // Compute letterbox bounds (object-contain in square)
+    const imgAspect = img.naturalWidth / img.naturalHeight;
+    let imgX: number, imgY: number, imgW: number, imgH: number;
+    if (imgAspect > 1) {
+      // Wider: fill width, letterbox top/bottom
+      imgW = canvasW;
+      imgH = canvasW / imgAspect;
+      imgX = 0;
+      imgY = (canvasH - imgH) / 2;
+    } else {
+      // Taller or square: fill height, letterbox left/right
+      imgH = canvasH;
+      imgW = canvasH * imgAspect;
+      imgY = 0;
+      imgX = (canvasW - imgW) / 2;
+    }
+
+    ctx.drawImage(img, imgX, imgY, imgW, imgH);
 
     // Draw each annotation using normalized 0–1 coords → canvas pixel space
     for (const d of drawings) {

@@ -11,7 +11,6 @@ describe('useImageDrawing', () => {
     addDrawing: vi.fn(),
     updateDrawing: vi.fn(),
     deleteDrawing: vi.fn(),
-    areaBounds: null,
   };
 
   beforeEach(() => {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useMemo } from 'react';
+import { useCallback, useRef, useEffect, useMemo, useState } from 'react';
 import { clsx } from 'clsx';
 
 import type { DrawingRow } from '@/features/instruction';
@@ -99,6 +99,8 @@ interface ImageOverlayProps {
   onAnnotationDoubleClick?: (annotationId: string) => void;
   /** Whether to show the black background behind the image (default: true) */
   showBackground?: boolean;
+  /** When true, annotation overlay covers the full container (not just image bounds) */
+  annotationsFullContainer?: boolean;
 }
 
 /**
@@ -140,6 +142,7 @@ export function ImageOverlay({
   annotationBounds,
   onAnnotationDoubleClick,
   showBackground = true,
+  annotationsFullContainer = false,
 }: ImageOverlayProps) {
   const outerContainerRef = useRef<HTMLDivElement | null>(null);
   const imageOverlayRef = useRef<HTMLDivElement | null>(null);
@@ -148,9 +151,32 @@ export function ImageOverlay({
   // Get actual image bounds (position within container, accounting for letterboxing)
   const imageBounds = useImageBounds(outerContainerRef, imageRef);
 
-  // Derive overlay dimensions directly from imageBounds (no extra render cycle)
-  const overlayWidth = imageBounds?.width ?? 0;
-  const overlayHeight = imageBounds?.height ?? 0;
+  // Track outer container size for full-container annotation mode
+  const [outerSize, setOuterSize] = useState({ width: 0, height: 0 });
+  useEffect(() => {
+    if (!annotationsFullContainer) return;
+    const el = outerContainerRef.current;
+    if (!el) return;
+
+    const updateSize = (width: number, height: number) => {
+      setOuterSize((prev) =>
+        prev.width === width && prev.height === height ? prev : { width, height },
+      );
+    };
+
+    const rect = el.getBoundingClientRect();
+    updateSize(rect.width, rect.height);
+
+    const ro = new ResizeObserver(([entry]) => {
+      updateSize(entry.contentRect.width, entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [annotationsFullContainer]);
+
+  // Derive overlay dimensions: full container when annotationsFullContainer, otherwise imageBounds
+  const overlayWidth = annotationsFullContainer ? outerSize.width : (imageBounds?.width ?? 0);
+  const overlayHeight = annotationsFullContainer ? outerSize.height : (imageBounds?.height ?? 0);
 
   // Area selection hook
   const {
@@ -278,25 +304,26 @@ export function ImageOverlay({
           ref={imageRef}
           src={imageSrc}
           alt=""
-          className="max-w-full max-h-full object-contain"
+          className="w-full h-full object-contain"
           draggable={false}
         />
       </div>
 
-      {/* Image overlay div - positioned exactly over the image, excluding letterbox */}
-      {imageBounds && (
+      {/* Image overlay div - positioned over image or full container */}
+      {(annotationsFullContainer || imageBounds) && (
         <div
           ref={setImageOverlayRef}
           className={clsx(
             'absolute',
+            annotationsFullContainer && 'inset-0',
             isDrawMode && 'cursor-crosshair',
             isResizing && 'cursor-nwse-resize'
           )}
-          style={{
-            left: imageBounds.x,
-            top: imageBounds.y,
-            width: imageBounds.width,
-            height: imageBounds.height,
+          style={annotationsFullContainer ? undefined : {
+            left: imageBounds!.x,
+            top: imageBounds!.y,
+            width: imageBounds!.width,
+            height: imageBounds!.height,
           }}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}

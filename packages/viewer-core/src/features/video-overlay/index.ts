@@ -106,4 +106,4 @@ export type { ShapeColor as AnnotationColor } from './types';
 export type { ShapeHandleType as AnnotationHandleType } from './types';
 export type { ShapeHandleType as DrawingHandleType } from './types';
 export { SHAPE_COLORS as ANNOTATION_COLORS } from './types';
-export { TEXT_SIZES } from './types';
+export { TEXT_SIZES, STROKE_WIDTHS } from './types';

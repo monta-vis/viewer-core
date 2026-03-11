@@ -4,7 +4,6 @@ import type {
   DrawingRow,
   DrawnShape,
   Point,
-  Rectangle,
 } from '@monta-vis/viewer-core';
 import type { DrawingCardData } from '../components/DrawingEditor';
 import { useDrawingState } from './useDrawingState';
@@ -17,8 +16,6 @@ export interface UseImageDrawingProps {
   addDrawing: (drawing: DrawingRow) => void;
   updateDrawing: (id: string, updates: Partial<DrawingRow>) => void;
   deleteDrawing: (id: string) => void;
-  /** Area bounds for constraining annotations (normalized 0-1, from VideoFrameArea) */
-  areaBounds: Rectangle | null;
 }
 
 /**
@@ -37,7 +34,6 @@ export function useImageDrawing({
   addDrawing,
   updateDrawing,
   deleteDrawing,
-  areaBounds,
 }: UseImageDrawingProps) {
   const shared = useDrawingState({ drawings, updateDrawing, deleteDrawing });
 
@@ -61,7 +57,7 @@ export function useImageDrawing({
 
   const isDrawingMode = shared.drawingTool !== null;
 
-  // Minicard data for DrawingEditor
+  // List row data for DrawingEditor
   const drawingCards: DrawingCardData[] = useMemo(
     () => annotations.map((d) => ({ id: d.id, type: 'image' as const, shapeType: d.type, color: d.color as string })),
     [annotations]
@@ -102,9 +98,6 @@ export function useImageDrawing({
   const drawingsRef = useRef(drawings);
   drawingsRef.current = drawings;
 
-  const areaBoundsRef = useRef(areaBounds);
-  areaBoundsRef.current = areaBounds;
-
   const handleDrawingDoubleClick = useCallback((id: string) => {
     const drawing = drawingsRef.current[id];
     if (!drawing || drawing.type !== 'text') return;
@@ -120,14 +113,11 @@ export function useImageDrawing({
   const handleTextInput = useCallback((position: Point) => {
     if (!videoFrameAreaId) return;
 
-    // Transform from container space (0-100%) to local space (0-1)
-    const bounds = areaBoundsRef.current;
-    const pos = bounds
-      ? {
-          x: Math.max(0, Math.min(1, (position.x - bounds.x) / bounds.width)),
-          y: Math.max(0, Math.min(1, (position.y - bounds.y) / bounds.height)),
-        }
-      : position;
+    // Position is in container % (0-100), divide by 100 to get 0-1 storage space
+    const pos = {
+      x: position.x / 100,
+      y: position.y / 100,
+    };
 
     const newId = uuid();
     const newDrawing: DrawingRow = {
@@ -139,7 +129,7 @@ export function useImageDrawing({
       endFrame: null,
       type: 'text',
       color: shared.drawingColor,
-      strokeWidth: 2,
+      strokeWidth: shared.drawingStrokeWidth,
       x1: pos.x,
       y1: pos.y,
       x2: null,
@@ -161,7 +151,7 @@ export function useImageDrawing({
       initialFontSize: 5,
       editingDrawingId: newId,
     });
-  }, [videoFrameAreaId, versionId, shared.drawingColor, addDrawing, shared.setSelectedDrawingId]);
+  }, [videoFrameAreaId, versionId, shared.drawingColor, shared.drawingStrokeWidth, addDrawing, shared.setSelectedDrawingId]);
 
   const handleTextSubmit = useCallback(
     (text: string, fontSize: number) => {
@@ -186,6 +176,7 @@ export function useImageDrawing({
     // State
     drawingTool: shared.drawingTool,
     drawingColor: shared.drawingColor,
+    drawingStrokeWidth: shared.drawingStrokeWidth,
     selectedDrawingId: shared.selectedDrawingId,
     selectedDrawingIds: shared.selectedDrawingIds,
     textInputState,
@@ -193,10 +184,10 @@ export function useImageDrawing({
 
     // Derived data
     annotations,
-    annotationBounds: areaBounds,
     drawingCards,
     selectedDrawingColor: shared.selectedDrawingColor,
     selectedDrawingFontSize: shared.selectedDrawingFontSize,
+    selectedDrawingStrokeWidth: shared.selectedDrawingStrokeWidth,
 
     // Handlers
     handleShapeDrawn,
@@ -207,6 +198,7 @@ export function useImageDrawing({
     handleDrawingToolSelect: shared.handleDrawingToolSelect,
     handleDrawingColorSelect: shared.handleDrawingColorSelect,
     handleDrawingFontSizeSelect: shared.handleDrawingFontSizeSelect,
+    handleDrawingStrokeWidthSelect: shared.handleDrawingStrokeWidthSelect,
     handleTextInput,
     handleTextSubmit,
     handleTextCancel,

@@ -246,6 +246,13 @@ export const TEXT_SIZES = [
   { label: 'L', value: 8, ariaLabel: 'Large' },
 ] as const;
 
+/** Stroke width presets for shape drawings */
+export const STROKE_WIDTHS = [
+  { label: 'S', value: 1, ariaLabel: 'Thin stroke' },
+  { label: 'M', value: 2, ariaLabel: 'Medium stroke' },
+  { label: 'L', value: 3, ariaLabel: 'Thick stroke' },
+] as const;
+
 // ============================================
 // Initial States
 // ============================================

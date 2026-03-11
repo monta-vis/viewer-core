@@ -27,8 +27,6 @@ export interface ImageEditDialogProps {
   onAddDrawing: (drawing: DrawingRow) => void;
   onUpdateDrawing: (id: string, updates: Partial<DrawingRow>) => void;
   onDeleteDrawing: (id: string) => void;
-  /** Area bounds for annotation constraint (in 0-100% video-local space) */
-  areaBounds?: Rectangle | null;
 }
 
 /**
@@ -59,11 +57,8 @@ export function ImageEditDialog({
   onAddDrawing,
   onUpdateDrawing,
   onDeleteDrawing,
-  areaBounds,
 }: ImageEditDialogProps) {
   const { t } = useTranslation();
-
-  const effectiveBounds = areaBounds ?? FULL_IMAGE_BOUNDS;
 
   // Drawing state management
   const imageDrawing = useImageDrawing({
@@ -73,16 +68,16 @@ export function ImageEditDialog({
     addDrawing: onAddDrawing,
     updateDrawing: onUpdateDrawing,
     deleteDrawing: onDeleteDrawing,
-    areaBounds: effectiveBounds,
   });
 
   // Annotation drawing hook (actual mouse interaction)
   const annotationDrawingHook = useAnnotationDrawing({
     tool: imageDrawing.drawingTool,
     color: imageDrawing.drawingColor,
+    strokeWidth: imageDrawing.drawingStrokeWidth,
     onShapeCreate: imageDrawing.handleShapeDrawn,
     onTextInput: imageDrawing.handleTextInput,
-    bounds: effectiveBounds,
+    bounds: FULL_IMAGE_BOUNDS,
   });
 
   // Annotation resize hook (with group move/resize support)
@@ -113,7 +108,7 @@ export function ImageEditDialog({
         onUpdateDrawing(id, finalUpdates);
       }
     },
-    bounds: effectiveBounds,
+    bounds: FULL_IMAGE_BOUNDS,
   });
 
   // Delete key handler for selected annotation (multi-select aware)
@@ -184,9 +179,12 @@ export function ImageEditDialog({
         <DrawingEditor
           activeTool={imageDrawing.drawingTool}
           activeColor={imageDrawing.drawingColor}
+          activeStrokeWidth={imageDrawing.drawingStrokeWidth}
           selectedDrawingColor={imageDrawing.selectedDrawingColor}
+          selectedDrawingStrokeWidth={imageDrawing.selectedDrawingStrokeWidth}
           onToolSelect={imageDrawing.handleDrawingToolSelect}
           onColorSelect={imageDrawing.handleDrawingColorSelect}
+          onStrokeWidthSelect={imageDrawing.handleDrawingStrokeWidthSelect}
           drawings={imageDrawing.drawingCards}
           selectedDrawingId={imageDrawing.selectedDrawingId}
           onDrawingSelect={imageDrawing.handleDrawingSelect}
@@ -199,31 +197,33 @@ export function ImageEditDialog({
         />
       }
     >
-      {/* Image overlay area */}
-      <div className="p-4 h-full">
-        <ImageOverlay
-          imageSrc={imageSrc}
-          showBackground={false}
-          mode={overlayMode}
-          annotations={imageDrawing.annotations}
-          selectedAnnotationId={imageDrawing.selectedDrawingId}
-          selectedAnnotationIds={imageDrawing.selectedDrawingIds}
-          onAnnotationClick={handleAnnotationClick}
-          onAnnotationClickWithEvent={handleAnnotationClickWithEvent}
-          onAnnotationDoubleClick={imageDrawing.handleDrawingDoubleClick}
-          onAnnotationDelete={imageDrawing.handleDrawingDelete}
-          annotationTool={imageDrawing.drawingTool}
-          annotationColor={imageDrawing.drawingColor}
-          annotationDrawing={annotationDrawingHook}
-          onAnnotationMouseDown={annotationDrawingHook.handleMouseDown}
-          onAnnotationMouseMove={annotationDrawingHook.handleMouseMove}
-          onAnnotationMouseUp={annotationDrawingHook.handleMouseUp}
-          onAnnotationHandleMouseDown={handleAnnotationHandleMouseDown}
-          annotationResizeContainerRef={annotationResize.containerRef}
-          annotationResizeState={annotationResize}
-          onBackgroundClick={handleBackgroundClick}
-          annotationBounds={effectiveBounds}
-        />
+      {/* Image overlay area — square container, bg-black provides letterbox bars */}
+      <div className="h-full flex items-center justify-center">
+        <div className="aspect-square h-full max-w-full overflow-hidden">
+          <ImageOverlay
+            imageSrc={imageSrc}
+            mode={overlayMode}
+            annotations={imageDrawing.annotations}
+            selectedAnnotationId={imageDrawing.selectedDrawingId}
+            selectedAnnotationIds={imageDrawing.selectedDrawingIds}
+            onAnnotationClick={handleAnnotationClick}
+            onAnnotationClickWithEvent={handleAnnotationClickWithEvent}
+            onAnnotationDoubleClick={imageDrawing.handleDrawingDoubleClick}
+            onAnnotationDelete={imageDrawing.handleDrawingDelete}
+            annotationTool={imageDrawing.drawingTool}
+            annotationColor={imageDrawing.drawingColor}
+            annotationDrawing={annotationDrawingHook}
+            onAnnotationMouseDown={annotationDrawingHook.handleMouseDown}
+            onAnnotationMouseMove={annotationDrawingHook.handleMouseMove}
+            onAnnotationMouseUp={annotationDrawingHook.handleMouseUp}
+            onAnnotationHandleMouseDown={handleAnnotationHandleMouseDown}
+            annotationResizeContainerRef={annotationResize.containerRef}
+            annotationResizeState={annotationResize}
+            onBackgroundClick={handleBackgroundClick}
+            annotationBounds={FULL_IMAGE_BOUNDS}
+            annotationsFullContainer
+          />
+        </div>
       </div>
 
       {/* Text editing modal */}

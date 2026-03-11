@@ -556,6 +556,7 @@ function VideoEditorViewMode({
   const annotationDrawingHook = useAnnotationDrawing({
     tool: videoDrawing.drawingTool,
     color: videoDrawing.drawingColor,
+    strokeWidth: videoDrawing.drawingStrokeWidth,
     onShapeCreate: videoDrawing.handleShapeDrawn,
     onTextInput: handleTextInputLocal,
     bounds: FULL_BOUNDS,
@@ -735,9 +736,12 @@ function VideoEditorViewMode({
         <DrawingEditor
           activeTool={videoDrawing.drawingTool}
           activeColor={videoDrawing.drawingColor}
+          activeStrokeWidth={videoDrawing.drawingStrokeWidth}
           selectedDrawingColor={videoDrawing.selectedDrawingColor}
+          selectedDrawingStrokeWidth={videoDrawing.selectedDrawingStrokeWidth}
           onToolSelect={videoDrawing.handleDrawingToolSelect}
           onColorSelect={videoDrawing.handleDrawingColorSelect}
+          onStrokeWidthSelect={videoDrawing.handleDrawingStrokeWidthSelect}
           drawings={videoDrawing.drawingCards}
           selectedDrawingId={videoDrawing.selectedDrawingId}
           onDrawingSelect={videoDrawing.handleDrawingSelect}

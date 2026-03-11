@@ -16,7 +16,6 @@ import type {
   FrameCaptureData,
   ViewportKeyframeRow,
   DrawingRow,
-  Rectangle,
 } from '@monta-vis/viewer-core';
 import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon, DialogShell } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
@@ -94,8 +93,6 @@ export interface SubstepEditPopoverProps {
   onUpdateDrawing?: (id: string, updates: Partial<DrawingRow>) => void;
   /** Called when a drawing is deleted */
   onDeleteDrawing?: (id: string) => void;
-  /** Annotation bounds for constraining drawings to area */
-  areaBounds?: Rectangle | null;
   /** Called when the user uploads a video for this substep */
   onUploadSubstepVideo?: (file: File, sections: Array<{ startFrame: number; endFrame: number }> | null) => Promise<void>;
   /** Substep ID (needed for video upload routing) */
@@ -196,7 +193,6 @@ export function SubstepEditPopover({
   onAddDrawing,
   onUpdateDrawing,
   onDeleteDrawing,
-  areaBounds,
   onUploadSubstepVideo,
   onUploadRepeatImage,
 }: SubstepEditPopoverProps) {
@@ -674,7 +670,6 @@ export function SubstepEditPopover({
                             onAddDrawing={onAddDrawing}
                             onUpdateDrawing={onUpdateDrawing}
                             onDeleteDrawing={onDeleteDrawing}
-                            areaBounds={areaBounds}
                           />
                         )}
                       </div>

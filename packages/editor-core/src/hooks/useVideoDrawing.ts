@@ -158,7 +158,7 @@ export function useVideoDrawing({
         handleShapeDrawn({
           type: 'text',
           color: shared.drawingColor,
-          strokeWidth: 2,
+          strokeWidth: shared.drawingStrokeWidth,
           x1: textInputState.position.x,
           y1: textInputState.position.y,
           x2: null,
@@ -169,7 +169,7 @@ export function useVideoDrawing({
       }
       setTextInputState({ isOpen: false, position: null });
     },
-    [textInputState, shared.drawingColor, handleShapeDrawn, updateDrawing],
+    [textInputState, shared.drawingColor, shared.drawingStrokeWidth, handleShapeDrawn, updateDrawing],
   );
 
   const handleTextCancel = useCallback(() => {
@@ -180,6 +180,7 @@ export function useVideoDrawing({
     // State
     drawingTool: shared.drawingTool,
     drawingColor: shared.drawingColor,
+    drawingStrokeWidth: shared.drawingStrokeWidth,
     selectedDrawingId: shared.selectedDrawingId,
     selectedDrawingIds: shared.selectedDrawingIds,
     textInputState,
@@ -190,6 +191,7 @@ export function useVideoDrawing({
     annotations: visibleDrawings, // alias for overlay compatibility
     selectedDrawingColor: shared.selectedDrawingColor,
     selectedDrawingFontSize: shared.selectedDrawingFontSize,
+    selectedDrawingStrokeWidth: shared.selectedDrawingStrokeWidth,
 
     // Handlers
     handleShapeDrawn,
@@ -199,6 +201,7 @@ export function useVideoDrawing({
     handleDrawingToolSelect: shared.handleDrawingToolSelect,
     handleDrawingColorSelect: shared.handleDrawingColorSelect,
     handleDrawingFontSizeSelect: shared.handleDrawingFontSizeSelect,
+    handleDrawingStrokeWidthSelect: shared.handleDrawingStrokeWidthSelect,
     handleDrawingFrameUpdate,
     handleTextInput,
     handleTextEdit,

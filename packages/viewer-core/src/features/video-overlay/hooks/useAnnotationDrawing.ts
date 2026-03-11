@@ -10,8 +10,6 @@ import {
 export type AnnotationType = ShapeType;
 export type AnnotationColor = ShapeColor;
 
-type Bounds = Rectangle;
-
 interface DrawingState {
   isDrawing: boolean;
   startPoint: Point | null;
@@ -23,10 +21,12 @@ interface DrawingState {
 interface UseAnnotationDrawingOptions {
   tool: AnnotationType | null;
   color: AnnotationColor;
+  /** Stroke width for new shapes (default: 2) */
+  strokeWidth?: number;
   onShapeCreate: (shape: DrawnShape) => void;
   onTextInput?: (position: Point) => void;
   /** Optional bounds to constrain drawing (e.g., ImageArea/Viewport bounds in Video-Local %) */
-  bounds?: Bounds | null;
+  bounds?: Rectangle | null;
 }
 
 const IDLE_STATE: DrawingState = {
@@ -39,6 +39,7 @@ const IDLE_STATE: DrawingState = {
 export function useAnnotationDrawing({
   tool,
   color,
+  strokeWidth = 2,
   onShapeCreate,
   onTextInput,
   bounds,
@@ -288,7 +289,7 @@ export function useAnnotationDrawing({
       onShapeCreate({
         type: 'freehand',
         color,
-        strokeWidth: 2,
+        strokeWidth,
         x1: finalBBoxStart.x,
         y1: finalBBoxStart.y,
         x2: finalBBoxEnd.x,
@@ -341,7 +342,7 @@ export function useAnnotationDrawing({
     onShapeCreate({
       type: tool,
       color,
-      strokeWidth: 2,
+      strokeWidth,
       x1: finalStart.x,
       y1: finalStart.y,
       x2: finalEnd.x,
@@ -350,7 +351,7 @@ export function useAnnotationDrawing({
     });
 
     setState(IDLE_STATE);
-  }, [state, tool, color, onShapeCreate, bounds]);
+  }, [state, tool, color, strokeWidth, onShapeCreate, bounds]);
 
   const createTextShape = useCallback(
     (position: Point, text: string, fontSize = 5) => {
@@ -369,13 +370,13 @@ export function useAnnotationDrawing({
         x2: null,
         y2: null,
         text,
-        strokeWidth: 2,
+        strokeWidth,
         fontSize,
       };
 
       onShapeCreate(textShape);
     },
-    [color, onShapeCreate, bounds]
+    [color, strokeWidth, onShapeCreate, bounds]
   );
 
   const cancelDrawing = useCallback(() => {
