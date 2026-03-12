@@ -105,4 +105,23 @@ describe('PartToolDetailContent', () => {
 
     expect(screen.queryByTestId('parttool-detail-action-slot')).not.toBeInTheDocument();
   });
+
+  it('compact mode renders only image section, no text fields', () => {
+    render(<PartToolDetailContent item={mockPart} compact />);
+
+    // Image hero section still present
+    expect(screen.getByTestId('parttool-detail-type-badge')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-detail-amount')).toHaveTextContent('8×');
+
+    // Text content section should be hidden
+    expect(screen.queryByTestId('parttool-detail-name')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('parttool-detail-action-slot')).not.toBeInTheDocument();
+  });
+
+  it('compact mode defaults to false (full content rendered)', () => {
+    render(<PartToolDetailContent item={mockPart} />);
+
+    expect(screen.getByTestId('parttool-detail-name')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-detail-type-badge')).toBeInTheDocument();
+  });
 });

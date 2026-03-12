@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Plus, X, Download, Pencil, Trash2 } from 'lucide-react';
+import { Plus, X, Download } from 'lucide-react';
 import type { PartToolRow, SubstepPartToolRow, AggregatedPartTool } from '@monta-vis/viewer-core';
 import { PartIcon, PartToolDetailContent } from '@monta-vis/viewer-core';
 import { sortPartToolRows } from '../utils/partToolHelpers';
@@ -11,7 +11,7 @@ import type { PartToolImageItem } from './PartToolImagePicker';
 import type { NormalizedCrop } from '../persistence/types';
 import { PartToolAddPopover } from './PartToolAddPopover';
 import type { PartToolIconItem } from './PartToolCatalogGrid';
-import { PartToolDetailEditor } from './PartToolDetailEditor';
+import { PartToolSidebarForm, EMPTY_SIDEBAR_FORM, type SidebarFormState } from './PartToolSidebarForm';
 
 export interface PartToolListPanelCallbacks {
   onAddPartTool: (prefill?: Partial<PartToolRow>) => void;
@@ -43,17 +43,60 @@ export interface PartToolListPanelProps {
   catalogItems?: PartToolIconItem[];
   /** Resolve catalog icon URL for display. */
   getCatalogIconUrl?: (item: PartToolIconItem) => string;
-  /** Project folder name for sidebar image resolution. */
-  folderName?: string;
-  /** PartTool-VideoFrameArea junction records for sidebar preview. */
-  partToolVideoFrameAreas?: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>;
-  /** Whether to use blurred media variants. */
-  useBlurred?: boolean;
-  /** VideoFrameArea records for localPath fallback. */
-  videoFrameAreas?: Record<string, { localPath?: string | null }>;
 }
 
-/** Instruction-level part/tool management panel — Table + Preview Sidebar layout. */
+/** Convert a PartToolRow to SidebarFormState */
+function partToolToForm(pt: PartToolRow): SidebarFormState {
+  return {
+    type: pt.type,
+    name: pt.name,
+    label: pt.label ?? '',
+    partNumber: pt.partNumber ?? '',
+    amount: pt.amount,
+    unit: pt.unit ?? '',
+    material: pt.material ?? '',
+    dimension: pt.dimension ?? '',
+    description: pt.description ?? '',
+  };
+}
+
+/** Convert SidebarFormState to Partial<PartToolRow> for add/update */
+function formToPartToolPrefill(form: SidebarFormState): Partial<PartToolRow> {
+  const prefill: Partial<PartToolRow> = {
+    name: form.name.trim(),
+    type: form.type,
+    amount: form.amount,
+  };
+  const optionalFields = ['label', 'partNumber', 'unit', 'material', 'dimension', 'description'] as const;
+  for (const field of optionalFields) {
+    const trimmed = form[field].trim();
+    if (trimmed) prefill[field] = trimmed;
+    else prefill[field] = null;
+  }
+  return prefill;
+}
+
+/** Returns true if the required name field is non-empty */
+function isFormFilled(form: SidebarFormState): boolean {
+  return form.name.trim().length > 0;
+}
+
+/** Compare two form states for dirty-checking */
+function isFormDirty(current: SidebarFormState, snapshot: SidebarFormState): boolean {
+  return (
+    current.type !== snapshot.type ||
+    current.name !== snapshot.name ||
+    current.label !== snapshot.label ||
+    current.partNumber !== snapshot.partNumber ||
+    current.amount !== snapshot.amount ||
+    current.unit !== snapshot.unit ||
+    current.material !== snapshot.material ||
+    current.dimension !== snapshot.dimension ||
+    current.description !== snapshot.description
+  );
+}
+
+/** Instruction-level part/tool management panel — Table + Inline Sidebar Form layout. */
 export function PartToolListPanel({
   open,
   onClose,
@@ -65,10 +108,6 @@ export function PartToolListPanel({
   isImporting,
   catalogItems,
   getCatalogIconUrl,
-  folderName,
-  partToolVideoFrameAreas,
-  useBlurred,
-  videoFrameAreas,
 }: PartToolListPanelProps) {
   const { t } = useTranslation();
 
@@ -76,28 +115,42 @@ export function PartToolListPanel({
   const [selectedPartToolId, setSelectedPartToolId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [addPopoverOpen, setAddPopoverOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [sidebarForm, setSidebarForm] = useState<SidebarFormState>(EMPTY_SIDEBAR_FORM);
+  const snapshotRef = useRef<SidebarFormState>(EMPTY_SIDEBAR_FORM);
 
   // Reset selection if item was deleted
   useEffect(() => {
     if (selectedPartToolId && !partTools[selectedPartToolId]) {
       setSelectedPartToolId(null);
+      setSidebarForm(EMPTY_SIDEBAR_FORM);
+      snapshotRef.current = EMPTY_SIDEBAR_FORM;
     }
   }, [selectedPartToolId, partTools]);
 
-  // Escape to close (only when add popover and edit dialog are closed)
+  // Escape to close (only when add popover is closed)
   useEffect(() => {
-    if (!open || addPopoverOpen || editDialogOpen) return;
+    if (!open || addPopoverOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [open, onClose, addPopoverOpen, editDialogOpen]);
+  }, [open, onClose, addPopoverOpen]);
 
   // ── Row click → select for sidebar ──
   const handleRowClick = useCallback((row: PartToolTableItem) => {
     setSelectedPartToolId(row.rowId);
+    const pt = row.partTool;
+    const form = partToolToForm(pt);
+    setSidebarForm(form);
+    snapshotRef.current = form;
+  }, []);
+
+  // ── Deselect → switch to add mode ──
+  const handleDeselect = useCallback(() => {
+    setSelectedPartToolId(null);
+    setSidebarForm(EMPTY_SIDEBAR_FORM);
+    snapshotRef.current = EMPTY_SIDEBAR_FORM;
   }, []);
 
   // ── Add popover handlers ──
@@ -109,38 +162,48 @@ export function PartToolListPanel({
     setAddPopoverOpen(false);
   }, []);
 
-  const handleAddConfirm = callbacks.onAddPartTool;
+  const handleAddConfirm = useCallback(
+    (prefill?: Partial<PartToolRow>) => callbacks.onAddPartTool(prefill),
+    [callbacks.onAddPartTool],
+  );
 
-  // ── Edit dialog handlers ──
-  const handleEditClick = useCallback(() => {
-    setEditDialogOpen(true);
-  }, []);
+  // ── Dirty / enable logic ──
+  const hasSelection = selectedPartToolId !== null;
+  const dirty = isFormDirty(sidebarForm, snapshotRef.current);
+  const filled = isFormFilled(sidebarForm);
 
-  const handleEditClose = useCallback(() => {
-    setEditDialogOpen(false);
-  }, []);
+  // Add: enabled when form has content AND (no selection, or selection + dirty)
+  const canAdd = filled && (!hasSelection || dirty);
+  // Update: enabled when item selected AND form is dirty AND name is non-empty
+  const canUpdate = hasSelection && dirty && filled;
+
+  // ── Add from sidebar form ──
+  const handleSidebarAdd = useCallback(() => {
+    if (!filled) return;
+    callbacks.onAddPartTool(formToPartToolPrefill(sidebarForm));
+    // Reset form after add
+    setSidebarForm(EMPTY_SIDEBAR_FORM);
+    snapshotRef.current = EMPTY_SIDEBAR_FORM;
+    setSelectedPartToolId(null);
+  }, [sidebarForm, filled, callbacks]);
+
+  // ── Update existing item ──
+  const handleSidebarUpdate = useCallback(() => {
+    if (!selectedPartToolId || !dirty) return;
+    callbacks.onUpdatePartTool(selectedPartToolId, formToPartToolPrefill(sidebarForm));
+    // Update snapshot to reflect saved state
+    snapshotRef.current = sidebarForm;
+  }, [selectedPartToolId, sidebarForm, dirty, callbacks]);
 
   // ── Delete handler ──
   const handleDelete = useCallback(() => {
     if (selectedPartToolId) {
       callbacks.onDeletePartTool(selectedPartToolId);
       setSelectedPartToolId(null);
+      setSidebarForm(EMPTY_SIDEBAR_FORM);
+      snapshotRef.current = EMPTY_SIDEBAR_FORM;
     }
   }, [selectedPartToolId, callbacks]);
-
-  // ── Editor dialog callbacks (stable refs) ──
-  const handleEditorEditAmount = useCallback((partToolId: string, newAmount: string) => {
-    const num = parseInt(newAmount, 10);
-    if (!isNaN(num) && num > 0) {
-      callbacks.onUpdatePartTool(partToolId, { amount: num });
-    }
-  }, [callbacks]);
-
-  const handleEditorDelete = useCallback((partToolId: string) => {
-    callbacks.onDeletePartTool(partToolId);
-    setSelectedPartToolId(null);
-    setEditDialogOpen(false);
-  }, [callbacks]);
 
   // ── Sorted + filtered table rows ──
   const allTableRows: PartToolTableItem[] = useMemo(() => {
@@ -184,51 +247,29 @@ export function PartToolListPanel({
     };
   }, [callbacks.onUploadImage, callbacks.onDeleteImage, callbacks.onSetPreviewImage]);
 
-  // ── Build AggregatedPartTool for sidebar ──
-  const selectedPt = selectedPartToolId ? partTools[selectedPartToolId] : null;
-
-  const selectedAggregated: AggregatedPartTool | null = useMemo(() => {
-    if (!selectedPt) return null;
-    const amountsPerSubstep = new Map<string, number>();
-    for (const spt of Object.values(substepPartTools)) {
-      if (spt.partToolId === selectedPt.id) {
-        amountsPerSubstep.set(spt.substepId, (amountsPerSubstep.get(spt.substepId) ?? 0) + spt.amount);
-      }
-    }
-    return { partTool: selectedPt, totalAmount: selectedPt.amount, amountsPerSubstep };
-  }, [selectedPt, substepPartTools]);
-
   // ── Preview URL for sidebar ──
   const sidebarPreviewUrl = useMemo(() => {
     if (!selectedPartToolId || !getPreviewUrl) return null;
     return getPreviewUrl(selectedPartToolId);
   }, [selectedPartToolId, getPreviewUrl]);
 
-  // ── Memoized action slot for sidebar ──
-  const sidebarActionSlot = useMemo(() => (
-    <div className="flex items-center gap-2 pt-2">
-      <button
-        type="button"
-        data-testid="parttool-list-edit-btn"
-        aria-label={t('editorCore.editPartTool', 'Edit part/tool')}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-[var(--color-bg-hover)] text-[var(--color-text-base)] hover:bg-[var(--color-bg-active)] transition-colors cursor-pointer"
-        onClick={handleEditClick}
-      >
-        <Pencil className="h-3.5 w-3.5" />
-        {t('editorCore.edit', 'Edit')}
-      </button>
-      <button
-        type="button"
-        data-testid="parttool-list-delete-btn"
-        aria-label={t('editorCore.deletePartTool', 'Delete part/tool')}
-        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-red-500 hover:bg-red-500/10 transition-colors cursor-pointer"
-        onClick={handleDelete}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-        {t('editorCore.delete', 'Delete')}
-      </button>
-    </div>
-  ), [t, handleEditClick, handleDelete]);
+  // ── Aggregated item for PartToolDetailContent ──
+  const selectedAggregated: AggregatedPartTool | null = useMemo(() => {
+    if (!selectedPartToolId) return null;
+    const pt = partTools[selectedPartToolId];
+    if (!pt) return null;
+    const amountsPerSubstep = new Map<string, number>();
+    let totalAmount = 0;
+    for (const spt of Object.values(substepPartTools)) {
+      if (spt.partToolId === selectedPartToolId) {
+        amountsPerSubstep.set(spt.substepId, spt.amount);
+        totalAmount += spt.amount;
+      }
+    }
+    // Fallback: if no substep entries, use the partTool's own amount
+    if (totalAmount === 0) totalAmount = pt.amount;
+    return { partTool: pt, totalAmount, amountsPerSubstep };
+  }, [selectedPartToolId, partTools, substepPartTools]);
 
   if (!open) return null;
 
@@ -289,7 +330,7 @@ export function PartToolListPanel({
           </div>
         </div>
 
-        {/* Body: Table (left) + Sidebar (right) */}
+        {/* Body: Table (left) + Sidebar Form (right) */}
         <div className="flex-1 flex overflow-hidden">
           {/* Left: Search + Table */}
           <div className="flex-[3] flex flex-col overflow-hidden border-r border-[var(--color-border-base)]">
@@ -322,26 +363,35 @@ export function PartToolListPanel({
             </div>
           </div>
 
-          {/* Right: Sidebar preview */}
-          <div className="flex-[2] overflow-y-auto">
+          {/* Right: Detail Card + Inline Sidebar Form */}
+          <div className="flex-[2] overflow-y-auto flex flex-col">
             {selectedAggregated ? (
-              <PartToolDetailContent
-                item={selectedAggregated}
-                folderName={folderName}
-                partToolVideoFrameAreas={partToolVideoFrameAreas}
-                useBlurred={useBlurred}
-                videoFrameAreas={videoFrameAreas}
-                previewImageUrl={sidebarPreviewUrl}
-                actionSlot={sidebarActionSlot}
-              />
+              <div className="shrink-0">
+                <PartToolDetailContent
+                  item={selectedAggregated}
+                  previewImageUrl={sidebarPreviewUrl}
+                  compact
+                />
+              </div>
             ) : (
-              <div
-                data-testid="parttool-list-sidebar-empty"
-                className="h-full flex items-center justify-center text-[var(--color-text-muted)] text-sm"
-              >
-                {t('editorCore.selectPartTool', 'Select a part or tool to view details')}
+              <div className="shrink-0" data-testid="sidebar-hero-placeholder">
+                <div className="relative bg-[var(--color-bg-base)] aspect-square sm:aspect-[4/3]">
+                  <div className="w-full h-full flex items-center justify-center">
+                    <PartIcon className="w-24 h-24 opacity-20" style={{ color: 'var(--color-element-part)' }} />
+                  </div>
+                </div>
               </div>
             )}
+            <PartToolSidebarForm
+              values={sidebarForm}
+              onChange={setSidebarForm}
+              canAdd={canAdd}
+              canUpdate={canUpdate}
+              onAdd={handleSidebarAdd}
+              onUpdate={handleSidebarUpdate}
+              onDelete={hasSelection ? handleDelete : undefined}
+              onDeselect={hasSelection ? handleDeselect : undefined}
+            />
           </div>
         </div>
       </div>
@@ -354,23 +404,6 @@ export function PartToolListPanel({
         catalogItems={catalogItems}
         getCatalogIconUrl={getCatalogIconUrl}
       />
-
-      {/* Edit Dialog */}
-      {editDialogOpen && selectedAggregated && selectedPartToolId && (
-        <div data-testid="parttool-list-edit-dialog">
-          <PartToolDetailEditor
-            partToolId={selectedPartToolId}
-            item={selectedAggregated}
-            onClose={handleEditClose}
-            imageCallbacks={imageCallbacks}
-            getPartToolImages={getPartToolImages}
-            onEditPartToolAmount={handleEditorEditAmount}
-            onDeletePartTool={handleEditorDelete}
-            onUpdatePartTool={callbacks.onUpdatePartTool}
-            previewImageUrl={sidebarPreviewUrl}
-          />
-        </div>
-      )}
     </div>,
     document.body,
   );

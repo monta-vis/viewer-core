@@ -27,12 +27,8 @@ vi.mock('@monta-vis/viewer-core', async () => {
         .filter((item: PartToolIconItem) => getTerms(item).some((term: string) => term.toLowerCase().includes(q)))
         .map((item: PartToolIconItem) => ({ item, score: 1 }));
     },
-    PartToolDetailContent: ({ item, actionSlot }: { item: { partTool: PartToolRow; totalAmount: number }; actionSlot?: React.ReactNode }) => (
-      <div data-testid="parttool-detail-content">
-        <span data-testid="parttool-detail-name">{item.partTool.name}</span>
-        <span data-testid="parttool-detail-amount">{item.totalAmount}</span>
-        {actionSlot && <div data-testid="parttool-detail-action-slot">{actionSlot}</div>}
-      </div>
+    PartToolDetailContent: ({ item }: { item: { partTool: { name: string } } }) => (
+      <div data-testid="parttool-detail-content">{item.partTool.name}</div>
     ),
   };
 });
@@ -49,10 +45,11 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const makePt = (id: string, name: string, type: 'Part' | 'Tool', amount = 1): PartToolRow => ({
+const makePt = (id: string, name: string, type: 'Part' | 'Tool', amount = 1, extras?: Partial<PartToolRow>): PartToolRow => ({
   id, versionId: 'v1', instructionId: 'i1', previewImageId: null,
   name, label: null, type, partNumber: null, amount,
   description: null, unit: null, material: null, dimension: null, iconId: null,
+  ...extras,
 });
 
 const makeCallbacks = (): PartToolListPanelCallbacks => ({
@@ -100,57 +97,6 @@ describe('PartToolListPanel', () => {
     expect(rowTrs[0]).toHaveAttribute('data-testid', 'parttool-list-row-p1');
     expect(rowTrs[1]).toHaveAttribute('data-testid', 'parttool-list-row-p2');
     expect(rowTrs[2]).toHaveAttribute('data-testid', 'parttool-list-row-t1');
-  });
-
-  it('clicking row shows detail in sidebar', async () => {
-    const user = userEvent.setup();
-    const partTools = { p1: makePt('p1', 'Nut', 'Part', 3) };
-    renderPanel({ partTools });
-
-    // No sidebar content initially
-    expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
-
-    // Click a row
-    const row = screen.getByTestId('parttool-list-row-p1');
-    await user.click(row);
-
-    // Sidebar shows detail
-    expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
-    expect(screen.getByTestId('parttool-detail-name')).toHaveTextContent('Nut');
-  });
-
-  it('sidebar shows empty state when no item selected', () => {
-    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
-    renderPanel({ partTools });
-    expect(screen.getByTestId('parttool-list-sidebar-empty')).toBeInTheDocument();
-  });
-
-  it('"Edit" button in sidebar opens PartToolDetailEditor', async () => {
-    const user = userEvent.setup();
-    const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
-    renderPanel({ partTools });
-
-    // Select a row
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
-
-    // Click Edit button in sidebar
-    const editBtn = screen.getByTestId('parttool-list-edit-btn');
-    await user.click(editBtn);
-
-    // PartToolDetailEditor wrapper should be open
-    expect(screen.getByTestId('parttool-list-edit-dialog')).toBeInTheDocument();
-  });
-
-  it('"Delete" button calls onDeletePartTool', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
-    renderPanel({ partTools, callbacks: cbs });
-
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
-    await user.click(screen.getByTestId('parttool-list-delete-btn'));
-
-    expect(cbs.onDeletePartTool).toHaveBeenCalledWith('p1');
   });
 
   it('"+" button opens add popover', async () => {
@@ -236,7 +182,7 @@ describe('PartToolListPanel', () => {
 
     // Select the item
     await user.click(screen.getByTestId('parttool-list-row-p1'));
-    expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Nut');
 
     // Re-render without the item (simulating deletion)
     rerender(
@@ -249,9 +195,185 @@ describe('PartToolListPanel', () => {
       />,
     );
 
-    // Sidebar should show empty state
+    // Sidebar form should be empty (add mode)
+    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('');
+  });
+});
+
+// ============================================================
+// Inline sidebar form integration
+// ============================================================
+
+describe('PartToolListPanel — inline sidebar form', () => {
+  it('no selection → placeholder hero shown, detail card hidden, form shown', () => {
+    renderPanel();
     expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
-    expect(screen.getByTestId('parttool-list-sidebar-empty')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-hero-placeholder')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-form')).toBeInTheDocument();
+  });
+
+  it('selection → detail card + form both shown', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+
+    expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-form')).toBeInTheDocument();
+  });
+
+  it('deselect shows placeholder hero instead of detail card', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
+    expect(screen.queryByTestId('sidebar-hero-placeholder')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('sidebar-form-deselect-btn'));
+    expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-hero-placeholder')).toBeInTheDocument();
+  });
+
+  it('placeholder hero shows when no item selected', () => {
+    renderPanel();
+    const placeholder = screen.getByTestId('sidebar-hero-placeholder');
+    expect(placeholder).toBeInTheDocument();
+  });
+
+  it('empty state: no item selected → form fields empty, both buttons disabled', () => {
+    renderPanel();
+    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('');
+    expect(screen.getByTestId('sidebar-form-add-btn')).toBeDisabled();
+    expect(screen.getByTestId('sidebar-form-update-btn')).toBeDisabled();
+  });
+
+  it('form populates on selection', async () => {
+    const user = userEvent.setup();
+    const partTools = {
+      p1: makePt('p1', 'Nut', 'Part', 3, { label: 'N1', partNumber: 'PN-42' }),
+    };
+    renderPanel({ partTools });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+
+    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Nut');
+    expect(screen.getByTestId('sidebar-form-label')).toHaveValue('N1');
+    expect(screen.getByTestId('sidebar-form-partNumber')).toHaveValue('PN-42');
+    expect(screen.getByTestId('sidebar-form-amount')).toHaveValue(3);
+  });
+
+  it('Add enables when fields filled (no selection)', async () => {
+    const user = userEvent.setup();
+    renderPanel();
+
+    expect(screen.getByTestId('sidebar-form-add-btn')).toBeDisabled();
+
+    await user.type(screen.getByTestId('sidebar-form-name'), 'NewPart');
+
+    expect(screen.getByTestId('sidebar-form-add-btn')).toBeEnabled();
+    expect(screen.getByTestId('sidebar-form-update-btn')).toBeDisabled();
+  });
+
+  it('both disabled when item selected but unmodified', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
+    renderPanel({ partTools });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+
+    expect(screen.getByTestId('sidebar-form-add-btn')).toBeDisabled();
+    expect(screen.getByTestId('sidebar-form-update-btn')).toBeDisabled();
+  });
+
+  it('both enable on modification of selected item', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
+    renderPanel({ partTools });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    // Modify name
+    const nameInput = screen.getByTestId('sidebar-form-name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Bolt');
+
+    expect(screen.getByTestId('sidebar-form-add-btn')).toBeEnabled();
+    expect(screen.getByTestId('sidebar-form-update-btn')).toBeEnabled();
+  });
+
+  it('Add creates new item from form data', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    renderPanel({ callbacks: cbs });
+
+    await user.type(screen.getByTestId('sidebar-form-name'), 'NewPart');
+    await user.click(screen.getByTestId('sidebar-form-add-btn'));
+
+    expect(cbs.onAddPartTool).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'NewPart', type: 'Part', amount: 1 }),
+    );
+  });
+
+  it('Add from modified selection creates new item', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
+    renderPanel({ partTools, callbacks: cbs });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    const nameInput = screen.getByTestId('sidebar-form-name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Modified Nut');
+    await user.click(screen.getByTestId('sidebar-form-add-btn'));
+
+    expect(cbs.onAddPartTool).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'Modified Nut', type: 'Part', amount: 2 }),
+    );
+  });
+
+  it('Update saves to existing item', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
+    renderPanel({ partTools, callbacks: cbs });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    const nameInput = screen.getByTestId('sidebar-form-name');
+    await user.clear(nameInput);
+    await user.type(nameInput, 'Bolt');
+    await user.click(screen.getByTestId('sidebar-form-update-btn'));
+
+    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('p1', expect.objectContaining({ name: 'Bolt' }));
+  });
+
+  it('Delete calls onDeletePartTool', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools, callbacks: cbs });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('sidebar-form-delete-btn'));
+
+    expect(cbs.onDeletePartTool).toHaveBeenCalledWith('p1');
+  });
+
+  it('selection change resets form to new item values', async () => {
+    const user = userEvent.setup();
+    const partTools = {
+      p1: makePt('p1', 'Nut', 'Part', 1),
+      p2: makePt('p2', 'Bolt', 'Part', 5),
+    };
+    renderPanel({ partTools });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Nut');
+
+    await user.click(screen.getByTestId('parttool-list-row-p2'));
+    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Bolt');
+    expect(screen.getByTestId('sidebar-form-amount')).toHaveValue(5);
   });
 });
 

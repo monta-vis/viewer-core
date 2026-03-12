@@ -27,6 +27,8 @@ interface PartToolDetailContentProps {
   actionSlot?: ReactNode;
   /** Pre-resolved preview image URL; when provided, skips internal resolvePartToolImageUrl */
   previewImageUrl?: string | null;
+  /** When true, render only the image hero section (no text fields). */
+  compact?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export function PartToolDetailContent({
   videoFrameAreas,
   actionSlot,
   previewImageUrl: previewImageUrlProp,
+  compact,
 }: PartToolDetailContentProps) {
   const { t } = useTranslation();
 
@@ -131,73 +134,75 @@ export function PartToolDetailContent({
         </div>
       </div>
 
-      {/* Content Section */}
-      <div className="flex-1 sm:flex-none p-5 space-y-4 overflow-y-auto">
+      {/* Content Section — hidden in compact mode */}
+      {!compact && (
+        <div className="flex-1 sm:flex-none p-5 space-y-4 overflow-y-auto">
 
-        {/* Name */}
-        <h2
-          data-testid="parttool-detail-name"
-          id="parttool-detail-title"
-          className="text-xl font-semibold text-[var(--color-text-base)] leading-tight"
-        >
-          {item.partTool.name}
-        </h2>
+          {/* Name */}
+          <h2
+            data-testid="parttool-detail-name"
+            id="parttool-detail-title"
+            className="text-xl font-semibold text-[var(--color-text-base)] leading-tight"
+          >
+            {item.partTool.name}
+          </h2>
 
-        {/* Label */}
-        {item.partTool.label && (
-          <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
-            <Tag className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
-            <span className="font-semibold text-sm">{item.partTool.label}</span>
-          </div>
-        )}
+          {/* Label */}
+          {item.partTool.label && (
+            <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
+              <Tag className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+              <span className="font-semibold text-sm">{item.partTool.label}</span>
+            </div>
+          )}
 
-        {/* Part Number */}
-        {item.partTool.partNumber && (
-          <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
-            <Hash className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
-            <span className="font-mono text-sm tracking-wide">{item.partTool.partNumber}</span>
-          </div>
-        )}
+          {/* Part Number */}
+          {item.partTool.partNumber && (
+            <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
+              <Hash className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+              <span className="font-mono text-sm tracking-wide">{item.partTool.partNumber}</span>
+            </div>
+          )}
 
-        {/* Unit / Material / Dimension */}
-        {(item.partTool.unit || item.partTool.material || item.partTool.dimension) && (
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--color-text-muted)]">
-            {item.partTool.unit && (
-              <div className="flex items-center gap-1.5">
-                <Scale className="w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-subtle)]" />
-                <span>{item.partTool.unit}</span>
-              </div>
-            )}
-            {item.partTool.material && (
-              <div className="flex items-center gap-1.5">
-                <Box className="w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-subtle)]" />
-                <span>{item.partTool.material}</span>
-              </div>
-            )}
-            {item.partTool.dimension && (
-              <div className="flex items-center gap-1.5">
-                <Ruler className="w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-subtle)]" />
-                <span>{item.partTool.dimension}</span>
-              </div>
-            )}
-          </div>
-        )}
+          {/* Unit / Material / Dimension */}
+          {(item.partTool.unit || item.partTool.material || item.partTool.dimension) && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-[var(--color-text-muted)]">
+              {item.partTool.unit && (
+                <div className="flex items-center gap-1.5">
+                  <Scale className="w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-subtle)]" />
+                  <span>{item.partTool.unit}</span>
+                </div>
+              )}
+              {item.partTool.material && (
+                <div className="flex items-center gap-1.5">
+                  <Box className="w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-subtle)]" />
+                  <span>{item.partTool.material}</span>
+                </div>
+              )}
+              {item.partTool.dimension && (
+                <div className="flex items-center gap-1.5">
+                  <Ruler className="w-3.5 h-3.5 flex-shrink-0 text-[var(--color-text-subtle)]" />
+                  <span>{item.partTool.dimension}</span>
+                </div>
+              )}
+            </div>
+          )}
 
-        {/* Description */}
-        {item.partTool.description && (
-          <div className="flex gap-2">
-            <FileText className="w-4 h-4 flex-shrink-0 mt-0.5 text-[var(--color-text-subtle)]" />
-            <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">{item.partTool.description}</p>
-          </div>
-        )}
+          {/* Description */}
+          {item.partTool.description && (
+            <div className="flex gap-2">
+              <FileText className="w-4 h-4 flex-shrink-0 mt-0.5 text-[var(--color-text-subtle)]" />
+              <p className="text-sm text-[var(--color-text-muted)] leading-relaxed">{item.partTool.description}</p>
+            </div>
+          )}
 
-        {/* Action slot */}
-        {actionSlot && (
-          <div data-testid="parttool-detail-action-slot">
-            {actionSlot}
-          </div>
-        )}
-      </div>
+          {/* Action slot */}
+          {actionSlot && (
+            <div data-testid="parttool-detail-action-slot">
+              {actionSlot}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -119,6 +119,9 @@ export {
 // PartToolDetailEditor (full editable detail view for a single part/tool — render prop for PartsDrawer)
 export { PartToolDetailEditor, type PartToolDetailEditorProps } from './components/PartToolDetailEditor';
 
+// PartToolSidebarForm (inline editable form for part/tool sidebar)
+export { PartToolSidebarForm, EMPTY_SIDEBAR_FORM, type PartToolSidebarFormProps, type SidebarFormState } from './components/PartToolSidebarForm';
+
 // ImageCropDialog (image crop dialog for part/tool images)
 export { ImageCropDialog, type ImageCropDialogProps } from './components/ImageCropDialog';
 
