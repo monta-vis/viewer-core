@@ -27,7 +27,7 @@ interface ShapeLayerProps<T extends ShapeData> {
 /**
  * Transform shape coordinates from local space (0-1) to container space (0-100%)
  */
-function transformShapeToContainerSpace<T extends ShapeData>(
+export function transformShapeToContainerSpace<T extends ShapeData>(
   shape: T,
   bounds: Rectangle
 ): T {
@@ -55,6 +55,20 @@ function transformShapeToContainerSpace<T extends ShapeData>(
   }
   if (shape.y !== null && shape.y !== undefined) {
     transformed.y = localSpaceToContainer(shape.y, bounds.y, bounds.height);
+  }
+
+  // Transform freehand points if present
+  if (shape.points) {
+    try {
+      const parsedPoints: Array<{ x: number; y: number }> = JSON.parse(shape.points);
+      const transformedPoints = parsedPoints.map((p) => ({
+        x: localSpaceToContainer(p.x, bounds.x, bounds.width),
+        y: localSpaceToContainer(p.y, bounds.y, bounds.height),
+      }));
+      transformed.points = JSON.stringify(transformedPoints);
+    } catch (err) {
+      console.error('[ShapeLayer] Failed to parse freehand points for transform:', err);
+    }
   }
 
   return transformed;

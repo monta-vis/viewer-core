@@ -31,7 +31,8 @@ npm run typecheck    # Typecheck all packages
 7. **No hallucinations** — if unsure, investigate first. Never make claims about code without reading it.
 8. **Echo Task:** At the end of every response, repeat the user's original question/task as plain text (e.g., `> Task: "your question here"`).
 9. If you change something in editor-core or viewer-core rebuild it at the end
-10. **Logging:**
+10. **Fix failing tests** — if you encounter a failing test during testing (even if unrelated to your current changes), investigate and fix the root cause. Never apply superficial fixes just to make the test pass — always understand why it fails and correct the actual problem.
+11. **Logging:**
     - Add `console.error` for caught errors and unexpected states (always include context: what failed and why)
     - Add `console.warn` for fallback behavior or recoverable issues
     - Use `console.debug` sparingly for complex data transformations where input/output is hard to trace

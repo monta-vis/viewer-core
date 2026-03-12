@@ -360,7 +360,7 @@ export function ShapeRenderer<T extends ShapeData>({
 
   // Color category determines stroke, text bg, and text color
   const isLight = shape.color === 'white';
-  const isColored = shape.color === 'red' || shape.color === 'teal';
+  const isColored = shape.color !== 'black' && shape.color !== 'white';
 
   let strokeColor: string;
   if (isLight) {

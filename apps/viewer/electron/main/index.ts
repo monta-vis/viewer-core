@@ -142,6 +142,14 @@ const MEDIA_MIME_TYPES: Record<string, string> = {
   ".webp": "image/webp",
 };
 
+/** CSP headers to disable script execution in SVG files. */
+function getSvgSecurityHeaders(mimeType: string): Record<string, string> {
+  if (mimeType === "image/svg+xml") {
+    return { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" };
+  }
+  return {};
+}
+
 // ---------------------------------------------------------------------------
 // Stream helper
 // ---------------------------------------------------------------------------
@@ -185,10 +193,7 @@ function registerProtocol(): void {
       "application/octet-stream";
     const rangeHeader = request.headers.get("Range");
 
-    // Add CSP to disable script execution in SVG files
-    const securityHeaders: Record<string, string> = mimeType === "image/svg+xml"
-      ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" }
-      : {};
+    const securityHeaders = getSvgSecurityHeaders(mimeType);
 
     if (rangeHeader) {
       const match = rangeHeader.match(/bytes=(\d+)-(\d*)/);
@@ -257,10 +262,7 @@ function registerCatalogProtocol(): void {
       MEDIA_MIME_TYPES[extname(filePath).toLowerCase()] ??
       "application/octet-stream";
 
-    // Add CSP to disable script execution in SVG files
-    const securityHeaders: Record<string, string> = mimeType === "image/svg+xml"
-      ? { "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'" }
-      : {};
+    const securityHeaders = getSvgSecurityHeaders(mimeType);
 
     const stream = createReadStream(filePath);
     return new Response(createWebReadableStream(stream), {
@@ -504,6 +506,7 @@ function createWindow() {
       preload: path.join(__dirname, "preload.mjs"),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
     },
   });
 
