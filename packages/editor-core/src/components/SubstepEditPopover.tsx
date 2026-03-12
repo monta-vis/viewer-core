@@ -77,8 +77,6 @@ export interface SubstepEditPopoverProps {
   imageCallbacks?: PartToolTableImageCallbacks;
   /** Called when the user picks + crops a new substep image via the edit-image pencil. */
   onUploadSubstepImage?: (file: File, crop: NormalizedCrop) => void;
-  /** Instruction-level partTool catalog for autocomplete suggestions. */
-  allPartTools?: PartToolRow[];
   /** Opens the instruction-wide PartTool list editor (PartToolListPanel). */
   onOpenPartToolList?: () => void;
   /** VideoFrameArea ID for drawing annotations */
@@ -185,7 +183,6 @@ export function SubstepEditPopover({
   getPartToolImages,
   imageCallbacks,
   onUploadSubstepImage,
-  allPartTools,
   onOpenPartToolList,
   videoFrameAreaId,
   versionId = '',
@@ -399,16 +396,6 @@ export function SubstepEditPopover({
       callbacks.onDeleteSubstepPartTool?.(sptId);
       captureSnapshot();
     },
-    onSelectPartTool: (sptId: string, partToolId: string) => {
-      callbacks.onReplaceSubstepPartTool?.(sptId, partToolId);
-      captureSnapshot();
-    },
-    onCreateAndReplacePartTool: callbacks.onCreateAndReplacePartTool
-      ? (sptId: string, field: 'name' | 'label' | 'partNumber', value: string) => {
-          callbacks.onCreateAndReplacePartTool!(sptId, field, value);
-          captureSnapshot();
-        }
-      : undefined,
   }), [callbacks, captureSnapshot]);
 
   const handleAddPartTool = useCallback(() => {
@@ -1047,7 +1034,7 @@ export function SubstepEditPopover({
                 rows={partToolTableRows}
                 callbacks={partToolCallbacks}
                 allSubstepPartTools={allSubstepPartTools}
-                allPartTools={allPartTools}
+                onOpenPartToolList={onOpenPartToolList}
                 getPreviewUrl={getPreviewUrl}
                 getPartToolImages={getPartToolImages}
                 imageCallbacks={imageCallbacks}

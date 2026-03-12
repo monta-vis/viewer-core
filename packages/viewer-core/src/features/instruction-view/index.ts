@@ -31,13 +31,14 @@ export { PartToolSearchBar } from './components/PartToolSearchBar';
 export { usePartToolStepMap } from './hooks/usePartToolStepMap';
 export { StepOverviewCard } from './components/StepOverviewCard';
 export { SubstepPreviewCard } from './components/SubstepPreviewCard';
-export type { StepWithPreview } from './components/AssemblySection';
+export type { StepWithPreview, SubstepPreview } from './components/AssemblySection';
 export { VideoFrameCapture } from './components/VideoFrameCapture';
 export { PartsToolsOverviewCard } from './components/PartsToolsOverviewCard';
 export { StepRangeSlider } from './components/StepRangeSlider';
 export { StepCountSlider } from './components/StepCountSlider';
 export { PartsDrawer } from './components/PartsDrawer';
 export { PartToolDetailModal } from './components/PartToolDetailModal';
+export { PartToolDetailContent } from './components/PartToolDetailContent';
 export { NoteCard } from './components/NoteCard';
 
 // Utils

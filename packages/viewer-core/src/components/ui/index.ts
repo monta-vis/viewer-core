@@ -63,6 +63,10 @@ export type { OptionButtonProps } from './OptionButton'
 export { DialogShell } from './DialogShell'
 export type { DialogShellProps } from './DialogShell'
 
+// Confirm Delete Dialog
+export { ConfirmDeleteDialog } from './ConfirmDeleteDialog'
+export type { ConfirmDeleteDialogProps } from './ConfirmDeleteDialog'
+
 // Text Input Modal
 export { TextInputModal, filterSuggestions } from './TextInputModal'
 export type { TextInputModalProps, TextInputSuggestion } from './TextInputModal'

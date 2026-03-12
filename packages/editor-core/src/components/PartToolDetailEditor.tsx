@@ -5,7 +5,6 @@ import { X, Hash, FileText, Ruler, Box, Scale, ImageIcon, Trash2, Tag } from 'lu
 import { clsx } from 'clsx';
 import type { AggregatedPartTool, PartToolRow } from '@monta-vis/viewer-core';
 import { TextInputModal, PartIcon, ToolIcon } from '@monta-vis/viewer-core';
-import type { FrameCaptureData } from '@monta-vis/viewer-core';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
 import { ImageCropDialog } from './ImageCropDialog';
 import type { PartToolTableImageCallbacks } from './PartToolTable';
@@ -27,9 +26,7 @@ export interface PartToolDetailEditorProps {
   onUpdatePartTool?: (partToolId: string, updates: Partial<PartToolRow>) => void;
   /** Preview image URL for display */
   previewImageUrl?: string | null;
-  /** Raw frame capture data for Editor preview */
-  frameCaptureData?: FrameCaptureData | null;
-  /** Open the full PartToolListPanel instead of inline PartToolSelectModal for name */
+  /** Open the full PartToolListPanel for catalog field editing */
   onOpenPartToolList?: () => void;
 }
 
@@ -62,7 +59,6 @@ export function PartToolDetailEditor({
   onDeletePartTool,
   onUpdatePartTool,
   previewImageUrl,
-  frameCaptureData: _frameCaptureData,
   onOpenPartToolList,
 }: PartToolDetailEditorProps) {
   const { t } = useTranslation();
@@ -146,6 +142,15 @@ export function PartToolDetailEditor({
   }, [editingField, partToolId, onEditPartToolAmount, onUpdatePartTool]);
 
   const handleFieldCancel = useCallback(() => setEditingField(null), []);
+
+  /** Open the catalog list if available, otherwise open inline field editing. */
+  const openFieldOrList = useCallback((field: EditingField, currentValue: string) => {
+    if (onOpenPartToolList) {
+      onOpenPartToolList();
+    } else {
+      flushSync(() => setEditingField({ field, currentValue }));
+    }
+  }, [onOpenPartToolList]);
 
   // ── Image handling ──
   const handleImageEditClick = useCallback((e: React.MouseEvent) => {
@@ -306,8 +311,8 @@ export function PartToolDetailEditor({
               className={EDITABLE_FIELD_CLASS}
               role="button"
               tabIndex={0}
-              onClick={() => onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'name', currentValue: item.partTool.name }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') { onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'name', currentValue: item.partTool.name })); } }}
+              onClick={() => openFieldOrList('name', item.partTool.name)}
+              onKeyDown={(e) => { if (e.key === 'Enter') openFieldOrList('name', item.partTool.name); }}
             >
               <h2
                 id="parttool-editor-title"
@@ -326,8 +331,8 @@ export function PartToolDetailEditor({
               )}
               role="button"
               tabIndex={0}
-              onClick={() => onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'label', currentValue: item.partTool.label ?? '' }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') { onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'label', currentValue: item.partTool.label ?? '' })); } }}
+              onClick={() => openFieldOrList('label', item.partTool.label ?? '')}
+              onKeyDown={(e) => { if (e.key === 'Enter') openFieldOrList('label', item.partTool.label ?? ''); }}
             >
               <Tag className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
               {item.partTool.label ? (
@@ -346,8 +351,8 @@ export function PartToolDetailEditor({
               )}
               role="button"
               tabIndex={0}
-              onClick={() => onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'partNumber', currentValue: item.partTool.partNumber ?? '' }))}
-              onKeyDown={(e) => { if (e.key === 'Enter') { onOpenPartToolList ? onOpenPartToolList() : flushSync(() => setEditingField({ field: 'partNumber', currentValue: item.partTool.partNumber ?? '' })); } }}
+              onClick={() => openFieldOrList('partNumber', item.partTool.partNumber ?? '')}
+              onKeyDown={(e) => { if (e.key === 'Enter') openFieldOrList('partNumber', item.partTool.partNumber ?? ''); }}
             >
               <Hash className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
               {item.partTool.partNumber ? (

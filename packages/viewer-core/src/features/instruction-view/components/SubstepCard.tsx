@@ -56,10 +56,6 @@ export interface SubstepEditCallbacks {
   onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
   onAddSubstepPartTool?: () => void;
   onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
-  /** Replace a substepPartTool's partTool reference with another instruction-level partTool. */
-  onReplaceSubstepPartTool?: (substepPartToolId: string, newPartToolId: string) => void;
-  /** Create a new partTool with the given field value and replace the substepPartTool reference. */
-  onCreateAndReplacePartTool?: (substepPartToolId: string, field: 'name' | 'label' | 'partNumber', value: string) => void;
   onDeleteSubstep?: () => void;
 }
 
@@ -780,7 +776,7 @@ export const SubstepCard = memo(function SubstepCard({
         {/* Top right badges */}
         {!isPlayingInline && (repeatCount > 1 || tutorials.length > 0) && (
           <div
-            className="absolute top-2 right-2 z-10 flex flex-col items-end gap-2"
+            className="absolute right-2 top-2 z-10 flex flex-col items-end gap-2"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Repeat badge */}
@@ -880,6 +876,7 @@ export const SubstepCard = memo(function SubstepCard({
           )}
         </div>
       )}
+
     </Card>
   );
 });

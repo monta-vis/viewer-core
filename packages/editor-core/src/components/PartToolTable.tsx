@@ -1,11 +1,12 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, ImagePlus, X } from 'lucide-react';
+import { Trash2, ImagePlus, X, Plus } from 'lucide-react';
 import type { PartToolRow } from '@monta-vis/viewer-core';
 import { TextInputModal, PartIcon, ToolIcon } from '@monta-vis/viewer-core';
 import { computeUsedAmount, isPartToolNameValid } from '../utils/partToolHelpers';
 import { ImageCropDialog } from './ImageCropDialog';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
+import { EditInput } from './EditInput';
 import type { NormalizedCrop } from '../persistence/types';
 
 export interface PartToolTableItem {
@@ -26,6 +27,18 @@ export interface PartToolTableImageCallbacks {
   onSetPreviewImage?: (partToolId: string, junctionId: string, areaId: string) => void;
 }
 
+export interface PartToolAddRowValues {
+  type: 'Part' | 'Tool';
+  label: string;
+  name: string;
+  partNumber: string;
+  amount: number;
+  unit: string;
+  material: string;
+  dimension: string;
+  description: string;
+}
+
 export interface PartToolTableProps {
   rows: PartToolTableItem[];
   callbacks: PartToolTableCallbacks;
@@ -41,6 +54,23 @@ export interface PartToolTableProps {
   getPartToolImages?: (partToolId: string) => PartToolImageItem[];
   /** Prefix for data-testid attributes (default "parttool-row"). */
   testIdPrefix?: string;
+  /** Disables inline editing, hides delete column — table becomes a read-only selection list. */
+  readOnly?: boolean;
+  /** Highlights the row matching this ID with a selected background. */
+  selectedRowId?: string | null;
+  /** Called when a row is clicked (useful for selection). */
+  onRowClick?: (row: PartToolTableItem) => void;
+  /** When set, the matching row renders inline EditInput fields instead of buttons/spans. */
+  editingRowId?: string | null;
+  /** When provided, renders an empty editable row at the top of tbody for adding a new item. */
+  addRow?: {
+    values: PartToolAddRowValues;
+    onChange: (v: PartToolAddRowValues) => void;
+    onConfirm: () => void;
+    canConfirm: boolean;
+  };
+  /** Compact mode: shows only thumbnail/type/name/part#/amount columns, forces read-only, hides addRow. */
+  compact?: boolean;
 }
 
 /** Compact inline-editable table for partTools — used by both SubstepEditPopover and PartToolListPanel. */
@@ -48,14 +78,25 @@ export function PartToolTable({
   rows,
   callbacks,
   allSubstepPartTools,
-  allPartTools,
+  onOpenPartToolList,
   getPreviewUrl,
   imageCallbacks,
   getPartToolImages,
   testIdPrefix = 'parttool-row',
+  readOnly,
+  selectedRowId,
+  onRowClick,
+  editingRowId,
+  addRow,
+  compact,
 }: PartToolTableProps) {
   const { t } = useTranslation();
+  const effectiveReadOnly = compact || readOnly;
+  const effectiveEditingRowId = compact ? undefined : editingRowId;
+  const effectiveAddRow = compact ? undefined : addRow;
+  const showAllSubstepPartTools = !compact && !!allSubstepPartTools;
   const showThumbnails = !!getPreviewUrl;
+  const showActionCol = !effectiveReadOnly || !!effectiveEditingRowId || !!effectiveAddRow;
 
   return (
     <table className="w-full text-base border-collapse" data-testid="parttool-table">
@@ -65,34 +106,56 @@ export function PartToolTable({
             <th className="px-2 py-1.5 font-medium w-[2.5rem]">{t('editorCore.thumbnail', 'Img')}</th>
           )}
           <th className="px-2 py-1.5 font-medium w-[2.5rem]">{t('editorCore.typeColumn', 'Type')}</th>
-          <th className="px-2 py-1.5 font-medium w-[3.5rem]">{t('editorCore.partToolLabel', 'Label')}</th>
+          {!compact && <th className="px-2 py-1.5 font-medium w-[3.5rem]">{t('editorCore.partToolLabel', 'Label')}</th>}
           <th className="px-2 py-1.5 font-medium w-[10rem]">{t('editorCore.partToolName', 'Name')}</th>
           <th className="px-2 py-1.5 font-medium w-[7rem]">{t('editorCore.partToolPartNumber', 'Part#')}</th>
           <th className="px-2 py-1.5 font-medium w-[3.5rem]">{t('editorCore.partToolAmount', 'Amt')}</th>
-          {allSubstepPartTools && (
+          {showAllSubstepPartTools && (
             <th className="px-2 py-1.5 font-medium w-[3.5rem]">{t('editorCore.partToolUsed', 'Used')}</th>
           )}
-          <th className="px-2 py-1.5 font-medium w-[4rem]">{t('editorCore.partToolUnit', 'Unit')}</th>
-          <th className="px-2 py-1.5 font-medium w-[6rem]">{t('editorCore.partToolMaterial', 'Material')}</th>
-          <th className="px-2 py-1.5 font-medium w-[4rem]">{t('editorCore.partToolDimension', 'Dim.')}</th>
-          <th className="px-2 py-1.5 font-medium">{t('editorCore.partToolDescription', 'Description')}</th>
-          <th className="px-2 py-1.5 w-[2rem]" />
+          {!compact && <th className="px-2 py-1.5 font-medium w-[4rem]">{t('editorCore.partToolUnit', 'Unit')}</th>}
+          {!compact && <th className="px-2 py-1.5 font-medium w-[6rem]">{t('editorCore.partToolMaterial', 'Material')}</th>}
+          {!compact && <th className="px-2 py-1.5 font-medium w-[4rem]">{t('editorCore.partToolDimension', 'Dim.')}</th>}
+          {!compact && <th className="px-2 py-1.5 font-medium">{t('editorCore.partToolDescription', 'Description')}</th>}
+          {showActionCol && <th className="px-2 py-1.5 w-[2rem]" />}
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
-          <PartToolTableRow
-            key={row.rowId}
-            row={row}
-            callbacks={callbacks}
-            allSubstepPartTools={allSubstepPartTools}
-            allPartTools={allPartTools}
-            getPreviewUrl={getPreviewUrl}
-            imageCallbacks={imageCallbacks}
-            getPartToolImages={getPartToolImages}
+        {effectiveAddRow && (
+          <PartToolAddRow
+            values={effectiveAddRow.values}
+            onChange={effectiveAddRow.onChange}
+            onConfirm={effectiveAddRow.onConfirm}
+            canConfirm={effectiveAddRow.canConfirm}
+            showThumbnails={showThumbnails}
+            showUsed={showAllSubstepPartTools}
             testIdPrefix={testIdPrefix}
           />
-        ))}
+        )}
+        {rows.map((row) => {
+          const isEditing = effectiveEditingRowId === row.rowId;
+          // When editingRowId is set, non-editing rows become read-only
+          const rowReadOnly = effectiveReadOnly || (!!effectiveEditingRowId && !isEditing);
+          return (
+            <PartToolTableRow
+              key={row.rowId}
+              row={row}
+              callbacks={callbacks}
+              allSubstepPartTools={showAllSubstepPartTools ? allSubstepPartTools : undefined}
+              onOpenPartToolList={onOpenPartToolList}
+              getPreviewUrl={getPreviewUrl}
+              imageCallbacks={imageCallbacks}
+              getPartToolImages={getPartToolImages}
+              testIdPrefix={testIdPrefix}
+              readOnly={rowReadOnly}
+              isEditing={isEditing}
+              isSelected={selectedRowId === row.rowId}
+              onRowClick={onRowClick}
+              showActionCol={showActionCol}
+              compact={compact}
+            />
+          );
+        })}
       </tbody>
     </table>
   );
@@ -102,23 +165,13 @@ export function PartToolTable({
 
 type PartToolFieldKey = 'label' | 'name' | 'partNumber' | 'amount' | 'unit' | 'material' | 'dimension' | 'description';
 
-const AUTOCOMPLETE_FIELDS: ReadonlySet<PartToolFieldKey> = new Set(['name', 'label', 'partNumber']);
-
-/** Check if an autocomplete field on an existing partTool should show "Create new" vs "Update existing" buttons. */
-function shouldShowDualConfirm(
-  field: PartToolFieldKey,
-  hasCreateCallback: boolean,
-  partToolName: string,
-): boolean {
-  return AUTOCOMPLETE_FIELDS.has(field) && hasCreateCallback && partToolName !== '';
-}
+const CATALOG_FIELDS: ReadonlySet<PartToolFieldKey> = new Set(['name', 'label', 'partNumber']);
 
 interface EditingField {
   field: PartToolFieldKey;
   label: string;
   value: string;
   inputType: 'text' | 'number';
-  withSuggestions: boolean;
 }
 
 const CELL_BTN_CLASS = 'w-full text-left text-base truncate cursor-pointer hover:bg-[var(--color-bg-hover)] rounded px-1 py-0.5 transition-colors';
@@ -127,22 +180,34 @@ interface RowProps {
   row: PartToolTableItem;
   callbacks: PartToolTableCallbacks;
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
-  allPartTools?: PartToolRow[];
+  onOpenPartToolList?: () => void;
   getPreviewUrl?: (partToolId: string) => string | null;
   imageCallbacks?: PartToolTableImageCallbacks;
   getPartToolImages?: (partToolId: string) => PartToolImageItem[];
   testIdPrefix: string;
+  readOnly?: boolean;
+  isEditing?: boolean;
+  isSelected?: boolean;
+  onRowClick?: (row: PartToolTableItem) => void;
+  showActionCol?: boolean;
+  compact?: boolean;
 }
 
 const PartToolTableRow = memo(function PartToolTableRow({
   row,
   callbacks,
   allSubstepPartTools,
-  allPartTools,
+  onOpenPartToolList,
   getPreviewUrl,
   imageCallbacks,
   getPartToolImages,
   testIdPrefix,
+  readOnly,
+  isEditing,
+  isSelected,
+  onRowClick,
+  showActionCol,
+  compact,
 }: RowProps) {
   const { t } = useTranslation();
   const pt = row.partTool;
@@ -155,6 +220,33 @@ const PartToolTableRow = memo(function PartToolTableRow({
   // ── Modal-based cell editing ──
   const [editingField, setEditingField] = useState<EditingField | null>(null);
 
+  // ── Inline editing local state ──
+  const [localValues, setLocalValues] = useState({
+    label: pt.label ?? '',
+    name: pt.name,
+    partNumber: pt.partNumber ?? '',
+    amount: row.amount,
+    unit: pt.unit ?? '',
+    material: pt.material ?? '',
+    dimension: pt.dimension ?? '',
+    description: pt.description ?? '',
+  });
+  const focusValueRef = useRef<string | number>('');
+
+  // Sync local values when partTool changes externally
+  useEffect(() => {
+    setLocalValues({
+      label: pt.label ?? '',
+      name: pt.name,
+      partNumber: pt.partNumber ?? '',
+      amount: row.amount,
+      unit: pt.unit ?? '',
+      material: pt.material ?? '',
+      dimension: pt.dimension ?? '',
+      description: pt.description ?? '',
+    });
+  }, [pt.label, pt.name, pt.partNumber, row.amount, pt.unit, pt.material, pt.dimension, pt.description]);
+
   const isTool = pt.type === 'Tool';
   const nameValid = isPartToolNameValid(pt.name);
 
@@ -162,19 +254,14 @@ const PartToolTableRow = memo(function PartToolTableRow({
     callbacks.onUpdatePartTool(pt.id, { type: pt.type === 'Tool' ? 'Part' : 'Tool' });
   }, [pt.id, pt.type, callbacks]);
 
-  const partToolItems = useMemo(() => toPartToolSelectItems(allPartTools ?? []), [allPartTools]);
-
-  const handleSelectSuggestion = useCallback(
-    (partToolId: string) => {
-      callbacks.onSelectPartTool?.(row.rowId, partToolId);
-      setEditingField(null);
-    },
-    [callbacks, row.rowId],
-  );
-
-  const openField = useCallback((field: PartToolFieldKey, label: string, value: string, inputType: 'text' | 'number' = 'text', withSuggestions = false) => {
-    setEditingField({ field, label, value, inputType, withSuggestions });
-  }, []);
+  const openField = useCallback((field: PartToolFieldKey, label: string, value: string, inputType: 'text' | 'number' = 'text') => {
+    // For catalog fields (name/label/partNumber), open the PartToolListPanel if available
+    if (CATALOG_FIELDS.has(field) && onOpenPartToolList) {
+      onOpenPartToolList();
+      return;
+    }
+    setEditingField({ field, label, value, inputType });
+  }, [onOpenPartToolList]);
 
   /** Apply a direct field update (no choice dialog). */
   const applyFieldUpdate = useCallback((field: PartToolFieldKey, newValue: string) => {
@@ -203,13 +290,6 @@ const PartToolTableRow = memo(function PartToolTableRow({
     applyFieldUpdate(editingField.field, newValue);
     setEditingField(null);
   }, [editingField, applyFieldUpdate]);
-
-  const handleSecondaryConfirm = useCallback((newValue: string) => {
-    if (!editingField) return;
-    const { field } = editingField;
-    callbacks.onCreateAndReplacePartTool?.(row.rowId, field as 'name' | 'label' | 'partNumber', newValue.trim());
-    setEditingField(null);
-  }, [editingField, callbacks, row.rowId]);
 
   const handleFieldCancel = useCallback(() => {
     setEditingField(null);
@@ -254,22 +334,63 @@ const PartToolTableRow = memo(function PartToolTableRow({
 
   const previewUrl = getPreviewUrl?.(pt.id) ?? null;
 
-  /** Render a clickable cell that opens TextInputModal on click */
-  const renderCell = useCallback((field: PartToolFieldKey, displayValue: string, placeholder: string, inputType: 'text' | 'number' = 'text', withSuggestions = false, extraClass = '') => (
-    <button
-      type="button"
-      data-testid={`${testIdPrefix}-${field}-${row.rowId}`}
-      className={`${CELL_BTN_CLASS} ${extraClass}`}
-      onClick={() => openField(field, placeholder, displayValue, inputType, withSuggestions)}
-    >
-      <span className={displayValue ? '' : 'text-[var(--color-text-muted)]'}>
-        {displayValue || placeholder}
-      </span>
-    </button>
-  ), [testIdPrefix, row.rowId, openField]);
+  /** Handle inline blur-save for editing row */
+  const handleInlineBlur = useCallback((field: PartToolFieldKey, value: string) => {
+    if (String(value) === String(focusValueRef.current)) return;
+    applyFieldUpdate(field, value);
+  }, [applyFieldUpdate]);
+
+  /** Render a cell: inline edit (isEditing), read-only span, or modal button */
+  const renderCell = useCallback((field: PartToolFieldKey, displayValue: string, placeholder: string, inputType: 'text' | 'number' = 'text', extraClass = '') => {
+    if (isEditing) {
+      const localVal = field === 'amount' ? String(localValues[field]) : localValues[field as Exclude<PartToolFieldKey, 'amount'>];
+      return (
+        <EditInput
+          data-testid={`${testIdPrefix}-${field}-${row.rowId}`}
+          size="sm"
+          type={inputType}
+          placeholder={placeholder}
+          value={localVal}
+          onChange={(e) => {
+            const v = e.target.value;
+            setLocalValues((prev) => ({ ...prev, [field]: inputType === 'number' ? Math.max(1, Number(v) || 1) : v }));
+          }}
+          onFocus={() => { focusValueRef.current = localVal; }}
+          onBlur={(e) => handleInlineBlur(field, e.target.value)}
+          className={extraClass}
+        />
+      );
+    }
+    if (readOnly) {
+      return (
+        <span
+          data-testid={`${testIdPrefix}-${field}-${row.rowId}`}
+          className={`text-base truncate ${extraClass} ${displayValue ? '' : 'text-[var(--color-text-muted)]'}`}
+        >
+          {displayValue || placeholder}
+        </span>
+      );
+    }
+    return (
+      <button
+        type="button"
+        data-testid={`${testIdPrefix}-${field}-${row.rowId}`}
+        className={`${CELL_BTN_CLASS} ${extraClass}`}
+        onClick={() => openField(field, placeholder, displayValue, inputType)}
+      >
+        <span className={displayValue ? '' : 'text-[var(--color-text-muted)]'}>
+          {displayValue || placeholder}
+        </span>
+      </button>
+    );
+  }, [testIdPrefix, row.rowId, openField, readOnly, isEditing, localValues, handleInlineBlur]);
 
   return (
-    <tr data-testid={`${testIdPrefix}-${row.rowId}`} className="hover:bg-[var(--color-bg-hover)] transition-colors">
+    <tr
+      data-testid={`${testIdPrefix}-${row.rowId}`}
+      className={`hover:bg-[var(--color-bg-hover)] transition-colors${onRowClick ? ' cursor-pointer' : ''}${isSelected ? ' bg-[var(--color-bg-selected)]' : ''}`}
+      onClick={onRowClick ? () => onRowClick(row) : undefined}
+    >
       {/* Thumbnail (optional) */}
       {getPreviewUrl && (
         <td className="px-2 py-1.5">
@@ -380,32 +501,45 @@ const PartToolTableRow = memo(function PartToolTableRow({
 
       {/* Type toggle */}
       <td className="px-2 py-1.5">
-        <button
-          type="button"
-          data-testid={`${testIdPrefix}-type-${row.rowId}`}
-          aria-label={isTool ? t('editorCore.typeTool', 'Tool') : t('editorCore.typePart', 'Part')}
-          className="flex items-center justify-center w-full cursor-pointer transition-colors"
-          onClick={toggleType}
-        >
-          {isTool
-            ? <ToolIcon className="h-3 w-3 text-[var(--color-element-tool)]" />
-            : <PartIcon className="h-3 w-3 text-[var(--color-element-part)]" />}
-        </button>
+        {readOnly ? (
+          <span
+            data-testid={`${testIdPrefix}-type-${row.rowId}`}
+            className="flex items-center justify-center w-full"
+          >
+            {isTool
+              ? <ToolIcon className="h-3 w-3 text-[var(--color-element-tool)]" />
+              : <PartIcon className="h-3 w-3 text-[var(--color-element-part)]" />}
+          </span>
+        ) : (
+          <button
+            type="button"
+            data-testid={`${testIdPrefix}-type-${row.rowId}`}
+            aria-label={isTool ? t('editorCore.typeTool', 'Tool') : t('editorCore.typePart', 'Part')}
+            className="flex items-center justify-center w-full cursor-pointer transition-colors"
+            onClick={toggleType}
+          >
+            {isTool
+              ? <ToolIcon className="h-3 w-3 text-[var(--color-element-tool)]" />
+              : <PartIcon className="h-3 w-3 text-[var(--color-element-part)]" />}
+          </button>
+        )}
       </td>
 
       {/* Label */}
-      <td className="px-2 py-1.5">
-        {renderCell('label', pt.label ?? '', t('editorCore.partToolLabel', 'Label'), 'text', !!allPartTools)}
-      </td>
+      {!compact && (
+        <td className="px-2 py-1.5">
+          {renderCell('label', pt.label ?? '', t('editorCore.partToolLabel', 'Label'))}
+        </td>
+      )}
 
       {/* Name */}
       <td className="px-2 py-1.5">
-        {renderCell('name', pt.name, t('editorCore.partToolName', 'Name'), 'text', !!allPartTools, !nameValid ? 'text-red-500' : '')}
+        {renderCell('name', pt.name, t('editorCore.partToolName', 'Name'), 'text', !nameValid ? 'text-red-500' : '')}
       </td>
 
       {/* Part# */}
       <td className="px-2 py-1.5">
-        {renderCell('partNumber', pt.partNumber ?? '', t('editorCore.partToolPartNumber', 'Part#'), 'text', !!allPartTools)}
+        {renderCell('partNumber', pt.partNumber ?? '', t('editorCore.partToolPartNumber', 'Part#'))}
       </td>
 
       {/* Amount */}
@@ -426,68 +560,171 @@ const PartToolTableRow = memo(function PartToolTableRow({
       )}
 
       {/* Unit */}
+      {!compact && (
+        <td className="px-2 py-1.5">
+          {renderCell('unit', pt.unit ?? '', t('editorCore.partToolUnit', 'Unit'))}
+        </td>
+      )}
+
+      {/* Material */}
+      {!compact && (
+        <td className="px-2 py-1.5">
+          {renderCell('material', pt.material ?? '', t('editorCore.partToolMaterial', 'Material'))}
+        </td>
+      )}
+
+      {/* Dimension */}
+      {!compact && (
+        <td className="px-2 py-1.5">
+          {renderCell('dimension', pt.dimension ?? '', t('editorCore.partToolDimension', 'Dim.'))}
+        </td>
+      )}
+
+      {/* Description */}
+      {!compact && (
+        <td className="px-2 py-1.5">
+          {renderCell('description', pt.description ?? '', t('editorCore.partToolDescription', 'Description'))}
+        </td>
+      )}
+
+      {/* Delete / Action */}
+      {showActionCol && (
+        <td className="px-2 py-1.5">
+          {(!readOnly || isEditing) && (
+            <button
+              type="button"
+              data-testid={`${testIdPrefix}-delete-${row.rowId}`}
+              aria-label={t('editorCore.deletePartTool', 'Delete part/tool')}
+              className="flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-danger)] transition-colors cursor-pointer"
+              onClick={handleDelete}
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          )}
+        </td>
+      )}
+
+      {/* Modal for cell editing */}
+      {!readOnly && !isEditing && editingField && (
+        <TextInputModal
+          label={editingField.label}
+          value={editingField.value}
+          inputType={editingField.inputType}
+          onConfirm={handleFieldConfirm}
+          onCancel={handleFieldCancel}
+        />
+      )}
+    </tr>
+  );
+});
+
+// ── Add Row component ──
+
+interface PartToolAddRowProps {
+  values: PartToolAddRowValues;
+  onChange: (v: PartToolAddRowValues) => void;
+  onConfirm: () => void;
+  canConfirm: boolean;
+  showThumbnails: boolean;
+  showUsed: boolean;
+  testIdPrefix: string;
+}
+
+const PartToolAddRow = memo(function PartToolAddRow({
+  values,
+  onChange,
+  onConfirm,
+  canConfirm,
+  showThumbnails,
+  showUsed,
+  testIdPrefix,
+}: PartToolAddRowProps) {
+  const { t } = useTranslation();
+  const isTool = values.type === 'Tool';
+
+  const handleChange = useCallback((field: keyof PartToolAddRowValues, val: string | number) => {
+    onChange({ ...values, [field]: val });
+  }, [values, onChange]);
+
+  const toggleType = useCallback(() => {
+    onChange({ ...values, type: values.type === 'Part' ? 'Tool' : 'Part' });
+  }, [values, onChange]);
+
+  return (
+    <tr data-testid="parttool-add-row" className="bg-[var(--color-bg-hover)]/30">
+      {showThumbnails && <td className="px-2 py-1.5" />}
+
+      {/* Type toggle */}
       <td className="px-2 py-1.5">
-        {renderCell('unit', pt.unit ?? '', t('editorCore.partToolUnit', 'Unit'))}
+        <button
+          type="button"
+          data-testid={`${testIdPrefix}-add-type`}
+          aria-label={isTool ? t('editorCore.typeTool', 'Tool') : t('editorCore.typePart', 'Part')}
+          className="flex items-center justify-center w-full cursor-pointer transition-colors"
+          onClick={toggleType}
+        >
+          {isTool
+            ? <ToolIcon className="h-3 w-3 text-[var(--color-element-tool)]" />
+            : <PartIcon className="h-3 w-3 text-[var(--color-element-part)]" />}
+        </button>
+      </td>
+
+      {/* Label */}
+      <td className="px-2 py-1.5">
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-label`} placeholder={t('editorCore.partToolLabel', 'Label')} value={values.label} onChange={(e) => handleChange('label', e.target.value)} />
+      </td>
+
+      {/* Name */}
+      <td className="px-2 py-1.5">
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-name`} placeholder={t('editorCore.partToolName', 'Name')} value={values.name} onChange={(e) => handleChange('name', e.target.value)} />
+      </td>
+
+      {/* Part# */}
+      <td className="px-2 py-1.5">
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-partNumber`} placeholder={t('editorCore.partToolPartNumber', 'Part#')} value={values.partNumber} onChange={(e) => handleChange('partNumber', e.target.value)} />
+      </td>
+
+      {/* Amount */}
+      <td className="px-2 py-1.5">
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-amount`} type="number" min={1} value={values.amount} onChange={(e) => handleChange('amount', Math.max(1, Number(e.target.value) || 1))} className="text-center" />
+      </td>
+
+      {/* Used (placeholder) */}
+      {showUsed && <td className="px-2 py-1.5" />}
+
+      {/* Unit */}
+      <td className="px-2 py-1.5">
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-unit`} placeholder={t('editorCore.partToolUnit', 'Unit')} value={values.unit} onChange={(e) => handleChange('unit', e.target.value)} />
       </td>
 
       {/* Material */}
       <td className="px-2 py-1.5">
-        {renderCell('material', pt.material ?? '', t('editorCore.partToolMaterial', 'Material'))}
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-material`} placeholder={t('editorCore.partToolMaterial', 'Material')} value={values.material} onChange={(e) => handleChange('material', e.target.value)} />
       </td>
 
       {/* Dimension */}
       <td className="px-2 py-1.5">
-        {renderCell('dimension', pt.dimension ?? '', t('editorCore.partToolDimension', 'Dim.'))}
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-dimension`} placeholder={t('editorCore.partToolDimension', 'Dim.')} value={values.dimension} onChange={(e) => handleChange('dimension', e.target.value)} />
       </td>
 
       {/* Description */}
       <td className="px-2 py-1.5">
-        {renderCell('description', pt.description ?? '', t('editorCore.partToolDescription', 'Description'))}
+        <EditInput size="sm" data-testid={`${testIdPrefix}-add-description`} placeholder={t('editorCore.partToolDescription', 'Description')} value={values.description} onChange={(e) => handleChange('description', e.target.value)} />
       </td>
 
-      {/* Delete */}
+      {/* Confirm button */}
       <td className="px-2 py-1.5">
         <button
           type="button"
-          data-testid={`${testIdPrefix}-delete-${row.rowId}`}
-          aria-label={t('editorCore.deletePartTool', 'Delete part/tool')}
-          className="flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-danger)] transition-colors cursor-pointer"
-          onClick={handleDelete}
+          data-testid="parttool-add-confirm"
+          aria-label={t('editorCore.confirmAdd', 'Confirm add')}
+          disabled={!canConfirm}
+          className="flex items-center justify-center text-[var(--color-secondary)] hover:text-[var(--color-primary)] transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-default"
+          onClick={onConfirm}
         >
-          <Trash2 className="h-3 w-3" />
+          <Plus className="h-3 w-3" />
         </button>
       </td>
-
-      {/* Modal for cell editing — PartToolSelectModal for catalog fields, TextInputModal otherwise */}
-      {editingField && (() => {
-        const dualConfirm = shouldShowDualConfirm(editingField.field, !!callbacks.onCreateAndReplacePartTool, pt.name);
-        if (editingField.withSuggestions) {
-          return (
-            <PartToolSelectModal
-              label={editingField.label}
-              value={editingField.value}
-              inputType={editingField.inputType}
-              onConfirm={handleFieldConfirm}
-              onCancel={handleFieldCancel}
-              items={partToolItems}
-              onSelect={handleSelectSuggestion}
-              getPreviewUrl={getPreviewUrl ? (item) => getPreviewUrl(item.id) : undefined}
-              onSecondaryConfirm={dualConfirm ? handleSecondaryConfirm : undefined}
-              secondaryConfirmLabel={dualConfirm ? t('editorCore.createNewPartTool', 'Create new') : undefined}
-              confirmLabel={dualConfirm ? t('editorCore.updateExisting', 'Update') : undefined}
-            />
-          );
-        }
-        return (
-          <TextInputModal
-            label={editingField.label}
-            value={editingField.value}
-            inputType={editingField.inputType}
-            onConfirm={handleFieldConfirm}
-            onCancel={handleFieldCancel}
-          />
-        );
-      })()}
     </tr>
   );
 });

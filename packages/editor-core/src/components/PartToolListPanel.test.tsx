@@ -13,13 +13,13 @@ vi.mock('react-image-crop', () => ({
 }));
 vi.mock('react-image-crop/dist/ReactCrop.css', () => ({}));
 
-// Mock viewer-core — provide SearchInput + fuzzySearch for CatalogGrid
+// Mock viewer-core — provide SearchInput + fuzzySearch for CatalogGrid + PartToolDetailContent
 vi.mock('@monta-vis/viewer-core', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@monta-vis/viewer-core');
   return {
     ...actual,
     SearchInput: ({ value, onChange, placeholder, 'aria-label': ariaLabel }: { value: string; onChange: (v: string) => void; placeholder?: string; 'aria-label'?: string }) => (
-      <input type="text" value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)} placeholder={placeholder} aria-label={ariaLabel} />
+      <input type="text" value={value} onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)} placeholder={placeholder} aria-label={ariaLabel} data-testid="search-input" />
     ),
     fuzzySearch: (items: PartToolIconItem[], query: string, getTerms: (item: PartToolIconItem) => string[]) => {
       const q = query.toLowerCase();
@@ -27,6 +27,13 @@ vi.mock('@monta-vis/viewer-core', async () => {
         .filter((item: PartToolIconItem) => getTerms(item).some((term: string) => term.toLowerCase().includes(q)))
         .map((item: PartToolIconItem) => ({ item, score: 1 }));
     },
+    PartToolDetailContent: ({ item, actionSlot }: { item: { partTool: PartToolRow; totalAmount: number }; actionSlot?: React.ReactNode }) => (
+      <div data-testid="parttool-detail-content">
+        <span data-testid="parttool-detail-name">{item.partTool.name}</span>
+        <span data-testid="parttool-detail-amount">{item.totalAmount}</span>
+        {actionSlot && <div data-testid="parttool-detail-action-slot">{actionSlot}</div>}
+      </div>
+    ),
   };
 });
 
@@ -69,7 +76,15 @@ function renderPanel(overrides: Partial<PartToolListPanelProps> = {}) {
 describe('PartToolListPanel', () => {
   it('does not render when closed', () => {
     renderPanel({ open: false });
-    expect(screen.queryByTestId('dialog-shell-backdrop')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('parttool-list-panel')).not.toBeInTheDocument();
+  });
+
+  it('renders search bar and compact table', () => {
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools });
+    expect(screen.getByTestId('parttool-list-panel')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-list-search')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-table')).toBeInTheDocument();
   });
 
   it('renders table with sorted rows (Parts first, then Tools, alpha)', () => {
@@ -80,88 +95,88 @@ describe('PartToolListPanel', () => {
     };
     renderPanel({ partTools });
     const rows = screen.getAllByTestId(/^parttool-list-row-/);
-    // Rows include type/name/delete etc. so filter to just the row <tr> elements
     const rowTrs = rows.filter((el) => el.tagName === 'TR');
     expect(rowTrs).toHaveLength(3);
-    // Parts first alphabetically, then tools
     expect(rowTrs[0]).toHaveAttribute('data-testid', 'parttool-list-row-p1');
     expect(rowTrs[1]).toHaveAttribute('data-testid', 'parttool-list-row-p2');
     expect(rowTrs[2]).toHaveAttribute('data-testid', 'parttool-list-row-t1');
   });
 
-  it('type toggle calls onUpdatePartTool with toggled type', async () => {
+  it('clicking row shows detail in sidebar', async () => {
     const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const partTools = { t1: makePt('t1', 'Wrench', 'Tool') };
-    renderPanel({ partTools, callbacks: cbs });
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 3) };
+    renderPanel({ partTools });
 
-    const toggle = screen.getByTestId('parttool-list-row-type-t1');
-    await user.click(toggle);
-    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('t1', { type: 'Part' });
+    // No sidebar content initially
+    expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
+
+    // Click a row
+    const row = screen.getByTestId('parttool-list-row-p1');
+    await user.click(row);
+
+    // Sidebar shows detail
+    expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-detail-name')).toHaveTextContent('Nut');
   });
 
-  it('inline edit fields commit on blur', async () => {
+  it('sidebar shows empty state when no item selected', () => {
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools });
+    expect(screen.getByTestId('parttool-list-sidebar-empty')).toBeInTheDocument();
+  });
+
+  it('"Edit" button in sidebar opens PartToolDetailEditor', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
+    renderPanel({ partTools });
+
+    // Select a row
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+
+    // Click Edit button in sidebar
+    const editBtn = screen.getByTestId('parttool-list-edit-btn');
+    await user.click(editBtn);
+
+    // PartToolDetailEditor wrapper should be open
+    expect(screen.getByTestId('parttool-list-edit-dialog')).toBeInTheDocument();
+  });
+
+  it('"Delete" button calls onDeletePartTool', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
     const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({ partTools, callbacks: cbs });
 
-    const nameInput = screen.getByTestId('parttool-list-row-name-p1');
-    await user.clear(nameInput);
-    await user.type(nameInput, 'Nut');
-    await user.tab();
-    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('p1', { name: 'Nut' });
-  });
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('parttool-list-delete-btn'));
 
-  it('add button calls onAddPartTool', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    renderPanel({ callbacks: cbs });
-
-    const addBtn = screen.getByTestId('parttool-list-add');
-    await user.click(addBtn);
-    expect(cbs.onAddPartTool).toHaveBeenCalledOnce();
-  });
-
-  it('delete button calls onDeletePartTool', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
-    renderPanel({ partTools, callbacks: cbs });
-
-    const deleteBtn = screen.getByTestId('parttool-list-row-delete-p1');
-    await user.click(deleteBtn);
     expect(cbs.onDeletePartTool).toHaveBeenCalledWith('p1');
   });
 
-  it('Used column shows computed amount', () => {
-    const partTools = { p1: makePt('p1', 'Nut', 'Part', 5) };
-    const substepPartTools = {
-      spt1: { id: 'spt1', versionId: 'v1', substepId: 's1', partToolId: 'p1', amount: 2, order: 0 },
-      spt2: { id: 'spt2', versionId: 'v1', substepId: 's2', partToolId: 'p1', amount: 3, order: 0 },
-    };
-    renderPanel({ partTools, substepPartTools });
-    expect(screen.getByTestId('parttool-list-row-used-p1')).toHaveTextContent('5');
-  });
-
-  it('mismatch row has red styling when used !== declared', () => {
-    const partTools = { p1: makePt('p1', 'Nut', 'Part', 5) };
-    const substepPartTools = {
-      spt1: { id: 'spt1', versionId: 'v1', substepId: 's1', partToolId: 'p1', amount: 2, order: 0 },
-    };
-    renderPanel({ partTools, substepPartTools });
-    const usedCell = screen.getByTestId('parttool-list-row-used-p1');
-    expect(usedCell.className).toContain('text-red');
-  });
-
-  it('import button shown only when callback provided', () => {
-    renderPanel({ callbacks: { ...makeCallbacks(), onImportPartTools: vi.fn() } });
-    expect(screen.getByTestId('parttool-list-import')).toBeInTheDocument();
-  });
-
-  it('import button hidden when callback not provided', () => {
+  it('"+" button opens add popover', async () => {
+    const user = userEvent.setup();
     renderPanel();
-    expect(screen.queryByTestId('parttool-list-import')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('parttool-list-add'));
+    expect(screen.getByTestId('parttool-add-popover')).toBeInTheDocument();
+  });
+
+  it('search filters table rows', async () => {
+    const user = userEvent.setup();
+    const partTools = {
+      p1: makePt('p1', 'Nut', 'Part'),
+      p2: makePt('p2', 'Screw', 'Part'),
+      t1: makePt('t1', 'Wrench', 'Tool'),
+    };
+    renderPanel({ partTools });
+
+    const searchInput = screen.getByTestId('parttool-list-search');
+    await user.type(searchInput, 'nut');
+
+    // Only matching row visible
+    const rowTrs = screen.getAllByTestId(/^parttool-list-row-/).filter((el) => el.tagName === 'TR');
+    expect(rowTrs).toHaveLength(1);
+    expect(rowTrs[0]).toHaveAttribute('data-testid', 'parttool-list-row-p1');
   });
 
   it('escape closes panel', async () => {
@@ -178,46 +193,70 @@ describe('PartToolListPanel', () => {
     const onClose = vi.fn();
     renderPanel({ onClose });
 
-    const backdrop = screen.getByTestId('dialog-shell-backdrop');
+    const backdrop = screen.getByTestId('parttool-list-backdrop');
     await user.click(backdrop);
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it('shows ImagePlus button when onUploadImage provided and no preview', () => {
-    const cbs = { ...makeCallbacks(), onUploadImage: vi.fn() };
-    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
-    renderPanel({
-      partTools,
-      callbacks: cbs,
-      getPreviewUrl: () => null,
-    });
-    expect(screen.getByTestId('parttool-list-row-upload-p1')).toBeInTheDocument();
+  it('import button shown only when callback provided', () => {
+    renderPanel({ callbacks: { ...makeCallbacks(), onImportPartTools: vi.fn() } });
+    expect(screen.getByTestId('parttool-list-import')).toBeInTheDocument();
   });
 
-  it('shows thumbnail when getPreviewUrl returns a URL', () => {
-    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
-    renderPanel({
-      partTools,
-      getPreviewUrl: () => 'http://example.com/img.jpg',
-    });
-    expect(screen.getByTestId('parttool-list-row-thumbnail-p1')).toBeInTheDocument();
-    expect(screen.getByTestId('parttool-list-row-thumbnail-p1')).toHaveAttribute('src', 'http://example.com/img.jpg');
+  it('import button hidden when callback not provided', () => {
+    renderPanel();
+    expect(screen.queryByTestId('parttool-list-import')).not.toBeInTheDocument();
   });
 
-  it('shows delete overlay on thumbnail when onDeleteImage provided', () => {
-    const cbs = { ...makeCallbacks(), onUploadImage: vi.fn(), onDeleteImage: vi.fn() };
+  it('row selection is highlighted', async () => {
+    const user = userEvent.setup();
+    const partTools = {
+      p1: makePt('p1', 'Nut', 'Part'),
+      t1: makePt('t1', 'Wrench', 'Tool'),
+    };
+    renderPanel({ partTools });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    const row = screen.getByTestId('parttool-list-row-p1');
+    expect(row.className).toContain('bg-[var(--color-bg-selected)]');
+  });
+
+  it('selecting deleted item clears sidebar', async () => {
+    const user = userEvent.setup();
     const partTools = { p1: makePt('p1', 'Nut', 'Part') };
-    renderPanel({
-      partTools,
-      callbacks: cbs,
-      getPreviewUrl: () => 'http://example.com/img.jpg',
-    });
-    expect(screen.getByTestId('parttool-list-row-delete-image-p1')).toBeInTheDocument();
+    const { rerender } = render(
+      <PartToolListPanel
+        open
+        onClose={vi.fn()}
+        partTools={partTools}
+        substepPartTools={{}}
+        callbacks={makeCallbacks()}
+      />,
+    );
+
+    // Select the item
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
+
+    // Re-render without the item (simulating deletion)
+    rerender(
+      <PartToolListPanel
+        open
+        onClose={vi.fn()}
+        partTools={{}}
+        substepPartTools={{}}
+        callbacks={makeCallbacks()}
+      />,
+    );
+
+    // Sidebar should show empty state
+    expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
+    expect(screen.getByTestId('parttool-list-sidebar-empty')).toBeInTheDocument();
   });
 });
 
 // ============================================================
-// Tab layout (catalog integration)
+// Catalog integration via PartToolAddPopover
 // ============================================================
 
 const catalogItems: PartToolIconItem[] = [
@@ -225,59 +264,28 @@ const catalogItems: PartToolIconItem[] = [
   { id: 'cat1/wrench.png', filename: 'wrench.png', category: 'Tools', label: 'Wrench', tags: [], itemType: 'Tool', catalogDirName: 'cat1' },
 ];
 
-describe('PartToolListPanel — tabs', () => {
-  it('does not show tabs when catalogItems is absent', () => {
-    renderPanel();
-    expect(screen.queryByTestId('parttool-list-tab-instruction')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('parttool-list-tab-add')).not.toBeInTheDocument();
-  });
-
-  it('shows tabs when catalogItems is provided', () => {
-    renderPanel({ catalogItems, getCatalogIconUrl: () => '/icon.png' });
-    expect(screen.getByTestId('parttool-list-tab-instruction')).toBeInTheDocument();
-    expect(screen.getByTestId('parttool-list-tab-add')).toBeInTheDocument();
-  });
-
-  it('instruction tab shows PartToolTable by default', () => {
-    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
-    renderPanel({ partTools, catalogItems, getCatalogIconUrl: () => '/icon.png' });
-    // Table row should be visible
-    expect(screen.getByTestId('parttool-list-row-p1')).toBeInTheDocument();
-  });
-
-  it('add tab shows catalog grid and form', async () => {
+describe('PartToolListPanel — add popover integration', () => {
+  it('"+" opens add popover with catalog tabs when catalogItems provided', async () => {
     const user = userEvent.setup();
     renderPanel({ catalogItems, getCatalogIconUrl: () => '/icon.png' });
 
-    await user.click(screen.getByTestId('parttool-list-tab-add'));
-
-    // Form and grid should be visible
-    expect(screen.getByTestId('add-form-name')).toBeInTheDocument();
-    expect(screen.getByTestId('add-form-submit')).toBeInTheDocument();
+    await user.click(screen.getByTestId('parttool-list-add'));
+    expect(screen.getByTestId('parttool-add-popover')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-add-tab-manual')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-add-tab-catalog')).toBeInTheDocument();
   });
 
-  it('selecting catalog entry fills form and submitting calls onAddPartTool', async () => {
+  it('adding from manual form calls onAddPartTool', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
-    renderPanel({
-      catalogItems,
-      getCatalogIconUrl: () => '/icon.png',
-      callbacks: cbs,
-    });
+    renderPanel({ callbacks: cbs });
 
-    // Switch to Add tab
-    await user.click(screen.getByTestId('parttool-list-tab-add'));
+    await user.click(screen.getByTestId('parttool-list-add'));
+    await user.type(screen.getByTestId('parttool-add-manual-name'), 'NewBolt');
+    await user.click(screen.getByTestId('parttool-add-manual-submit'));
 
-    // Click catalog icon
-    await user.click(screen.getByRole('button', { name: 'Bolt M6' }));
-
-    // Form should now have the name filled — submit should be enabled
-    const submitBtn = screen.getByTestId('add-form-submit');
-    expect(submitBtn).not.toBeDisabled();
-
-    await user.click(submitBtn);
     expect(cbs.onAddPartTool).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'Bolt M6', type: 'Part', iconId: 'cat1/bolt.png' }),
+      expect.objectContaining({ name: 'NewBolt' }),
     );
   });
 });

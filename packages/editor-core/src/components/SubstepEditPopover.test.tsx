@@ -3,7 +3,6 @@ import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { SubstepEditPopover } from './SubstepEditPopover';
 import type { SubstepEditPopoverProps } from './SubstepEditPopover';
-import type { PartToolRow } from '@monta-vis/viewer-core';
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -67,7 +66,7 @@ vi.mock('./VideoTrimDialog', () => ({
 }));
 
 // Track TextInputModal instances for testing
-let textInputModalProps: { label: string; value: string; inputType?: string; suggestions?: Array<{ id: string; label: string; sublabel?: string }>; onConfirm: (v: string) => void; onCancel: () => void; onSelect?: (id: string) => void } | null = null;
+let textInputModalProps: { label: string; value: string; inputType?: string; onConfirm: (v: string) => void; onCancel: () => void } | null = null;
 
 // Mock viewer-core exports used by inline note editing
 vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
@@ -83,13 +82,11 @@ vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
     },
     SAFETY_ICON_MANIFEST: [],
     buildMediaUrl: (folder: string, path: string) => `mvis-media://${folder}/${path}`,
-    TextInputModal: ({ label, value, inputType, suggestions, onConfirm, onCancel, onSelect }: {
+    TextInputModal: ({ label, value, inputType, onConfirm, onCancel }: {
       label: string; value: string; inputType?: string;
-      suggestions?: Array<{ id: string; label: string; sublabel?: string }>;
       onConfirm: (v: string) => void; onCancel: () => void;
-      onSelect?: (id: string) => void;
     }) => {
-      textInputModalProps = { label, value, inputType, suggestions, onConfirm, onCancel, onSelect };
+      textInputModalProps = { label, value, inputType, onConfirm, onCancel };
       return (
         <div data-testid="text-input-modal">
           <span data-testid="text-input-modal-label">{label}</span>
@@ -151,7 +148,6 @@ const callbacks = {
   onUpdateSubstepPartToolAmount: vi.fn(),
   onAddSubstepPartTool: vi.fn(),
   onDeleteSubstepPartTool: vi.fn(),
-  onReplaceSubstepPartTool: vi.fn(),
 };
 
 const mockOnUploadSubstepImage = vi.fn();
@@ -997,28 +993,6 @@ describe('SubstepEditPopover — parts/tools table', () => {
     expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
   });
 
-  it('selecting a suggestion fires onReplaceSubstepPartTool with junction ID and partTool ID', async () => {
-    const user = userEvent.setup();
-    const allPartTools: PartToolRow[] = [
-      {
-        id: 'cat-wrench', versionId: 'v1', instructionId: 'i1', previewImageId: null,
-        name: 'Catalog Wrench', label: null, type: 'Tool' as const, partNumber: null,
-        amount: 1, description: null, unit: null, material: null, dimension: null, iconId: null,
-      },
-    ];
-    render(<SubstepEditPopover {...baseProps} allPartTools={allPartTools} />);
-
-    // Click the name cell of the first partTool row to open TextInputModal with suggestions
-    await user.click(screen.getByTestId('parttool-row-name-pt-row-1'));
-
-    // The TextInputModal mock captures onSelect — simulate selecting a suggestion
-    expect(textInputModalProps).not.toBeNull();
-    expect(textInputModalProps!.onSelect).toBeDefined();
-    textInputModalProps!.onSelect!('cat-wrench');
-
-    expect(callbacks.onReplaceSubstepPartTool).toHaveBeenCalledWith('pt-row-1', 'cat-wrench');
-    expect(mockCaptureSnapshot).toHaveBeenCalled();
-  });
 });
 
 // ============================================================

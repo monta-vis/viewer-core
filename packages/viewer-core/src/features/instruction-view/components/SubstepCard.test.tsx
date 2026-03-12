@@ -5,8 +5,14 @@ import { SubstepCard } from './SubstepCard';
 import type { SubstepDescriptionRow, EnrichedSubstepNote, EnrichedSubstepPartTool } from '@/features/instruction';
 
 // Mock ResizeObserver (used by SubstepCard for image area sizing)
+// Mock IntersectionObserver (used by SubstepCard to pause video when scrolling out of view)
 beforeEach(() => {
   global.ResizeObserver = vi.fn().mockImplementation(() => ({
+    observe: vi.fn(),
+    unobserve: vi.fn(),
+    disconnect: vi.fn(),
+  }));
+  global.IntersectionObserver = vi.fn().mockImplementation(() => ({
     observe: vi.fn(),
     unobserve: vi.fn(),
     disconnect: vi.fn(),
@@ -190,7 +196,7 @@ describe('SubstepCard — editMode=true', () => {
     expect(screen.queryAllByLabelText('Delete')).toHaveLength(0);
     // No add description
     expect(screen.queryByText('Add description')).not.toBeInTheDocument();
-    // No delete substep in footer
+    // No delete substep button on card (moved to StepOverview thumbnails)
     expect(screen.queryByLabelText('Delete substep')).not.toBeInTheDocument();
   });
 

@@ -79,6 +79,7 @@ export {
   type PartToolTableCallbacks,
   type PartToolTableItem,
   type PartToolTableImageCallbacks,
+  type PartToolAddRowValues,
 } from './components/PartToolTable';
 
 // PartToolListPanel (instruction-level part/tool management panel)
@@ -101,6 +102,12 @@ export {
   type PartToolAddFormProps,
   type PartToolAddFormValues,
 } from './components/PartToolAddForm';
+
+// PartToolAddPopover (add part/tool via manual form or catalog)
+export {
+  PartToolAddPopover,
+  type PartToolAddPopoverProps,
+} from './components/PartToolAddPopover';
 
 // PartToolImagePicker (gallery picker for partTool images)
 export {
@@ -195,9 +202,9 @@ export { DraggableList } from './components/DraggableList';
 // DraggableGrid (sortable grid layout with @dnd-kit)
 export { DraggableGrid } from './components/DraggableGrid';
 
-// SortableStepGrid (unified step DnD for multi-container reordering)
-export { StepDndProvider, SortableStepContainer } from './components/SortableStepGrid';
-export type { StepDndProviderProps, SortableStepContainerProps } from './components/SortableStepGrid';
+// SortableStepGrid (unified step/assembly/substep DnD for multi-container reordering)
+export { StepDndProvider, SortableStepContainer, SortableAssembly, SortableSubstepContainer, SubstepDropZone } from './components/SortableStepGrid';
+export type { StepDndProviderProps, SortableStepContainerProps, SortableAssemblyProps, SortableAssemblyRenderProps, DragHandleProps, SortableSubstepContainerProps, SubstepDropZoneProps } from './components/SortableStepGrid';
 
 // reorderArray (immutable array reorder utility)
 export { reorderArray } from './utils/reorderArray';
@@ -209,12 +216,6 @@ export {
   type PartToolSelectListProps,
   type PartToolSelectItem,
 } from './components/PartToolSelectList';
-
-// PartToolSelectModal (text input + PartToolSelectList table modal for catalog fields)
-export {
-  PartToolSelectModal,
-  type PartToolSelectModalProps,
-} from './components/PartToolSelectModal';
 
 // PartTool helpers
 export {
