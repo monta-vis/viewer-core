@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import {
@@ -1015,6 +1016,227 @@ describe('videoFrameAreaToViewport', () => {
       expect(result.current.data!.steps['step-2'].stepNumber).toBe(2);
       expect(result.current.data!.steps['step-3'].stepNumber).toBe(3);
       expect(result.current.data!.steps['step-4'].stepNumber).toBe(4);
+    });
+  });
+
+  describe('reorderSubstep', () => {
+    function createDataWithSubsteps(): ReturnType<typeof createMockInstructionData> {
+      const data = createMockInstructionData();
+      data.steps = {
+        'step-1': {
+          id: 'step-1', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null,
+          stepNumber: 1, title: 'S1', description: null,
+          substepIds: ['sub-a', 'sub-b', 'sub-c'],
+          repeatCount: 1, repeatLabel: null, videoFrameAreaId: null,
+        },
+        'step-2': {
+          id: 'step-2', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null,
+          stepNumber: 2, title: 'S2', description: null,
+          substepIds: ['sub-d', 'sub-e'],
+          repeatCount: 1, repeatLabel: null, videoFrameAreaId: null,
+        },
+      };
+      data.substeps = {
+        'sub-a': { id: 'sub-a', versionId: 'ver-1', stepId: 'step-1', stepOrder: 1, creationOrder: 1, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-b': { id: 'sub-b', versionId: 'ver-1', stepId: 'step-1', stepOrder: 2, creationOrder: 2, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-c': { id: 'sub-c', versionId: 'ver-1', stepId: 'step-1', stepOrder: 3, creationOrder: 3, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-d': { id: 'sub-d', versionId: 'ver-1', stepId: 'step-2', stepOrder: 1, creationOrder: 4, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-e': { id: 'sub-e', versionId: 'ver-1', stepId: 'step-2', stepOrder: 2, creationOrder: 5, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+      };
+      return data;
+    }
+
+    it('reorders substep within step and renumbers', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithSubsteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderSubstep('sub-a', 2));
+
+      expect(result.current.data!.steps['step-1'].substepIds).toEqual(['sub-b', 'sub-c', 'sub-a']);
+      expect(result.current.data!.substeps['sub-b'].stepOrder).toBe(1);
+      expect(result.current.data!.substeps['sub-c'].stepOrder).toBe(2);
+      expect(result.current.data!.substeps['sub-a'].stepOrder).toBe(3);
+    });
+
+    it('is a no-op when same position', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithSubsteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderSubstep('sub-a', 0));
+
+      expect(result.current.data!.steps['step-1'].substepIds).toEqual(['sub-a', 'sub-b', 'sub-c']);
+      expect(result.current.changes.substeps.changed.size).toBe(0);
+    });
+
+    it('marks reordered substeps as changed', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithSubsteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderSubstep('sub-a', 2));
+
+      expect(result.current.changes.substeps.changed.has('sub-a')).toBe(true);
+      expect(result.current.changes.substeps.changed.has('sub-b')).toBe(true);
+      expect(result.current.changes.substeps.changed.has('sub-c')).toBe(true);
+    });
+  });
+
+  describe('moveSubstepToStep', () => {
+    function createDataWithSubsteps(): ReturnType<typeof createMockInstructionData> {
+      const data = createMockInstructionData();
+      data.steps = {
+        'step-1': {
+          id: 'step-1', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null,
+          stepNumber: 1, title: 'S1', description: null,
+          substepIds: ['sub-a', 'sub-b', 'sub-c'],
+          repeatCount: 1, repeatLabel: null, videoFrameAreaId: null,
+        },
+        'step-2': {
+          id: 'step-2', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null,
+          stepNumber: 2, title: 'S2', description: null,
+          substepIds: ['sub-d', 'sub-e'],
+          repeatCount: 1, repeatLabel: null, videoFrameAreaId: null,
+        },
+      };
+      data.substeps = {
+        'sub-a': { id: 'sub-a', versionId: 'ver-1', stepId: 'step-1', stepOrder: 1, creationOrder: 1, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-b': { id: 'sub-b', versionId: 'ver-1', stepId: 'step-1', stepOrder: 2, creationOrder: 2, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-c': { id: 'sub-c', versionId: 'ver-1', stepId: 'step-1', stepOrder: 3, creationOrder: 3, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-d': { id: 'sub-d', versionId: 'ver-1', stepId: 'step-2', stepOrder: 1, creationOrder: 4, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-e': { id: 'sub-e', versionId: 'ver-1', stepId: 'step-2', stepOrder: 2, creationOrder: 5, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+      };
+      return data;
+    }
+
+    it('moves substep from step-1 to step-2 at index 0', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithSubsteps();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.moveSubstepToStep('sub-a', 'step-2', 0));
+
+      expect(result.current.data!.steps['step-1'].substepIds).toEqual(['sub-b', 'sub-c']);
+      expect(result.current.data!.steps['step-2'].substepIds).toEqual(['sub-a', 'sub-d', 'sub-e']);
+      expect(result.current.data!.substeps['sub-a'].stepId).toBe('step-2');
+    });
+
+    it('renumbers source step (closes gap)', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithSubsteps();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.moveSubstepToStep('sub-b', 'step-2', 1));
+
+      // Source step-1: sub-a=1, sub-c=2
+      expect(result.current.data!.substeps['sub-a'].stepOrder).toBe(1);
+      expect(result.current.data!.substeps['sub-c'].stepOrder).toBe(2);
+      // Target step-2: sub-d=1, sub-b=2, sub-e=3
+      expect(result.current.data!.substeps['sub-d'].stepOrder).toBe(1);
+      expect(result.current.data!.substeps['sub-b'].stepOrder).toBe(2);
+      expect(result.current.data!.substeps['sub-e'].stepOrder).toBe(3);
+    });
+
+    it('marks changed substeps for both source and target steps', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithSubsteps();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.moveSubstepToStep('sub-a', 'step-2', 0));
+
+      // All affected substeps should be tracked
+      expect(result.current.changes.substeps.changed.has('sub-a')).toBe(true);
+      expect(result.current.changes.substeps.changed.has('sub-b')).toBe(true);
+      expect(result.current.changes.substeps.changed.has('sub-c')).toBe(true);
+      expect(result.current.changes.substeps.changed.has('sub-d')).toBe(true);
+      expect(result.current.changes.substeps.changed.has('sub-e')).toBe(true);
+    });
+
+    it('source step becomes empty when all substeps are moved out', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createMockInstructionData();
+      data.steps = {
+        'step-1': {
+          id: 'step-1', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null,
+          stepNumber: 1, title: 'S1', description: null,
+          substepIds: ['sub-only'],
+          repeatCount: 1, repeatLabel: null, videoFrameAreaId: null,
+        },
+        'step-2': {
+          id: 'step-2', versionId: 'ver-1', instructionId: 'inst-1', assemblyId: null,
+          stepNumber: 2, title: 'S2', description: null,
+          substepIds: ['sub-x'],
+          repeatCount: 1, repeatLabel: null, videoFrameAreaId: null,
+        },
+      };
+      data.substeps = {
+        'sub-only': { id: 'sub-only', versionId: 'ver-1', stepId: 'step-1', stepOrder: 1, creationOrder: 1, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+        'sub-x': { id: 'sub-x', versionId: 'ver-1', stepId: 'step-2', stepOrder: 1, creationOrder: 2, title: null, description: null, repeatCount: 1, repeatLabel: null, repeatVideoFrameAreaId: null, imageRowIds: [], videoSectionRowIds: [], partToolRowIds: [], noteRowIds: [], descriptionRowIds: [], tutorialRowIds: [] },
+      };
+      act(() => result.current.setData(data));
+
+      act(() => result.current.moveSubstepToStep('sub-only', 'step-2', 0));
+
+      expect(result.current.data!.steps['step-1'].substepIds).toEqual([]);
+      expect(result.current.data!.steps['step-2'].substepIds).toEqual(['sub-only', 'sub-x']);
+    });
+  });
+
+  describe('reorderAssembly', () => {
+    function createDataWithAssemblies(): ReturnType<typeof createMockInstructionData> {
+      const data = createMockInstructionData();
+      data.assemblies = {
+        'asm-a': { id: 'asm-a', versionId: 'ver-1', instructionId: 'inst-1', order: 0, title: 'Assembly A', videoFrameAreaId: null, stepIds: [] },
+        'asm-b': { id: 'asm-b', versionId: 'ver-1', instructionId: 'inst-1', order: 1, title: 'Assembly B', videoFrameAreaId: null, stepIds: [] },
+        'asm-c': { id: 'asm-c', versionId: 'ver-1', instructionId: 'inst-1', order: 2, title: 'Assembly C', videoFrameAreaId: null, stepIds: [] },
+      };
+      return data;
+    }
+
+    it('reorders assembly from index 0 to index 2', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+
+      act(() => result.current.reorderAssembly('asm-a', 2));
+
+      expect(result.current.data!.assemblies['asm-b'].order).toBe(0);
+      expect(result.current.data!.assemblies['asm-c'].order).toBe(1);
+      expect(result.current.data!.assemblies['asm-a'].order).toBe(2);
+    });
+
+    it('no-op when reordering to same position', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderAssembly('asm-b', 1));
+
+      // Order values unchanged
+      expect(result.current.data!.assemblies['asm-a'].order).toBe(0);
+      expect(result.current.data!.assemblies['asm-b'].order).toBe(1);
+      expect(result.current.data!.assemblies['asm-c'].order).toBe(2);
+      // No changes tracked
+      expect(result.current.changes.assemblies.changed.size).toBe(0);
+    });
+
+    it('marks all assemblies as changed after reorder', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const data = createDataWithAssemblies();
+      act(() => result.current.setData(data));
+      act(() => result.current.clearChanges());
+
+      act(() => result.current.reorderAssembly('asm-c', 0));
+
+      expect(result.current.changes.assemblies.changed.has('asm-a')).toBe(true);
+      expect(result.current.changes.assemblies.changed.has('asm-b')).toBe(true);
+      expect(result.current.changes.assemblies.changed.has('asm-c')).toBe(true);
     });
   });
 });
@@ -2317,6 +2539,42 @@ describe('useEditorStore - Extended Tests', () => {
       expect(result.current.data?.partTools['pt-1']).toBeUndefined();
     });
 
+    it('full partTool deletion removes junction rows AND the entity', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const mockData = createMockInstructionData();
+      mockData.partTools = {
+        'pt-1': { id: 'pt-1', versionId: 'ver-1', instructionId: 'i-1', name: 'Bolt', type: 'Part', partNumber: 'B1', amount: 5, description: '' },
+      };
+      mockData.substeps['substep-1'].partToolRowIds = ['spt-1', 'spt-2'];
+      mockData.substepPartTools = {
+        'spt-1': { id: 'spt-1', versionId: 'ver-1', substepId: 'substep-1', partToolId: 'pt-1', amount: 2, order: 1 },
+        'spt-2': { id: 'spt-2', versionId: 'ver-1', substepId: 'substep-1', partToolId: 'pt-1', amount: 3, order: 2 },
+      };
+
+      act(() => {
+        result.current.setData(mockData);
+      });
+
+      // Simulate the full deletion flow: delete junction rows, then the entity
+      act(() => {
+        const store = useEditorStore.getState();
+        const sptRows = Object.values(store.data?.substepPartTools ?? {})
+          .filter((spt) => spt.partToolId === 'pt-1');
+        for (const spt of sptRows) {
+          store.deleteSubstepPartTool(spt.id);
+        }
+        store.deletePartTool('pt-1');
+      });
+
+      // Junction rows removed
+      expect(result.current.data?.substepPartTools['spt-1']).toBeUndefined();
+      expect(result.current.data?.substepPartTools['spt-2']).toBeUndefined();
+      // Substep no longer references them
+      expect(result.current.data?.substeps['substep-1'].partToolRowIds).toEqual([]);
+      // Entity itself removed
+      expect(result.current.data?.partTools['pt-1']).toBeUndefined();
+    });
+
     it('updateDrawing updates drawing', () => {
       const { result } = renderHook(() => useEditorStore());
       const mockData = createMockInstructionData();
@@ -2679,6 +2937,74 @@ describe('useEditorStore - Extended Tests', () => {
       expect(changed.has('asm-a')).toBe(true);
       expect(changed.has('asm-b')).toBe(true);
       expect(changed.has('asm-c')).toBe(true);
+    });
+  });
+
+  describe('viewport keyframe cascade on deletion', () => {
+    it('deleteSubstep cascades viewport_keyframes for video_sections', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const mockData = createMockInstructionData();
+
+      mockData.videos = {
+        'v-1': { id: 'v-1', instructionId: 'inst-1', orderId: 'o-1', userId: 'u-1', videoPath: '/test.mp4', fps: 30, order: 1, proxyStatus: 'Pending', width: 1920, height: 1080, sectionIds: ['vs-1'], frameAreaIds: [], viewportKeyframeIds: [] },
+      };
+      mockData.videoSections = {
+        'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, fps: null, contentAspectRatio: null, localPath: null },
+      };
+      mockData.substepVideoSections = {
+        'svs-1': { id: 'svs-1', versionId: 'ver-1', substepId: 'substep-1', videoSectionId: 'vs-1', order: 0 },
+      };
+      mockData.substeps['substep-1'].videoSectionRowIds = ['svs-1'];
+      mockData.viewportKeyframes = {
+        'kf-1': { id: 'kf-1', videoSectionId: 'vs-1', versionId: 'ver-1', frameNumber: 0, x: 0, y: 0, width: 1, height: 1 },
+        'kf-2': { id: 'kf-2', videoSectionId: 'vs-1', versionId: 'ver-1', frameNumber: 50, x: 0.5, y: 0.5, width: 0.5, height: 0.5 },
+        'kf-other': { id: 'kf-other', videoSectionId: 'vs-other', versionId: 'ver-1', frameNumber: 0, x: 0, y: 0, width: 1, height: 1 },
+      };
+
+      act(() => {
+        result.current.setData(mockData);
+        result.current.deleteSubstep('substep-1');
+      });
+
+      // Keyframes for vs-1 should be deleted
+      expect(result.current.data?.viewportKeyframes['kf-1']).toBeUndefined();
+      expect(result.current.data?.viewportKeyframes['kf-2']).toBeUndefined();
+      // Keyframes for other sections should remain
+      expect(result.current.data?.viewportKeyframes['kf-other']).toBeDefined();
+      // Should be tracked as deleted in changes
+      expect(result.current.changes.viewportKeyframes.deleted.has('kf-1')).toBe(true);
+      expect(result.current.changes.viewportKeyframes.deleted.has('kf-2')).toBe(true);
+    });
+
+    it('deleteVideoSection cascades viewport_keyframes', () => {
+      const { result } = renderHook(() => useEditorStore());
+      const mockData = createMockInstructionData();
+
+      mockData.videos = {
+        'v-1': { id: 'v-1', instructionId: 'inst-1', orderId: 'o-1', userId: 'u-1', videoPath: '/test.mp4', fps: 30, order: 1, proxyStatus: 'Pending', width: 1920, height: 1080, sectionIds: ['vs-1'], frameAreaIds: [], viewportKeyframeIds: [] },
+      };
+      mockData.videoSections = {
+        'vs-1': { id: 'vs-1', versionId: 'ver-1', videoId: 'v-1', startFrame: 0, endFrame: 100, fps: null, contentAspectRatio: null, localPath: null },
+      };
+      mockData.viewportKeyframes = {
+        'kf-1': { id: 'kf-1', videoSectionId: 'vs-1', versionId: 'ver-1', frameNumber: 0, x: 0, y: 0, width: 1, height: 1 },
+        'kf-2': { id: 'kf-2', videoSectionId: 'vs-1', versionId: 'ver-1', frameNumber: 50, x: 0.5, y: 0.5, width: 0.5, height: 0.5 },
+        'kf-other': { id: 'kf-other', videoSectionId: 'vs-other', versionId: 'ver-1', frameNumber: 0, x: 0, y: 0, width: 1, height: 1 },
+      };
+
+      act(() => {
+        result.current.setData(mockData);
+        result.current.deleteVideoSection('vs-1');
+      });
+
+      // Keyframes for vs-1 should be deleted
+      expect(result.current.data?.viewportKeyframes['kf-1']).toBeUndefined();
+      expect(result.current.data?.viewportKeyframes['kf-2']).toBeUndefined();
+      // Keyframes for other sections should remain
+      expect(result.current.data?.viewportKeyframes['kf-other']).toBeDefined();
+      // Should be tracked as deleted in changes
+      expect(result.current.changes.viewportKeyframes.deleted.has('kf-1')).toBe(true);
+      expect(result.current.changes.viewportKeyframes.deleted.has('kf-2')).toBe(true);
     });
   });
 

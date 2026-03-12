@@ -18,6 +18,12 @@ vi.mock('@/components/ui', () => ({
     <div data-testid="card" className={className as string} onClick={onClick} {...props}>{children}</div>
   ),
   TextInputModal: () => null,
+  IconButton: ({ onClick, ...props }: Record<string, unknown> & { onClick?: () => void }) => (
+    <button onClick={onClick} aria-label={props['aria-label'] as string} />
+  ),
+  ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
+    open ? <div data-testid="dialog-shell"><button onClick={() => { onConfirm(); onClose(); }}>Delete</button><button onClick={onClose}>Cancel</button></div> : null
+  ),
 }));
 
 vi.mock('./VideoFrameCapture', () => ({
@@ -36,6 +42,7 @@ afterEach(() => cleanup());
 
 describe('StepOverviewCard', () => {
   const baseProps = {
+    stepId: 'step-1',
     stepNumber: 3,
     title: 'Attach panel',
     description: 'Some description',

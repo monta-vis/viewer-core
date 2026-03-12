@@ -117,9 +117,8 @@ interface InstructionViewProps {
     onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
     onAddSubstepPartTool?: (substepId: string) => void;
     onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
-    onReplaceSubstepPartTool?: (substepPartToolId: string, newPartToolId: string) => void;
-    onCreateAndReplacePartTool?: (substepPartToolId: string, field: 'name' | 'label' | 'partNumber', value: string) => void;
     onDeleteSubstep?: (substepId: string) => void;
+    onDeleteStep?: (stepId: string) => void;
     onAddSubstep?: (stepId: string) => void;
     onAddAssembly?: () => void;
     onDeleteAssembly?: (assemblyId: string) => void;
@@ -133,6 +132,32 @@ interface InstructionViewProps {
     ) => ReactNode;
     renderPreviewUpload?: (stepId: string) => ReactNode;
     renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
+    /** Wraps all assembly sections with unified DnD context. When present, replaces renderAssemblyList. */
+    renderStepDndWrapper?: (
+      containers: Array<{ containerId: string; stepIds: string[] }>,
+      children: ReactNode,
+      options?: {
+        assemblyIds?: string[];
+        substepContainers?: Array<{ containerId: string; substepIds: string[] }>;
+      },
+    ) => ReactNode;
+    /** Wraps a step grid with sortable context (editor-core). */
+    renderSortableStepGrid?: (
+      containerId: string,
+      steps: import('./AssemblySection').StepWithPreview[],
+      renderStep: (step: import('./AssemblySection').StepWithPreview) => ReactNode,
+    ) => ReactNode;
+    /** Wraps an assembly section with a sortable wrapper for DnD reordering by header handle. */
+    renderSortableAssembly?: (
+      assemblyId: string,
+      children: (props: { dragHandleProps: { listeners: Record<string, unknown>; attributes: Record<string, unknown> }; isDragging: boolean }) => ReactNode,
+    ) => ReactNode;
+    /** Wraps a step's substep previews with sortable context (per step container). */
+    renderSortableSubstepGrid?: (
+      containerId: string,
+      substeps: Array<{ id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }>,
+      renderSubstep: (substep: { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }) => ReactNode,
+    ) => ReactNode;
   };
   /** Web3Forms access key for feedback submission (provided by app layer). */
   web3FormsKey?: string;
@@ -388,8 +413,6 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
         onUpdateSubstepPartToolAmount: (sptId, amount) => editCallbacks.onUpdateSubstepPartToolAmount?.(sptId, amount),
         onAddSubstepPartTool: () => editCallbacks.onAddSubstepPartTool?.(substepId),
         onDeleteSubstepPartTool: (sptId) => editCallbacks.onDeleteSubstepPartTool?.(sptId),
-        onReplaceSubstepPartTool: (sptId, newPtId) => editCallbacks.onReplaceSubstepPartTool?.(sptId, newPtId),
-        onCreateAndReplacePartTool: (sptId, field, value) => editCallbacks.onCreateAndReplacePartTool?.(sptId, field, value),
         onDeleteSubstep: () => editCallbacks.onDeleteSubstep?.(substepId),
       };
     },
@@ -1067,11 +1090,17 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
               onDeleteAssembly: editCallbacks?.onDeleteAssembly,
               onRenameAssembly: editCallbacks?.onRenameAssembly,
               onRenameStep: editCallbacks?.onRenameStep,
+              onDeleteStep: editCallbacks?.onDeleteStep,
               onMoveStepToAssembly: editCallbacks?.onMoveStepToAssembly,
               onReorderAssembly: editCallbacks?.onReorderAssembly,
               renderAssemblyList: editCallbacks?.renderAssemblyList,
               renderPreviewUpload: editCallbacks?.renderPreviewUpload,
               renderAssemblyPreviewUpload: editCallbacks?.renderAssemblyPreviewUpload,
+              renderStepDndWrapper: editCallbacks?.renderStepDndWrapper,
+              renderSortableStepGrid: editCallbacks?.renderSortableStepGrid,
+              renderSortableAssembly: editCallbacks?.renderSortableAssembly,
+              renderSortableSubstepGrid: editCallbacks?.renderSortableSubstepGrid,
+              onDeleteSubstep: editCallbacks?.onDeleteSubstep,
             } : undefined}
           />
         </Drawer>

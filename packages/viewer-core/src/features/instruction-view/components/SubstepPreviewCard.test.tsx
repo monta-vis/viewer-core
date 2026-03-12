@@ -14,6 +14,12 @@ vi.mock('@/components/ui', () => ({
   Card: ({ children, onClick, ...props }: Record<string, unknown> & { children: ReactNode; onClick?: () => void }) => (
     <div data-testid="card" onClick={onClick} {...props}>{children}</div>
   ),
+  IconButton: ({ onClick, ...props }: Record<string, unknown> & { onClick?: () => void }) => (
+    <button onClick={onClick} aria-label={props['aria-label'] as string} />
+  ),
+  ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
+    open ? <div data-testid="dialog-shell"><button onClick={() => { onConfirm(); onClose(); }}>Delete</button><button onClick={onClose}>Cancel</button></div> : null
+  ),
 }));
 
 vi.mock('./VideoFrameCapture', () => ({

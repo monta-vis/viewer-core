@@ -321,82 +321,6 @@ export function ViewPage() {
     useEditorStore.getState().updateSubstep(substepId, { repeatCount: 1, repeatLabel: null });
   }, []);
 
-  // --- Delete operations (direct store calls) ---
-  const onDeleteSubstep = useCallback((substepId: string) => {
-    useEditorStore.getState().deleteSubstep(substepId);
-  }, []);
-
-  const onDeleteImage = useCallback((substepId: string) => {
-    const store = useEditorStore.getState();
-    const substep = store.data?.substeps[substepId];
-    if (!substep) return;
-
-    for (const imageId of substep.imageRowIds) {
-      store.deleteSubstepImage(imageId);
-    }
-  }, []);
-
-  const onDeleteTutorial = useCallback((refIdx: number, substepId: string) => {
-    const store = useEditorStore.getState();
-    const substep = store.data?.substeps[substepId];
-    if (!substep) return;
-
-    const refId = substep.tutorialRowIds[refIdx];
-    if (refId) {
-      store.deleteSubstepTutorial(refId);
-    }
-  }, []);
-
-  const onDeletePartTool = useCallback((partToolId: string) => {
-    const store = useEditorStore.getState();
-    // Find and delete all substep_part_tool junction rows for this partTool
-    const sptRows = Object.values(store.data?.substepPartTools ?? {})
-      .filter((spt) => spt.partToolId === partToolId);
-    for (const spt of sptRows) {
-      store.deleteSubstepPartTool(spt.id);
-    }
-    store.deletePartTool(partToolId);
-  }, []);
-
-  const onAddSubstepPartTool = useCallback((substepId: string) => {
-    const store = useEditorStore.getState();
-    const data = store.data;
-    if (!data) return;
-    const pt = createDefaultPartTool(getVersionId(), getInstructionId());
-    store.addPartTool(pt);
-    const substep = data.substeps[substepId];
-    const maxOrder = substep
-      ? substep.partToolRowIds.reduce((max, id) => {
-          const spt = data.substepPartTools[id];
-          return spt ? Math.max(max, spt.order) : max;
-        }, 0)
-      : 0;
-    store.addSubstepPartTool({
-      id: crypto.randomUUID(), versionId: getVersionId(), substepId,
-      partToolId: pt.id, amount: 1, order: maxOrder + 1,
-    });
-  }, [getVersionId, getInstructionId]);
-
-  const onUpdateSubstepPartToolAmount = useCallback((substepPartToolId: string, amount: number) => {
-    useEditorStore.getState().updateSubstepPartTool(substepPartToolId, { amount });
-  }, []);
-
-  const onDeleteSubstepPartTool = useCallback((substepPartToolId: string) => {
-    useEditorStore.getState().deleteSubstepPartTool(substepPartToolId);
-  }, []);
-
-  const onReplaceSubstepPartTool = useCallback((substepPartToolId: string, newPartToolId: string) => {
-    useEditorStore.getState().updateSubstepPartTool(substepPartToolId, { partToolId: newPartToolId });
-  }, []);
-
-  const onCreateAndReplacePartTool = useCallback((substepPartToolId: string, field: 'name' | 'label' | 'partNumber', value: string) => {
-    const store = useEditorStore.getState();
-    const pt = createDefaultPartTool(getVersionId(), getInstructionId());
-    pt[field] = value;
-    store.addPartTool(pt);
-    store.updateSubstepPartTool(substepPartToolId, { partToolId: pt.id });
-  }, [getVersionId, getInstructionId]);
-
   // --- Resolve File → path-based ImageSource for Electron ---
   const resolveImageSource = useCallback((file: File): ImageSource | null => {
     const filePath = window.electronAPI?.getFilePath(file);
@@ -411,6 +335,15 @@ export function ViewPage() {
   const {
     onAddAssembly,
     onDeleteAssembly: deleteAssembly,
+    onDeleteStep,
+    onDeleteSubstep,
+    onDeleteImage,
+    onDeleteTutorial,
+    onDeletePartTool,
+    onUpdatePartTool,
+    onUpdateSubstepPartToolAmount,
+    onAddSubstepPartTool,
+    onDeleteSubstepPartTool,
     onRenameAssembly,
     onRenameStep,
     onMoveStepToAssembly,
@@ -418,6 +351,10 @@ export function ViewPage() {
     renderAssemblyList,
     renderPreviewUpload,
     renderAssemblyPreviewUpload,
+    renderStepDndWrapper,
+    renderSortableStepGrid,
+    renderSortableAssembly,
+    renderSortableSubstepGrid,
   } = useEditCallbacks({ persistence: adapter, projectId: decodedFolderName ?? undefined, resolveImageSource });
 
   // Wrap with confirmation dialog (i18n at app layer, not in library)
@@ -603,15 +540,11 @@ export function ViewPage() {
     setPartToolListOpen(true);
   }, []);
 
-  const onAddPartTool = useCallback(() => {
+  const onAddPartTool = useCallback((prefill?: Partial<PartToolRow>) => {
     const store = useEditorStore.getState();
     const pt = createDefaultPartTool(getVersionId(), getInstructionId());
-    store.addPartTool(pt);
+    store.addPartTool(prefill ? { ...pt, ...prefill, id: pt.id, versionId: pt.versionId, instructionId: pt.instructionId } : pt);
   }, [getVersionId, getInstructionId]);
-
-  const onUpdatePartTool = useCallback((id: string, updates: Partial<PartToolRow>) => {
-    useEditorStore.getState().updatePartTool(id, updates);
-  }, []);
 
   const onDeletePartToolFromList = useCallback((id: string) => {
     const store = useEditorStore.getState();
@@ -832,6 +765,7 @@ export function ViewPage() {
     onSaveRepeat,
     onDeleteRepeat,
     onDeleteSubstep,
+    onDeleteStep,
     onDeleteImage,
     onDeleteTutorial,
     onAnnotateVideo,
@@ -839,8 +773,6 @@ export function ViewPage() {
     onAddSubstepPartTool,
     onUpdateSubstepPartToolAmount,
     onDeleteSubstepPartTool,
-    onReplaceSubstepPartTool,
-    onCreateAndReplacePartTool,
     onAddAssembly,
     onDeleteAssembly,
     onRenameAssembly,
@@ -850,23 +782,22 @@ export function ViewPage() {
     renderAssemblyList,
     renderPreviewUpload,
     renderAssemblyPreviewUpload,
+    renderStepDndWrapper,
+    renderSortableStepGrid,
+    renderSortableAssembly,
+    renderSortableSubstepGrid,
   }), [
     onSaveDescription, onDeleteDescription, onAddDescription,
     onSaveNote, onDeleteNote, onAddNote, onSaveRepeat, onDeleteRepeat,
-    onDeleteSubstep, onDeleteImage, onDeleteTutorial, onAnnotateVideo,
+    onDeleteSubstep, onDeleteStep, onDeleteImage, onDeleteTutorial, onAnnotateVideo,
     onUpdatePartTool,
     onAddSubstepPartTool, onUpdateSubstepPartToolAmount, onDeleteSubstepPartTool,
-    onReplaceSubstepPartTool, onCreateAndReplacePartTool,
     onAddAssembly, onDeleteAssembly, onRenameAssembly, onRenameStep, onMoveStepToAssembly,
     onReorderAssembly, renderAssemblyList,
     renderPreviewUpload, renderAssemblyPreviewUpload,
+    renderStepDndWrapper, renderSortableStepGrid,
+    renderSortableAssembly, renderSortableSubstepGrid,
   ]);
-
-  // Memoized partTools array (avoids new array on every render prop call)
-  const allPartToolsList: PartToolRow[] = useMemo(
-    () => Object.values(viewerData?.partTools ?? {}),
-    [viewerData?.partTools],
-  );
 
   // ── Edit popover render function (captures folderName + catalogs in closure) ──
   const renderEditPopover = useCallback(
@@ -882,7 +813,6 @@ export function ViewPage() {
       return (
         <SubstepEditPopover
           {...props}
-          allPartTools={allPartToolsList}
           folderName={decodedFolderName}
           catalogs={safetyIconCatalogs}
           getPreviewUrl={getPartToolPreviewUrl}
@@ -901,7 +831,7 @@ export function ViewPage() {
         />
       );
     },
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, allPartToolsList, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
   );
 
   // ── Part/tool editor render function (render prop for PartsDrawer) ──
@@ -915,21 +845,6 @@ export function ViewPage() {
           onClose={onClose}
           imageCallbacks={imageCallbacks}
           getPartToolImages={getPartToolImages}
-          allPartTools={allPartToolsList}
-          onReplacePartTool={(oldId, newId) => {
-            // Find substepPartTool rows for oldId and swap partToolId to newId
-            const store = useEditorStore.getState();
-            const sptRows = Object.values(store.data?.substepPartTools ?? {})
-              .filter((spt) => spt.partToolId === oldId);
-            for (const spt of sptRows) {
-              store.updateSubstepPartTool(spt.id, { partToolId: newId });
-            }
-            onClose();
-          }}
-          onCreatePartTool={(oldId, newName) => {
-            const store = useEditorStore.getState();
-            store.updatePartTool(oldId, { name: newName });
-          }}
           onEditPartToolAmount={(partToolId, newAmount) => {
             const store = useEditorStore.getState();
             const num = parseInt(newAmount, 10);
@@ -946,7 +861,7 @@ export function ViewPage() {
         />
       );
     },
-    [imageCallbacks, getPartToolImages, getPartToolPreviewUrl, allPartToolsList, onDeletePartTool, onUpdatePartTool],
+    [imageCallbacks, getPartToolImages, getPartToolPreviewUrl, onDeletePartTool, onUpdatePartTool],
   );
 
   // Build noteIconLabels map: safetyIconId (entry UUID) → localized label
@@ -1053,6 +968,9 @@ export function ViewPage() {
                   getPartToolImages={getPartToolImages}
                   catalogItems={catalogItems.length > 0 ? catalogItems : undefined}
                   getCatalogIconUrl={catalogItems.length > 0 ? getCatalogIconUrl : undefined}
+                  folderName={decodedFolderName}
+                  partToolVideoFrameAreas={viewerData?.partToolVideoFrameAreas}
+                  videoFrameAreas={viewerData?.videoFrameAreas}
                 />
               )}
             </ViewerDataProvider>

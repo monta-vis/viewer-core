@@ -183,6 +183,8 @@ interface StoreActions {
   batchUpdateSubsteps(updates: Array<{ id: string; changes: Partial<Substep> }>): void;
   deleteSubstep(id: string): void;
   moveSubstep(substepId: string, direction: -1 | 1): void;
+  reorderSubstep(substepId: string, newIndex: number): void;
+  moveSubstepToStep(substepId: string, targetStepId: string, targetIndex: number): void;
 
   // Videos
   addVideo(video: Video): void;
@@ -829,6 +831,15 @@ export const useEditorStore = create<StoreState & StoreActions>()(
                 video.sectionIds = video.sectionIds.filter((sid: string) => sid !== svs.videoSectionId);
               }
 
+              // Cascade delete viewport_keyframes referencing this video_section
+              for (const [kfId, kf] of Object.entries(s.data.viewportKeyframes)) {
+                if (kf.videoSectionId === svs.videoSectionId) {
+                  delete s.data.viewportKeyframes[kfId];
+                  s.changes.viewportKeyframes.changed.delete(kfId);
+                  s.changes.viewportKeyframes.deleted.add(kfId);
+                }
+              }
+
               delete s.data.videoSections[svs.videoSectionId];
               s.changes.videoSections.changed.delete(svs.videoSectionId);
               s.changes.videoSections.deleted.add(svs.videoSectionId);
@@ -905,6 +916,71 @@ export const useEditorStore = create<StoreState & StoreActions>()(
         }
       }
     },
+
+    // Reorder substep within its current step (index-based)
+    reorderSubstep: (substepId, newIndex) => set((s) => {
+      if (!s.data?.substeps[substepId]) return;
+      const substep = s.data.substeps[substepId];
+      if (!substep.stepId) return;
+      const step = s.data.steps[substep.stepId];
+      if (!step) return;
+
+      const oldIndex = step.substepIds.indexOf(substepId);
+      if (oldIndex === -1 || oldIndex === newIndex) return;
+
+      // Splice: remove from old position, insert at new
+      step.substepIds.splice(oldIndex, 1);
+      step.substepIds.splice(newIndex, 0, substepId);
+
+      // Renumber all substeps in this step (1-based sequential)
+      for (let i = 0; i < step.substepIds.length; i++) {
+        const sub = s.data.substeps[step.substepIds[i]];
+        if (sub) {
+          sub.stepOrder = i + 1;
+          s.changes.substeps.changed.add(sub.id);
+        }
+      }
+    }),
+
+    // Move substep to a different step with position control
+    moveSubstepToStep: (substepId, targetStepId, targetIndex) => set((s) => {
+      if (!s.data?.substeps[substepId]) return;
+      if (!s.data.steps[targetStepId]) return;
+      const substep = s.data.substeps[substepId];
+      const sourceStepId = substep.stepId;
+
+      // Remove from source step's substepIds
+      if (sourceStepId && s.data.steps[sourceStepId]) {
+        s.data.steps[sourceStepId].substepIds =
+          s.data.steps[sourceStepId].substepIds.filter((id) => id !== substepId);
+        // Renumber source step
+        for (let i = 0; i < s.data.steps[sourceStepId].substepIds.length; i++) {
+          const sub = s.data.substeps[s.data.steps[sourceStepId].substepIds[i]];
+          if (sub) {
+            sub.stepOrder = i + 1;
+            s.changes.substeps.changed.add(sub.id);
+          }
+        }
+      }
+
+      // Update substep's stepId
+      substep.stepId = targetStepId;
+      s.changes.substeps.changed.add(substepId);
+
+      // Insert into target step's substepIds at clamped index
+      const targetSubstepIds = s.data.steps[targetStepId].substepIds;
+      const clampedIndex = Math.min(targetIndex, targetSubstepIds.length);
+      targetSubstepIds.splice(clampedIndex, 0, substepId);
+
+      // Renumber target step
+      for (let i = 0; i < targetSubstepIds.length; i++) {
+        const sub = s.data.substeps[targetSubstepIds[i]];
+        if (sub) {
+          sub.stepOrder = i + 1;
+          s.changes.substeps.changed.add(sub.id);
+        }
+      }
+    }),
 
     // Videos
     addVideo: (video) => set((s) => {
@@ -1303,8 +1379,17 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           video.sectionIds = video.sectionIds.filter(sid => sid !== id);
         }
 
-        // Cascade delete: Remove all SubstepVideoSections that reference this section
+        // Cascade delete viewport_keyframes referencing this video_section
         const data = s.data;
+        Object.entries(data.viewportKeyframes).forEach(([kfId, kf]) => {
+          if (kf.videoSectionId === id) {
+            delete data.viewportKeyframes[kfId];
+            s.changes.viewportKeyframes.changed.delete(kfId);
+            s.changes.viewportKeyframes.deleted.add(kfId);
+          }
+        });
+
+        // Cascade delete: Remove all SubstepVideoSections that reference this section
         Object.values(data.substepVideoSections).forEach(svs => {
           if (svs.videoSectionId === id) {
             const substep = data.substeps[svs.substepId || ''];

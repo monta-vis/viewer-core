@@ -16,7 +16,8 @@ import type { StepWithPreview } from '@monta-vis/viewer-core';
 import { useEditorStore } from '../store';
 import { createDefaultPartTool } from '../utils/partToolHelpers';
 import { DraggableList } from '../components/DraggableList';
-import { StepDndProvider, SortableStepContainer } from '../components/SortableStepGrid';
+import { StepDndProvider, SortableStepContainer, SortableAssembly, SortableSubstepContainer, SubstepDropZone } from '../components/SortableStepGrid';
+import type { SortableAssemblyRenderProps } from '../components/SortableStepGrid';
 import { PreviewImageUploadButton } from '../components/PreviewImageUploadButton';
 import type { PersistenceAdapter, NormalizedCrop, ImageSource } from '../persistence/types';
 
@@ -43,6 +44,7 @@ export interface EditCallbacks {
   onAddSubstepPartTool?: (substepId: string) => void;
   onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
   onDeleteSubstep?: (substepId: string) => void;
+  onDeleteStep?: (stepId: string) => void;
   onAddSubstep?: (stepId: string) => void;
   onReplacePartTool?: (oldPartToolId: string, newPartToolId: string) => void;
   onCreatePartTool?: (oldPartToolId: string, newName: string) => void;
@@ -65,6 +67,10 @@ export interface EditCallbacks {
   renderStepDndWrapper?: (
     containers: Array<{ containerId: string; stepIds: string[] }>,
     children: ReactNode,
+    options?: {
+      assemblyIds?: string[];
+      substepContainers?: Array<{ containerId: string; substepIds: string[] }>;
+    },
   ) => ReactNode;
   /** Wraps a step grid with sortable context (per container). */
   renderSortableStepGrid?: (
@@ -72,6 +78,19 @@ export interface EditCallbacks {
     steps: StepWithPreview[],
     renderStep: (step: StepWithPreview) => ReactNode,
   ) => ReactNode;
+  /** Wraps an assembly section with a sortable wrapper for DnD reordering by header handle. */
+  renderSortableAssembly?: (
+    assemblyId: string,
+    children: (props: SortableAssemblyRenderProps) => ReactNode,
+  ) => ReactNode;
+  /** Wraps a step's substep previews with sortable context (per step container). */
+  renderSortableSubstepGrid?: (
+    containerId: string,
+    substeps: Array<{ id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }>,
+    renderSubstep: (substep: { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }) => ReactNode,
+  ) => ReactNode;
+  /** Renders a droppable zone for collapsed steps so substeps can be dropped onto them. */
+  renderSubstepDropZone?: (stepId: string) => ReactNode;
 }
 
 export interface UseEditCallbacksOptions {
@@ -106,6 +125,10 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     useEditorStore.getState().deleteSubstep(substepId);
   }, []);
 
+  const onDeleteStep = useCallback((stepId: string) => {
+    useEditorStore.getState().deleteStep(stepId);
+  }, []);
+
   const onDeleteImage = useCallback((substepId: string) => {
     const store = useEditorStore.getState();
     const substep = store.data?.substeps[substepId];
@@ -132,6 +155,7 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     for (const spt of sptRows) {
       store.deleteSubstepPartTool(spt.id);
     }
+    store.deletePartTool(partToolId);
   }, []);
 
   const onUpdatePartTool = useCallback((partToolId: string, updates: Partial<PartToolRow>) => {
@@ -305,7 +329,14 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
   );
 
   const renderStepDndWrapper = useCallback(
-    (containers: Array<{ containerId: string; stepIds: string[] }>, children: ReactNode) =>
+    (
+      containers: Array<{ containerId: string; stepIds: string[] }>,
+      children: ReactNode,
+      options?: {
+        assemblyIds?: string[];
+        substepContainers?: Array<{ containerId: string; substepIds: string[] }>;
+      },
+    ) =>
       createElement(StepDndProvider, {
         containers,
         onReorder: (stepId: string, _containerId: string, newIndex: number) => {
@@ -315,8 +346,56 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
           const assemblyId = targetContainerId === 'unassigned' ? null : targetContainerId;
           useEditorStore.getState().moveStepToAssembly(stepId, assemblyId, targetIndex);
         },
+        assemblyIds: options?.assemblyIds,
+        onReorderAssembly: options?.assemblyIds
+          ? (assemblyId: string, newIndex: number) => {
+              useEditorStore.getState().reorderAssembly(assemblyId, newIndex);
+            }
+          : undefined,
+        substepContainers: options?.substepContainers,
+        onReorderSubstep: options?.substepContainers
+          ? (substepId: string, _containerId: string, newIndex: number) => {
+              useEditorStore.getState().reorderSubstep(substepId, newIndex);
+            }
+          : undefined,
+        onMoveSubstep: options?.substepContainers
+          ? (substepId: string, targetContainerId: string, targetIndex: number) => {
+              useEditorStore.getState().moveSubstepToStep(substepId, targetContainerId, targetIndex);
+            }
+          : undefined,
         children,
       }),
+    [],
+  );
+
+  const renderSortableAssembly = useCallback(
+    (assemblyId: string, children: (props: SortableAssemblyRenderProps) => ReactNode) =>
+      createElement(SortableAssembly, { id: assemblyId, children }),
+    [],
+  );
+
+  type SubstepPreviewItem = { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown };
+
+  const renderSortableSubstepGrid = useCallback(
+    (
+      containerId: string,
+      substeps: SubstepPreviewItem[],
+      renderSubstep: (substep: SubstepPreviewItem) => ReactNode,
+    ) =>
+      createElement(SortableSubstepContainer<SubstepPreviewItem>, {
+        containerId,
+        items: substeps,
+        getItemId: (s) => s.id,
+        renderItem: renderSubstep,
+        className: 'grid gap-2 p-3',
+        gridStyle: { gridTemplateColumns: 'repeat(auto-fill, minmax(6rem, 1fr))' },
+      }),
+    [],
+  );
+
+  const renderSubstepDropZone = useCallback(
+    (stepId: string): ReactNode =>
+      createElement(SubstepDropZone, { stepId }),
     [],
   );
 
@@ -337,6 +416,7 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     onDeleteDescription,
     onDeleteNote,
     onDeleteSubstep,
+    onDeleteStep,
     onDeleteImage,
     onDeleteTutorial,
     onDeletePartTool,
@@ -355,10 +435,14 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     renderAssemblyPreviewUpload: canUploadAssembly ? renderAssemblyPreviewUpload : undefined,
     renderStepDndWrapper,
     renderSortableStepGrid,
+    renderSortableAssembly,
+    renderSortableSubstepGrid,
+    renderSubstepDropZone,
   }), [
     onDeleteDescription,
     onDeleteNote,
     onDeleteSubstep,
+    onDeleteStep,
     onDeleteImage,
     onDeleteTutorial,
     onDeletePartTool,
@@ -379,5 +463,8 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     renderAssemblyPreviewUpload,
     renderStepDndWrapper,
     renderSortableStepGrid,
+    renderSortableAssembly,
+    renderSortableSubstepGrid,
+    renderSubstepDropZone,
   ]);
 }

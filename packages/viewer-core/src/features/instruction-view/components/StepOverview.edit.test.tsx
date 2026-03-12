@@ -38,10 +38,10 @@ vi.mock('../context', () => ({
 }));
 
 vi.mock('./StepOverviewCard', () => ({
-  StepOverviewCard: ({ stepNumber, renderPreviewUpload }: { stepNumber: number; renderPreviewUpload?: () => React.ReactNode }) => (
+  StepOverviewCard: ({ stepId, stepNumber, renderPreviewUpload }: { stepId?: string; stepNumber: number; renderPreviewUpload?: (stepId: string) => React.ReactNode }) => (
     <div data-testid={`step-card-${stepNumber}`}>
       Step {stepNumber}
-      {renderPreviewUpload && <div data-testid={`preview-upload-${stepNumber}`}>{renderPreviewUpload()}</div>}
+      {renderPreviewUpload && stepId && <div data-testid={`preview-upload-${stepNumber}`}>{renderPreviewUpload(stepId)}</div>}
     </div>
   ),
 }));

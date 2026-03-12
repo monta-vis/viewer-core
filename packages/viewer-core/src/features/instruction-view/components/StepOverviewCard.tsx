@@ -1,9 +1,9 @@
 import { type ReactNode, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 
-import { Card, TextInputModal } from '@/components/ui';
+import { Card, TextInputModal, IconButton, ConfirmDeleteDialog } from '@/components/ui';
 import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel';
 import { VideoFrameCapture } from './VideoFrameCapture';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
@@ -33,14 +33,18 @@ interface StepOverviewCardProps {
   editMode?: boolean;
   /** Called to rename a step (edit mode only) */
   onRenameStep?: (stepId: string, title: string) => void;
+  /** Called to delete a step (edit mode only) */
+  onDeleteStep?: (stepId: string) => void;
   /** Render prop for preview image upload button (injected by editor-core via app shell) */
-  renderPreviewUpload?: () => ReactNode;
+  renderPreviewUpload?: (stepId: string) => ReactNode;
   /** Whether the substep expansion panel is open */
   expanded?: boolean;
   /** Called when the expand/collapse chevron is toggled */
-  onExpandToggle?: () => void;
+  onExpandToggle?: (stepId: string) => void;
   /** Expandable content (substep previews) rendered inside a CollapsiblePanel */
   children?: ReactNode;
+  /** Render prop for substep droppable zone (shown when collapsed in edit mode) */
+  renderSubstepDropZone?: (stepId: string) => ReactNode;
 }
 
 /**
@@ -61,13 +65,16 @@ export function StepOverviewCard({
   draggable = false,
   editMode = false,
   onRenameStep,
+  onDeleteStep,
   renderPreviewUpload,
   expanded,
   onExpandToggle,
   children,
+  renderSubstepDropZone,
 }: StepOverviewCardProps) {
   const { t } = useTranslation();
   const [titleModalOpen, setTitleModalOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   const handleDragStart = (e: React.DragEvent) => {
     if (!stepId) return;
@@ -86,10 +93,26 @@ export function StepOverviewCard({
       variant="glass"
       bordered={false}
       padding="none"
-      className={`overflow-hidden group${draggable ? ' cursor-grab active:cursor-grabbing' : ''}`}
+      className={`overflow-hidden group relative${draggable ? ' cursor-grab active:cursor-grabbing' : ''}`}
       draggable={draggable}
       onDragStart={handleDragStart}
     >
+      {/* Delete button (edit mode) */}
+      {editMode && stepId && onDeleteStep && (
+        <div
+          className="absolute top-2 right-2 z-10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <IconButton
+            icon={<Trash2 />}
+            aria-label={t('editorCore.deleteStep', 'Delete step')}
+            onClick={() => setConfirmDeleteOpen(true)}
+            size="sm"
+            variant="danger"
+          />
+        </div>
+      )}
+
       <div className="flex flex-row">
         {/* Thumbnail — 1:1 square, left side */}
         <div className="relative w-[40%] flex-shrink-0 aspect-square bg-black overflow-hidden rounded-l-xl">
@@ -127,7 +150,7 @@ export function StepOverviewCard({
               </svg>
             </div>
           )}
-          {editMode && renderPreviewUpload?.()}
+          {editMode && stepId && renderPreviewUpload?.(stepId)}
         </div>
 
         {/* Info — right side */}
@@ -163,7 +186,7 @@ export function StepOverviewCard({
             <button
               type="button"
               aria-label={t('instructionView.expandSubsteps', 'Expand substeps')}
-              onClick={(e) => { e.stopPropagation(); onExpandToggle(); }}
+              onClick={(e) => { e.stopPropagation(); if (stepId) onExpandToggle(stepId); }}
               className="flex items-center gap-1 mt-2 rounded hover:bg-white/10 transition-colors px-1 -mx-1"
             >
               <span className="text-xs text-[var(--color-text-subtle)]">
@@ -190,6 +213,9 @@ export function StepOverviewCard({
         </CollapsiblePanel>
       )}
 
+      {/* Substep drop zone for collapsed cards in edit mode */}
+      {renderSubstepDropZone && stepId && expanded !== true && renderSubstepDropZone(stepId)}
+
       {titleModalOpen && stepId && (
         <TextInputModal
           label={t('editorCore.stepTitlePlaceholder', 'Title (optional)')}
@@ -198,6 +224,15 @@ export function StepOverviewCard({
           onCancel={() => setTitleModalOpen(false)}
         />
       )}
+
+      {/* Confirm delete step dialog */}
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => { if (stepId) onDeleteStep?.(stepId); }}
+        title={t('editorCore.deleteStepConfirmTitle', 'Delete step?')}
+        message={t('editorCore.deleteStepConfirmMessage', 'All substeps will be unassigned. This action cannot be undone.')}
+      />
     </Card>
   );
 }

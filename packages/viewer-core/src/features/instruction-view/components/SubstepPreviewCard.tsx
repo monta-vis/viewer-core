@@ -1,4 +1,8 @@
-import { Card } from '@/components/ui';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Trash2 } from 'lucide-react';
+
+import { Card, IconButton, ConfirmDeleteDialog } from '@/components/ui';
 import { VideoFrameCapture } from './VideoFrameCapture';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 
@@ -13,8 +17,14 @@ interface SubstepPreviewCardProps {
   frameCaptureData?: FrameCaptureData | null;
   /** Use raw video frame capture instead of pre-rendered image */
   useRawVideo?: boolean;
+  /** Substep ID — used for delete callbacks */
+  substepId?: string;
   /** Called when card is clicked */
   onClick?: () => void;
+  /** Whether edit mode is active */
+  editMode?: boolean;
+  /** Called when the substep should be deleted */
+  onDeleteSubstep?: (substepId: string) => void;
 }
 
 /**
@@ -27,8 +37,13 @@ export function SubstepPreviewCard({
   imageUrl,
   frameCaptureData,
   useRawVideo = false,
+  substepId,
   onClick,
+  editMode = false,
+  onDeleteSubstep,
 }: SubstepPreviewCardProps) {
+  const { t } = useTranslation();
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const label = title || String(order);
 
   return (
@@ -45,7 +60,7 @@ export function SubstepPreviewCard({
       className="overflow-hidden"
     >
       {/* Thumbnail */}
-      <div className="aspect-square bg-black overflow-hidden rounded-t-xl">
+      <div className="relative aspect-square bg-black overflow-hidden rounded-t-xl">
         {useRawVideo && frameCaptureData ? (
           <VideoFrameCapture
             videoId={frameCaptureData.videoId}
@@ -68,6 +83,19 @@ export function SubstepPreviewCard({
             <span className="text-2xl font-bold opacity-30">{order}</span>
           </div>
         )}
+
+        {/* Delete button (edit mode only) */}
+        {editMode && onDeleteSubstep && substepId && (
+          <div className="absolute top-1 right-1 z-10" onClick={(e) => e.stopPropagation()}>
+            <IconButton
+              variant="danger"
+              size="sm"
+              icon={<Trash2 />}
+              aria-label={t('editorCore.deleteSubstep', 'Delete substep')}
+              onClick={() => setConfirmDeleteOpen(true)}
+            />
+          </div>
+        )}
       </div>
 
       {/* Label */}
@@ -76,6 +104,15 @@ export function SubstepPreviewCard({
           {label}
         </p>
       </div>
+
+      {/* Confirm delete substep dialog */}
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={() => { if (substepId) onDeleteSubstep?.(substepId); }}
+        title={t('editorCore.deleteSubstepConfirmTitle', 'Delete substep?')}
+        message={t('editorCore.deleteSubstepConfirmMessage', 'This action cannot be undone.')}
+      />
     </Card>
   );
 }

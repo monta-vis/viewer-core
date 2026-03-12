@@ -1,4 +1,4 @@
-import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, cloneElement, isValidElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Plus } from 'lucide-react';
 
@@ -20,6 +20,7 @@ export interface StepOverviewEditCallbacks {
   onRenameAssembly?: (assemblyId: string, title: string) => void;
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
   onRenameStep?: (stepId: string, title: string) => void;
+  onDeleteStep?: (stepId: string) => void;
   onReorderAssembly?: (assemblyId: string, newIndex: number) => void;
   /** Wraps the assembly list with DnD reordering (injected by editor-core) */
   renderAssemblyList?: (
@@ -34,6 +35,10 @@ export interface StepOverviewEditCallbacks {
   renderStepDndWrapper?: (
     containers: Array<{ containerId: string; stepIds: string[] }>,
     children: ReactNode,
+    options?: {
+      assemblyIds?: string[];
+      substepContainers?: Array<{ containerId: string; substepIds: string[] }>;
+    },
   ) => ReactNode;
   /** Wraps a step grid with sortable context (editor-core). */
   renderSortableStepGrid?: (
@@ -41,6 +46,21 @@ export interface StepOverviewEditCallbacks {
     steps: StepWithPreview[],
     renderStep: (step: StepWithPreview) => ReactNode,
   ) => ReactNode;
+  /** Wraps an assembly section with a sortable wrapper for DnD reordering by header handle. */
+  renderSortableAssembly?: (
+    assemblyId: string,
+    children: (props: { dragHandleProps: { listeners: Record<string, unknown> | undefined; attributes: Record<string, unknown> }; isDragging: boolean }) => ReactNode,
+  ) => ReactNode;
+  /** Wraps a step's substep previews with sortable context (per step container). */
+  renderSortableSubstepGrid?: (
+    containerId: string,
+    substeps: Array<{ id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }>,
+    renderSubstep: (substep: { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }) => ReactNode,
+  ) => ReactNode;
+  /** Renders a droppable zone for collapsed steps so substeps can be dropped onto them. */
+  renderSubstepDropZone?: (stepId: string) => ReactNode;
+  /** Called when a substep should be deleted */
+  onDeleteSubstep?: (substepId: string) => void;
 }
 
 interface StepOverviewProps {
@@ -119,15 +139,16 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
   }, [data, useRawVideo]);
 
   // Build preview data for each step (last substep's image)
+  const isEditMode = !!editCallbacks;
   const stepsWithPreview = useMemo(() => {
     if (!data) return [];
 
     const buildStepPreview = (step: { id: string; stepNumber: number; title: string | null; description: string | null; substepIds: string[]; assemblyId?: string | null }) => {
-      // Get substeps sorted by order
-      const substeps = sortSubstepsByVideoFrame(
-        step.substepIds.map((id) => data.substeps[id]).filter(Boolean),
-        buildSortData(data),
-      );
+      // In edit mode, preserve substepIds order (manual reorder); in view mode, sort by video frame
+      const rawSubsteps = step.substepIds.map((id) => data.substeps[id]).filter(Boolean);
+      const substeps = isEditMode
+        ? rawSubsteps
+        : sortSubstepsByVideoFrame(rawSubsteps, buildSortData(data));
 
       // Get the last substep
       const lastSubstep = substeps[substeps.length - 1];
@@ -220,7 +241,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
     }
 
     return result;
-  }, [sortedSteps, data, useRawVideo, folderName, unassignedSubsteps]);
+  }, [sortedSteps, data, useRawVideo, folderName, unassignedSubsteps, isEditMode]);
 
   // Group steps by assembly
   const { sortedAssemblies, assemblyStepsMap, unassignedSteps, hasAssemblies } = useMemo(() => {
@@ -359,6 +380,71 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
       : []),
   ], [filteredAssemblies, filteredAssemblyStepsMap, visibleUnassigned]);
 
+  // Assembly IDs for DnD reordering
+  const assemblyIds = useMemo(
+    () => filteredAssemblies.map((a) => a.id),
+    [filteredAssemblies],
+  );
+
+  // Build substep containers — include ALL steps so collapsed steps are valid drop targets
+  const substepContainers = useMemo(() =>
+    stepsWithPreview.map((step) => ({
+      containerId: step.id,
+      substepIds: expandedStepIds.has(step.id)
+        ? (step.substepPreviews?.map((sub) => sub.id) ?? [])
+        : [],
+    })),
+    [stepsWithPreview, expandedStepIds],
+  );
+
+  const renderAssemblySectionContent = useCallback(
+    (assembly: Assembly, dragHandleProps?: { listeners: Record<string, unknown> | undefined; attributes: Record<string, unknown> }) => (
+      <AssemblySection
+        key={assembly.id}
+        assembly={assembly}
+        steps={filteredAssemblyStepsMap.get(assembly.id) ?? []}
+        onStepSelect={onStepSelect}
+        useRawVideo={useRawVideo}
+        editMode={editMode}
+        allowEmpty={editMode}
+        allSteps={editMode ? stepsWithPreview : undefined}
+        onDeleteAssembly={editCallbacks?.onDeleteAssembly}
+        onRenameAssembly={editCallbacks?.onRenameAssembly}
+        onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
+        onRenameStep={editCallbacks?.onRenameStep}
+        onDeleteStep={editCallbacks?.onDeleteStep}
+        renderPreviewUpload={editCallbacks?.renderPreviewUpload}
+        renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
+        renderSortableStepGrid={editCallbacks?.renderSortableStepGrid}
+        assemblyImageUrl={resolveAssemblyImageUrl(assembly)}
+        dragHandleProps={dragHandleProps}
+        expandedStepIds={expandedStepIds}
+        onExpandToggle={handleExpandToggle}
+        renderSortableSubstepGrid={editCallbacks?.renderSortableSubstepGrid}
+        renderSubstepDropZone={editCallbacks?.renderSubstepDropZone}
+        onDeleteSubstep={editCallbacks?.onDeleteSubstep}
+      />
+    ),
+    [filteredAssemblyStepsMap, onStepSelect, useRawVideo, editMode, stepsWithPreview, editCallbacks, resolveAssemblyImageUrl, expandedStepIds, handleExpandToggle],
+  );
+
+  const renderAssemblySection = useCallback(
+    (assembly: Assembly): ReactNode => {
+      if (editCallbacks?.renderSortableAssembly) {
+        const node = editCallbacks.renderSortableAssembly(assembly.id, (props) =>
+          renderAssemblySectionContent(assembly, props.dragHandleProps),
+        );
+        // Ensure key on the DnD wrapper for React list rendering
+        if (isValidElement(node) && node.key == null) {
+          return cloneElement(node, { key: assembly.id });
+        }
+        return node;
+      }
+      return renderAssemblySectionContent(assembly);
+    },
+    [editCallbacks, renderAssemblySectionContent],
+  );
+
   return (
     <div ref={scrollContainerRef} className="h-full overflow-y-auto scrollbar-subtle scroll-pt-20">
       {/* Sticky search bar */}
@@ -377,27 +463,6 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
         {useGroupedLayout ? (
           // Grouped layout: Steps organized by Assembly
           (() => {
-            const renderAssemblySection = (assembly: Assembly) => (
-              <AssemblySection
-                key={assembly.id}
-                assembly={assembly}
-                steps={filteredAssemblyStepsMap.get(assembly.id) ?? []}
-                onStepSelect={onStepSelect}
-                useRawVideo={useRawVideo}
-                editMode={editMode}
-                allowEmpty={editMode}
-                allSteps={editMode ? stepsWithPreview : undefined}
-                onDeleteAssembly={editCallbacks?.onDeleteAssembly}
-                onRenameAssembly={editCallbacks?.onRenameAssembly}
-                onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
-                onRenameStep={editCallbacks?.onRenameStep}
-                renderPreviewUpload={editCallbacks?.renderPreviewUpload}
-                renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
-                renderSortableStepGrid={editCallbacks?.renderSortableStepGrid}
-                assemblyImageUrl={resolveAssemblyImageUrl(assembly)}
-              />
-            );
-
             const assemblySections = editCallbacks?.renderStepDndWrapper
               // renderStepDndWrapper replaces renderAssemblyList (unified DndContext)
               ? null
@@ -432,6 +497,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                     editMode={editMode}
                     onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
                     onRenameStep={editCallbacks?.onRenameStep}
+                    onDeleteStep={editCallbacks?.onDeleteStep}
                     renderPreviewUpload={editCallbacks?.renderPreviewUpload}
                     renderSortableStepGrid={editCallbacks?.renderSortableStepGrid}
                   />
@@ -440,7 +506,10 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
             );
 
             return editCallbacks?.renderStepDndWrapper
-              ? editCallbacks.renderStepDndWrapper(dndContainers, innerContent)
+              ? editCallbacks.renderStepDndWrapper(dndContainers, innerContent, {
+                  assemblyIds,
+                  substepContainers: substepContainers.length > 0 ? substepContainers : undefined,
+                })
               : innerContent;
           })()
         ) : (
@@ -465,30 +534,53 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 onClick={() => onStepSelect(step.id)}
                 editMode={editMode}
                 onRenameStep={editCallbacks?.onRenameStep}
-                renderPreviewUpload={editCallbacks?.renderPreviewUpload
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- narrowed by ternary guard above
-                  ? () => editCallbacks.renderPreviewUpload!(step.id)
-                  : undefined}
+                onDeleteStep={editCallbacks?.onDeleteStep}
+                renderPreviewUpload={editCallbacks?.renderPreviewUpload}
                 expanded={expandedStepIds.has(step.id)}
-                onExpandToggle={() => handleExpandToggle(step.id)}
+                onExpandToggle={handleExpandToggle}
+                renderSubstepDropZone={editCallbacks?.renderSubstepDropZone}
               >
                 {step.substepPreviews.length > 0 && (
-                  <div
-                    className="grid gap-2 p-3"
-                    style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(6rem, 1fr))' }}
-                  >
-                    {step.substepPreviews.map((sub) => (
-                      <SubstepPreviewCard
-                        key={sub.id}
-                        order={sub.order}
-                        title={sub.title}
-                        imageUrl={sub.imageUrl}
-                        frameCaptureData={sub.frameCaptureData}
-                        useRawVideo={useRawVideo}
-                        onClick={() => onStepSelect(step.id)}
-                      />
-                    ))}
-                  </div>
+                  editCallbacks?.renderSortableSubstepGrid
+                    ? editCallbacks.renderSortableSubstepGrid(
+                        step.id,
+                        step.substepPreviews,
+                        (sub) => (
+                          <SubstepPreviewCard
+                            key={sub.id}
+                            substepId={sub.id}
+                            order={sub.order}
+                            title={sub.title}
+                            imageUrl={sub.imageUrl}
+                            frameCaptureData={sub.frameCaptureData as FrameCaptureData | null}
+                            useRawVideo={useRawVideo}
+                            onClick={() => onStepSelect(step.id)}
+                            editMode={editMode}
+                            onDeleteSubstep={editCallbacks?.onDeleteSubstep}
+                          />
+                        ),
+                      )
+                    : (
+                      <div
+                        className="grid gap-2 p-3"
+                        style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(6rem, 1fr))' }}
+                      >
+                        {step.substepPreviews.map((sub) => (
+                          <SubstepPreviewCard
+                            key={sub.id}
+                            substepId={sub.id}
+                            order={sub.order}
+                            title={sub.title}
+                            imageUrl={sub.imageUrl}
+                            frameCaptureData={sub.frameCaptureData}
+                            useRawVideo={useRawVideo}
+                            onClick={() => onStepSelect(step.id)}
+                            editMode={editMode}
+                            onDeleteSubstep={editCallbacks?.onDeleteSubstep}
+                          />
+                        ))}
+                      </div>
+                    )
                 )}
               </StepOverviewCard>
             ))}

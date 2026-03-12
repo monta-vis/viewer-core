@@ -1,6 +1,6 @@
 import { type ReactNode, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { ChevronDown, Plus, Trash2, X } from 'lucide-react';
+import { ChevronDown, GripVertical, Plus, Trash2, X } from 'lucide-react';
 import { AssemblyIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
@@ -8,6 +8,7 @@ import { Card, Badge, IconButton, DialogShell } from '@/components/ui';
 import { StepAssignmentDialog } from './StepAssignmentDialog';
 import type { Assembly } from '@/features/instruction';
 import { StepOverviewCard } from './StepOverviewCard';
+import { SubstepPreviewCard } from './SubstepPreviewCard';
 import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
 
 /**
@@ -19,6 +20,14 @@ export function getStepPreviewUrl(
 ): string | null {
   if (useRawVideo) return null;
   return step.previewLocalPath || null;
+}
+
+export interface SubstepPreview {
+  id: string;
+  order: number;
+  title: string | null;
+  imageUrl: string | null;
+  frameCaptureData: unknown;
 }
 
 export interface StepWithPreview {
@@ -33,16 +42,71 @@ export interface StepWithPreview {
   previewLocalPath?: string | null;
   /** Raw frame capture data for Editor preview (resolves source video) */
   frameCaptureData?: FrameCaptureData | null;
-}
-
-export interface AvailableAssembly {
-  id: string;
-  title: string | null;
+  /** Compact substep preview data for expansion panel */
+  substepPreviews?: SubstepPreview[];
 }
 
 /** Check if a drag event contains a step ID */
 function hasStepDrag(e: React.DragEvent): boolean {
   return e.dataTransfer.types.includes('application/x-step-id');
+}
+
+/** Render substep preview children for a step card (shared between sortable and plain grid). */
+function renderSubstepChildren(
+  step: StepWithPreview,
+  opts: {
+    useRawVideo: boolean;
+    editMode?: boolean;
+    onDeleteSubstep?: (substepId: string) => void;
+    renderSortableSubstepGrid?: (
+      containerId: string,
+      substeps: SubstepPreview[],
+      renderSubstep: (substep: SubstepPreview) => ReactNode,
+    ) => ReactNode;
+    onStepSelect: (stepId: string) => void;
+  },
+): ReactNode {
+  const subs = step.substepPreviews;
+  if (!subs || subs.length === 0) return null;
+
+  if (opts.renderSortableSubstepGrid) {
+    return opts.renderSortableSubstepGrid(step.id, subs, (sub) => (
+      <SubstepPreviewCard
+        key={sub.id}
+        substepId={sub.id}
+        order={sub.order}
+        title={sub.title}
+        imageUrl={sub.imageUrl}
+        frameCaptureData={sub.frameCaptureData as FrameCaptureData | null}
+        useRawVideo={opts.useRawVideo}
+        onClick={() => opts.onStepSelect(step.id)}
+        editMode={opts.editMode}
+        onDeleteSubstep={opts.onDeleteSubstep}
+      />
+    ));
+  }
+
+  return (
+    <div
+      className="grid gap-2 p-3"
+      style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(6rem, 1fr))' }}
+    >
+      {subs.map((sub) => (
+        <SubstepPreviewCard
+          key={sub.id}
+          substepId={sub.id}
+          order={sub.order}
+          title={sub.title}
+          imageUrl={sub.imageUrl}
+          frameCaptureData={sub.frameCaptureData as FrameCaptureData | null}
+          useRawVideo={opts.useRawVideo}
+          onClick={() => opts.onStepSelect(step.id)}
+          editMode={opts.editMode}
+          onDeleteSubstep={opts.onDeleteSubstep}
+        />
+      ))}
+    </div>
+  );
 }
 
 interface AssemblySectionProps {
@@ -60,8 +124,6 @@ interface AssemblySectionProps {
   editMode?: boolean;
   /** Allow rendering with 0 steps (edit mode) */
   allowEmpty?: boolean;
-  /** @deprecated No longer used (dropdowns replaced by DnD) */
-  availableAssemblies?: AvailableAssembly[];
   /** Called to delete this assembly */
   onDeleteAssembly?: (assemblyId: string) => void;
   /** Called to rename this assembly */
@@ -72,6 +134,8 @@ interface AssemblySectionProps {
   allSteps?: (StepWithPreview & { assemblyId?: string | null })[];
   /** Called to rename a step (edit mode only) */
   onRenameStep?: (stepId: string, title: string) => void;
+  /** Called to delete a step (edit mode only) */
+  onDeleteStep?: (stepId: string) => void;
   /** Render prop for preview image upload button on step cards (injected by editor-core via app shell) */
   renderPreviewUpload?: (stepId: string) => ReactNode;
   /** Render prop for assembly preview image upload button (injected by editor-core via app shell) */
@@ -84,6 +148,25 @@ interface AssemblySectionProps {
     steps: StepWithPreview[],
     renderStep: (step: StepWithPreview) => ReactNode,
   ) => ReactNode;
+  /** Drag handle props for assembly DnD reordering (header-only drag) */
+  dragHandleProps?: {
+    listeners: Record<string, unknown> | undefined;
+    attributes: Record<string, unknown>;
+  };
+  /** Set of step IDs whose substep panel is expanded */
+  expandedStepIds?: Set<string>;
+  /** Called when a step's expand/collapse is toggled */
+  onExpandToggle?: (stepId: string) => void;
+  /** Render prop for sortable substep grid (injected by editor-core). */
+  renderSortableSubstepGrid?: (
+    containerId: string,
+    substeps: SubstepPreview[],
+    renderSubstep: (substep: SubstepPreview) => ReactNode,
+  ) => ReactNode;
+  /** Renders a droppable zone for collapsed steps so substeps can be dropped onto them. */
+  renderSubstepDropZone?: (stepId: string) => ReactNode;
+  /** Called when a substep should be deleted */
+  onDeleteSubstep?: (substepId: string) => void;
 }
 
 /**
@@ -105,10 +188,17 @@ export function AssemblySection({
   onMoveStepToAssembly,
   allSteps,
   onRenameStep,
+  onDeleteStep,
   renderPreviewUpload,
   renderAssemblyPreviewUpload,
   assemblyImageUrl,
   renderSortableStepGrid,
+  dragHandleProps,
+  expandedStepIds,
+  onExpandToggle,
+  renderSortableSubstepGrid,
+  renderSubstepDropZone,
+  onDeleteSubstep,
 }: AssemblySectionProps) {
   const { t } = useTranslation();
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
@@ -191,6 +281,16 @@ export function AssemblySection({
             isExpanded && 'shadow-sm'
           )}
         >
+          {dragHandleProps && (
+            <span
+              aria-label={t('instructionView.dragAssembly', 'Drag to reorder assembly')}
+              className="cursor-grab active:cursor-grabbing text-[var(--color-text-muted)] hover:text-[var(--color-text-base)] transition-colors"
+              {...dragHandleProps.listeners}
+              {...dragHandleProps.attributes}
+            >
+              <GripVertical className="h-4 w-4" />
+            </span>
+          )}
           {assemblyImageUrl ? (
             <button
               type="button"
@@ -323,10 +423,14 @@ export function AssemblySection({
                   stepId={step.id}
                   editMode={editMode}
                   onRenameStep={onRenameStep}
-                  renderPreviewUpload={renderPreviewUpload
-                    ? () => renderPreviewUpload(step.id)
-                    : undefined}
-                />
+                  onDeleteStep={onDeleteStep}
+                  renderPreviewUpload={renderPreviewUpload}
+                  expanded={expandedStepIds?.has(step.id)}
+                  onExpandToggle={onExpandToggle}
+                  renderSubstepDropZone={renderSubstepDropZone}
+                >
+                  {renderSubstepChildren(step, { useRawVideo, editMode, onDeleteSubstep, renderSortableSubstepGrid, onStepSelect })}
+                </StepOverviewCard>
               ))
             : steps.length > 0 ? (
               <div
@@ -350,10 +454,14 @@ export function AssemblySection({
                     draggable={editMode}
                     editMode={editMode}
                     onRenameStep={onRenameStep}
-                    renderPreviewUpload={renderPreviewUpload
-                      ? () => renderPreviewUpload(step.id)
-                      : undefined}
-                  />
+                    onDeleteStep={onDeleteStep}
+                    renderPreviewUpload={renderPreviewUpload}
+                    expanded={expandedStepIds?.has(step.id)}
+                    onExpandToggle={onExpandToggle}
+                    renderSubstepDropZone={renderSubstepDropZone}
+                  >
+                    {renderSubstepChildren(step, { useRawVideo, editMode, onDeleteSubstep, renderSortableSubstepGrid, onStepSelect })}
+                  </StepOverviewCard>
                 ))}
               </div>
             ) : (
@@ -422,12 +530,12 @@ interface UnassignedSectionProps {
   useRawVideo?: boolean;
   /** Edit mode active */
   editMode?: boolean;
-  /** @deprecated No longer used (dropdowns replaced by DnD) */
-  availableAssemblies?: AvailableAssembly[];
   /** Called to move a step to an assembly */
   onMoveStepToAssembly?: (stepId: string, assemblyId: string | null) => void;
   /** Called to rename a step (edit mode only) */
   onRenameStep?: (stepId: string, title: string) => void;
+  /** Called to delete a step (edit mode only) */
+  onDeleteStep?: (stepId: string) => void;
   /** Render prop for preview image upload button on step cards (injected by editor-core via app shell) */
   renderPreviewUpload?: (stepId: string) => ReactNode;
   /** Render prop for sortable step grid (injected by editor-core). When present, replaces raw steps.map(). */
@@ -451,6 +559,7 @@ export function UnassignedSection({
   editMode = false,
   onMoveStepToAssembly,
   onRenameStep,
+  onDeleteStep,
   renderPreviewUpload,
   renderSortableStepGrid,
 }: UnassignedSectionProps) {
@@ -536,9 +645,8 @@ export function UnassignedSection({
                   stepId={step.id}
                   editMode={editMode}
                   onRenameStep={onRenameStep}
-                  renderPreviewUpload={renderPreviewUpload
-                    ? () => renderPreviewUpload(step.id)
-                    : undefined}
+                  onDeleteStep={onDeleteStep}
+                  renderPreviewUpload={renderPreviewUpload}
                 />
               ))
             : (
@@ -563,9 +671,8 @@ export function UnassignedSection({
                     draggable={editMode}
                     editMode={editMode}
                     onRenameStep={onRenameStep}
-                    renderPreviewUpload={renderPreviewUpload
-                      ? () => renderPreviewUpload(step.id)
-                      : undefined}
+                    onDeleteStep={onDeleteStep}
+                    renderPreviewUpload={renderPreviewUpload}
                   />
                 ))}
               </div>

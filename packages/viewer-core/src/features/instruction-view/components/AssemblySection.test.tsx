@@ -25,6 +25,9 @@ vi.mock('@/components/ui', () => ({
   IconButton: ({ icon, 'aria-label': label, onClick, ...rest }: Record<string, unknown>) => (
     <button aria-label={label as string} onClick={onClick as () => void} {...rest}>{icon as ReactNode}</button>
   ),
+  DialogShell: ({ open, children }: { open: boolean; children: ReactNode }) => (
+    open ? <div data-testid="dialog-shell">{children}</div> : null
+  ),
 }));
 
 vi.mock('./StepOverviewCard', () => ({
