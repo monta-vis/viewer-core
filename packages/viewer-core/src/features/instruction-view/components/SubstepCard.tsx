@@ -23,7 +23,7 @@ import { VideoFrameCapture } from './VideoFrameCapture';
 import { LoupeOverlay } from './LoupeOverlay';
 import { NoteCard, getNoteSortPriority } from './NoteCard';
 import type { SafetyIconCategory } from '@/features/instruction';
-import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
+import type { ResolvedImage } from '@/lib/mediaResolver';
 import { computeContentBounds } from '../utils/computeContentBounds';
 import { useLongPress } from '../hooks/useLongPress';
 import { useDoubleTap } from '../hooks/useDoubleTap';
@@ -63,8 +63,8 @@ interface SubstepCardProps {
   title: string | null;
   stepOrder: number;
   totalSubsteps?: number;
-  imageUrl?: string | null;
-  frameCaptureData?: FrameCaptureData | null;
+  /** Resolved image (url or frameCapture) */
+  image?: ResolvedImage | null;
   descriptions: SubstepDescriptionRow[];
   notes: EnrichedSubstepNote[];
   partTools?: EnrichedSubstepPartTool[];
@@ -128,8 +128,7 @@ interface SubstepCardProps {
     /** Props for rendering a read-only SubstepCard as media preview inside the popover */
     stepOrder: number;
     totalSubsteps?: number;
-    imageUrl?: string | null;
-    frameCaptureData?: FrameCaptureData | null;
+    image?: ResolvedImage | null;
     videoData?: SubstepCardProps['videoData'];
     title: string | null;
     noteIconLabels?: Record<string, string>;
@@ -141,8 +140,7 @@ export const SubstepCard = memo(function SubstepCard({
   title,
   stepOrder,
   totalSubsteps,
-  imageUrl,
-  frameCaptureData,
+  image,
   descriptions,
   notes,
   partTools = [],
@@ -551,14 +549,14 @@ export const SubstepCard = memo(function SubstepCard({
               />
             );
           }
-          if (frameCaptureData) {
+          if (image?.kind === 'frameCapture') {
             return (
               <VideoFrameCapture
-                videoId={frameCaptureData.videoId}
-                fps={frameCaptureData.fps}
-                frameNumber={frameCaptureData.frameNumber}
-                cropArea={frameCaptureData.cropArea}
-                videoSrc={frameCaptureData.videoSrc}
+                videoId={image.data.videoId}
+                fps={image.data.fps}
+                frameNumber={image.data.frameNumber}
+                cropArea={image.data.cropArea}
+                videoSrc={image.data.videoSrc}
                 alt={altText}
                 className="w-full h-full"
                 onCapture={(size, dataUrl) => {
@@ -568,10 +566,10 @@ export const SubstepCard = memo(function SubstepCard({
               />
             );
           }
-          if (imageUrl) {
+          if (image?.kind === 'url') {
             return (
               <img
-                src={imageUrl}
+                src={image.url}
                 alt={altText}
                 draggable={false}
                 loading="lazy"
@@ -579,7 +577,7 @@ export const SubstepCard = memo(function SubstepCard({
                 onLoad={(e) => {
                   const img = e.currentTarget;
                   setContentNaturalSize({ width: img.naturalWidth, height: img.naturalHeight });
-                  setLoupeImageSrc(imageUrl);
+                  setLoupeImageSrc(image.url);
                 }}
               />
             );
@@ -733,13 +731,12 @@ export const SubstepCard = memo(function SubstepCard({
                     repeatCount,
                     repeatLabel,
                     tutorials: tutorials.map((r) => ({ kind: r.kind, label: r.label })),
-                    hasImage: !!(imageUrl || frameCaptureData),
+                    hasImage: !!image,
                     hasVideo: !!videoData,
                     substepId,
                     stepOrder,
                     totalSubsteps,
-                    imageUrl,
-                    frameCaptureData,
+                    image,
                     videoData,
                     title,
                     noteIconLabels,

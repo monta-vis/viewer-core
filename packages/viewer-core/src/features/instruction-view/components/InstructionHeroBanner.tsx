@@ -2,20 +2,16 @@ import type { ReactNode } from 'react';
 import { FileText } from 'lucide-react';
 
 import { Card } from '@/components/ui';
-import { VideoFrameCapture } from './VideoFrameCapture';
-import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
+import { ResolvedImageView } from './ResolvedImageView';
+import type { ResolvedImage } from '@/lib/mediaResolver';
 
 export interface InstructionHeroBannerProps {
-  /** Pre-rendered image URL for the instruction cover */
-  imageUrl?: string | null;
-  /** Raw frame capture data for Editor preview */
-  frameCaptureData?: FrameCaptureData | null;
+  /** Resolved cover image (url or frameCapture) */
+  image?: ResolvedImage | null;
   /** Instruction name */
   instructionName: string;
   /** Article number (optional) */
   articleNumber?: string | null;
-  /** Use raw video frame capture instead of pre-rendered image */
-  useRawVideo?: boolean;
   /** Render prop for cover image upload button (edit mode) */
   renderUpload?: () => ReactNode;
 }
@@ -25,11 +21,9 @@ export interface InstructionHeroBannerProps {
  * at the top of the StepOverview drawer.
  */
 export function InstructionHeroBanner({
-  imageUrl,
-  frameCaptureData,
+  image,
   instructionName,
   articleNumber,
-  useRawVideo = false,
   renderUpload,
 }: InstructionHeroBannerProps) {
   return (
@@ -37,19 +31,9 @@ export function InstructionHeroBanner({
       <div className="flex flex-row items-center h-[6rem]">
         {/* Square thumbnail */}
         <div className="relative w-[6rem] h-[6rem] flex-shrink-0 bg-black overflow-hidden rounded-l-xl">
-          {useRawVideo && frameCaptureData ? (
-            <VideoFrameCapture
-              videoId={frameCaptureData.videoId}
-              fps={frameCaptureData.fps}
-              frameNumber={frameCaptureData.frameNumber}
-              cropArea={frameCaptureData.cropArea}
-              videoSrc={frameCaptureData.videoSrc}
-              alt={instructionName}
-              className="w-full h-full object-cover"
-            />
-          ) : imageUrl ? (
-            <img
-              src={imageUrl}
+          {image ? (
+            <ResolvedImageView
+              image={image}
               alt={instructionName}
               className="w-full h-full object-cover"
             />

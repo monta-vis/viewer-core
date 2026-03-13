@@ -6,7 +6,7 @@ import { Button, ConfirmDeleteDialog, IconButton, TextInputModal } from '@monta-
 export interface SidebarFormState {
   type: 'Part' | 'Tool';
   name: string;
-  label: string;
+  position: string;
   partNumber: string;
   amount: number;
   unit: string;
@@ -18,7 +18,7 @@ export interface SidebarFormState {
 export const EMPTY_SIDEBAR_FORM: SidebarFormState = {
   type: 'Part',
   name: '',
-  label: '',
+  position: '',
   partNumber: '',
   amount: 1,
   unit: '',
@@ -153,7 +153,7 @@ export function PartToolSidebarForm({
           />
         </div>
 
-        {/* Row 2: Type + Label */}
+        {/* Row 2: Type + Position */}
         <div className="flex gap-2">
           {/* Type toggle in boxed shell */}
           <div className="relative border border-solid border-[var(--color-border-base)] rounded-lg pt-3.5 pb-1 px-2 w-[4.75rem] shrink-0 min-h-[2.5rem]">
@@ -177,10 +177,10 @@ export function PartToolSidebarForm({
             </button>
           </div>
           <BoxedField
-            label={t('editorCore.partToolLabel', 'Label')}
-            value={values.label}
-            data-testid="sidebar-form-label"
-            onClick={() => openField('label', t('editorCore.partToolLabel', 'Label'))}
+            label={t('editorCore.partToolPosition', 'Position')}
+            value={values.position}
+            data-testid="sidebar-form-position"
+            onClick={() => openField('position', t('editorCore.partToolPosition', 'Position'))}
             className="flex-1 min-w-0"
           />
         </div>

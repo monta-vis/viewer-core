@@ -111,8 +111,8 @@ function PartToolCard({
         <div style={{ width: '3.125rem', height: '3.125rem', background: '#ffffff', borderRadius: '0.125rem' }} />
       )}
       <span className="print-part-name">{partTool.name}</span>
-      {partTool.label && (
-        <span className="print-part-meta">{partTool.label}</span>
+      {partTool.position && (
+        <span className="print-part-meta">{partTool.position}</span>
       )}
       {partTool.partNumber && (
         <span className="print-part-meta">#{partTool.partNumber}</span>

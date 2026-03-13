@@ -21,26 +21,34 @@ export function prepareSections(sections: SectionRange[]): PreparedSections {
   return { sorted, totalFrames };
 }
 
-/** Convert absolute frame to percentage (0-100) of substep total video duration */
-export function frameToSubstepPercent(
+/** Convert absolute frame to accumulated elapsed frames across sections.
+ *  Returns 0 if absoluteFrame is before all sections, totalFrames if past all. */
+export function frameToAccumulatedFrame(
   absoluteFrame: number,
   sections: SectionRange[] | PreparedSections,
 ): number {
   const { sorted, totalFrames } = isPrepared(sections) ? sections : prepareSections(sections);
   if (totalFrames === 0) return 0;
-
-  // Before first section → 0%
   if (absoluteFrame < sorted[0].startFrame) return 0;
 
   let elapsed = 0;
   for (const sec of sorted) {
     if (absoluteFrame >= sec.startFrame && absoluteFrame <= sec.endFrame) {
-      elapsed += absoluteFrame - sec.startFrame;
-      return (elapsed / totalFrames) * 100;
+      return elapsed + (absoluteFrame - sec.startFrame);
     }
     elapsed += sec.endFrame - sec.startFrame;
   }
-  return 100; // past all sections
+  return totalFrames;
+}
+
+/** Convert absolute frame to percentage (0-100) of substep total video duration */
+export function frameToSubstepPercent(
+  absoluteFrame: number,
+  sections: SectionRange[] | PreparedSections,
+): number {
+  const prepared = isPrepared(sections) ? sections : prepareSections(sections);
+  if (prepared.totalFrames === 0) return 0;
+  return (frameToAccumulatedFrame(absoluteFrame, prepared) / prepared.totalFrames) * 100;
 }
 
 /** Convert substep percentage (0-100) to absolute frame */

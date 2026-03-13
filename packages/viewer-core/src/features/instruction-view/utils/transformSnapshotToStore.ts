@@ -176,7 +176,7 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         instructionId: pt.instruction_id,
         previewImageId: pt.preview_image_id ?? null,
         name: pt.name,
-        label: pt.label ?? null,
+        position: pt.label ?? null,
         type: pt.type as 'Part' | 'Tool',
         partNumber: pt.part_number,
         amount: pt.amount ?? 0,

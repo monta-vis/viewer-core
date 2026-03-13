@@ -221,6 +221,48 @@ describe('buildStandaloneVideoEntry', () => {
   });
 });
 
+describe('buildVideoEntry – processed mode viewport keyframes', () => {
+  it('collects viewport keyframes with cumulative frame offsets', () => {
+    const substep = makeSubstep({ videoSectionRowIds: ['svs1', 'svs2'] });
+    const data = makeData({
+      videoSections: {
+        sec1: {
+          id: 'sec1', versionId: 'v1', videoId: 'vid1', startFrame: 100, endFrame: 200,
+          fps: null, localPath: '/local/sec1.mp4', viewportKeyframeIds: ['kf1'],
+          contentAspectRatio: 1.5,
+        },
+        sec2: {
+          id: 'sec2', versionId: 'v1', videoId: 'vid1', startFrame: 300, endFrame: 450,
+          fps: null, localPath: '/local/sec2.mp4', viewportKeyframeIds: ['kf2', 'kf3'],
+          contentAspectRatio: null,
+        },
+      },
+      substepVideoSections: {
+        svs1: { id: 'svs1', versionId: 'v1', substepId: 'sub1', videoSectionId: 'sec1', order: 0 },
+        svs2: { id: 'svs2', versionId: 'v1', substepId: 'sub1', videoSectionId: 'sec2', order: 1 },
+      },
+      viewportKeyframes: {
+        kf1: { id: 'kf1', videoSectionId: 'sec1', versionId: 'v1', frameNumber: 10, x: 0.5, y: 0.5, width: 0.5, height: 0.5 },
+        kf2: { id: 'kf2', videoSectionId: 'sec2', versionId: 'v1', frameNumber: 0, x: 0.3, y: 0.3, width: 0.4, height: 0.4 },
+        kf3: { id: 'kf3', videoSectionId: 'sec2', versionId: 'v1', frameNumber: 50, x: 0.7, y: 0.7, width: 0.6, height: 0.6 },
+      },
+    } as Partial<InstructionData>);
+
+    const result = buildVideoEntry(substep, data, defaultOptions);
+    expect(result).not.toBeNull();
+    // Processed mode should NOT return viewport keyframes — transforms are already baked in
+    expect(result!.viewportKeyframes).toEqual([]);
+  });
+
+  it('returns empty keyframes when sections have no keyframes', () => {
+    const substep = makeSubstep();
+    const data = makeData();
+    const result = buildVideoEntry(substep, data, defaultOptions);
+    expect(result).not.toBeNull();
+    expect(result!.viewportKeyframes).toEqual([]);
+  });
+});
+
 describe('buildVideoEntry – blurred video paths', () => {
   it('resolves to blurred video path when both master and substep flags are on', () => {
     const substep = makeSubstep({ useBlurred: true } as Partial<Substep>);

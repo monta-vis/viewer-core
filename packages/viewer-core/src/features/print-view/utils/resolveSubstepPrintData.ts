@@ -17,7 +17,7 @@ export interface PrintNoteData {
 
 export interface PrintPartToolData {
   name: string;
-  label: string | null;
+  position: string | null;
   type: PartToolRow['type'];
   amount: number;
 }
@@ -102,7 +102,7 @@ export function resolveSubstepPrintData(
       if (!pt) return null;
       return {
         name: pt.name,
-        label: pt.label,
+        position: pt.position,
         type: pt.type,
         amount: spt.amount,
       };

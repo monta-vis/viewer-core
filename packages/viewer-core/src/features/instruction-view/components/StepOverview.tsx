@@ -6,8 +6,9 @@ import { UNASSIGNED_STEP_ID, sortSubstepsByVideoFrame, buildSortData, type Assem
 import { useViewerData } from '../context';
 import { sortedValues, byOrder, byStepNumber } from '@/lib/sortedValues';
 import { StepOverviewCard } from './StepOverviewCard';
-import { AssemblySection, UnassignedSection, getStepPreviewUrl, type StepWithPreview, type SubstepPreview } from './AssemblySection';
-import { resolveRawFrameCapture, type FrameCaptureData } from '../utils/resolveRawFrameCapture';
+import { AssemblySection, UnassignedSection, type StepWithPreview, type SubstepPreview } from './AssemblySection';
+import { useMediaResolverOptional } from '@/lib/MediaResolverContext';
+import type { ResolvedImage } from '@/lib/mediaResolver';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
 import { PartToolSearchBar } from './PartToolSearchBar';
@@ -69,10 +70,6 @@ export interface StepOverviewEditCallbacks {
 interface StepOverviewProps {
   /** Called when a step is selected */
   onStepSelect: (stepId: string) => void;
-  /** Use raw video frame capture instead of pre-rendered images. Default: false */
-  useRawVideo?: boolean;
-  /** Project folder name for mvis-media:// URLs (enables source video in Editor preview) */
-  folderName?: string;
   /** Edit mode active */
   editMode?: boolean;
   /** Edit callbacks for assembly management */
@@ -86,9 +83,11 @@ interface StepOverviewProps {
  *
  * Shows each step as a card with the last substep's image as preview.
  */
-export function StepOverview({ onStepSelect, useRawVideo = false, folderName, editMode = false, editCallbacks, activeStepId }: StepOverviewProps) {
+export function StepOverview({ onStepSelect, editMode = false, editCallbacks, activeStepId }: StepOverviewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
+  const resolver = useMediaResolverOptional();
+  const isRawMode = resolver?.mode === 'raw';
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [filteredPartToolId, setFilteredPartToolId] = useState<string | null>(null);
   const [expandedStepIds, setExpandedStepIds] = useState<Set<string>>(new Set());
@@ -137,14 +136,19 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
 
   // Check for unassigned substeps (editor-only Step 0)
   const unassignedSubsteps = useMemo(() => {
-    if (!useRawVideo || !data) return [];
+    if (!isRawMode || !data) return [];
     return getUnassignedSubsteps(data);
-  }, [data, useRawVideo]);
+  }, [data, isRawMode]);
 
   // Build preview data for each step (last substep's image)
   const isEditMode = !!editCallbacks;
   const stepsWithPreview = useMemo(() => {
     if (!data) return [];
+
+    const resolveAreaImage = (areaId: string | null): ResolvedImage | null => {
+      if (!areaId || !resolver) return null;
+      return resolver.resolveImage(areaId);
+    };
 
     const buildStepPreview = (step: { id: string; stepNumber: number; title: string | null; description: string | null; substepIds: string[]; assemblyId?: string | null }) => {
       // In edit mode, preserve substepIds order (manual reorder); in view mode, sort by video frame
@@ -156,61 +160,31 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
       // Get the last substep
       const lastSubstep = substeps[substeps.length - 1];
 
-      let previewAreaId: string | null = null;
-      let previewLocalPath: string | null = null;
-      let frameCaptureData: FrameCaptureData | null = null;
+      let image: ResolvedImage | null = null;
 
       // Check for explicit step preview override via videoFrameAreaId
       const stepData = data.steps[step.id];
       if (stepData?.videoFrameAreaId) {
-        const overrideArea = data.videoFrameAreas[stepData.videoFrameAreaId];
-        if (overrideArea) {
-          previewAreaId = overrideArea.id;
-          previewLocalPath = overrideArea.localPath ?? null;
-          if (useRawVideo && folderName) {
-            frameCaptureData = resolveRawFrameCapture(overrideArea, data.videos, folderName);
-          }
-        }
+        image = resolveAreaImage(stepData.videoFrameAreaId);
       } else if (lastSubstep) {
         // Fallback: Get first image of last substep
         const firstImageRowId = lastSubstep.imageRowIds[0];
         const imageRow = firstImageRowId ? data.substepImages[firstImageRowId] : null;
-        const area = imageRow ? data.videoFrameAreas[imageRow.videoFrameAreaId] : null;
-
-        if (area) {
-          previewAreaId = area.id;
-          previewLocalPath = area.localPath ?? null;
-        }
-
-        // Resolve raw frame capture data for Editor preview
-        if (useRawVideo && folderName) {
-          frameCaptureData = resolveRawFrameCapture(area, data.videos, folderName);
-        }
+        const areaId = imageRow?.videoFrameAreaId ?? null;
+        image = resolveAreaImage(areaId);
       }
 
       // Build compact substep preview data
-      const substepPreviews = substeps.map((sub, idx) => {
-        let subImageUrl: string | null = null;
-        let subFrameCapture: FrameCaptureData | null = null;
-
+      const substepPreviews: SubstepPreview[] = substeps.map((sub, idx) => {
         const firstImageRowId = sub.imageRowIds[0];
         const imageRow = firstImageRowId ? data.substepImages[firstImageRowId] : null;
-        const area = imageRow ? data.videoFrameAreas[imageRow.videoFrameAreaId] : null;
-
-        if (area) {
-          subImageUrl = area.localPath ?? null;
-        }
-
-        if (useRawVideo && folderName && area) {
-          subFrameCapture = resolveRawFrameCapture(area, data.videos, folderName);
-        }
+        const areaId = imageRow?.videoFrameAreaId ?? null;
 
         return {
           id: sub.id,
           order: idx + 1,
           title: sub.title ?? null,
-          imageUrl: subImageUrl,
-          frameCaptureData: subFrameCapture,
+          image: resolveAreaImage(areaId),
         };
       });
 
@@ -221,9 +195,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
         description: step.description,
         substepCount: substeps.length,
         assemblyId: step.assemblyId ?? null,
-        previewAreaId,
-        previewLocalPath,
-        frameCaptureData,
+        image,
         substepPreviews,
       };
     };
@@ -244,7 +216,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
     }
 
     return result;
-  }, [sortedSteps, data, useRawVideo, folderName, unassignedSubsteps, isEditMode]);
+  }, [sortedSteps, data, resolver, unassignedSubsteps, isEditMode]);
 
   // Group steps by assembly
   const { sortedAssemblies, assemblyStepsMap, unassignedSteps, hasAssemblies } = useMemo(() => {
@@ -335,12 +307,14 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
     : (hasAssemblies && hasAssignedSteps);
 
   const resolveAssemblyImageUrl = useCallback((assembly: Assembly): string | null => {
-    if (!data || !assembly.videoFrameAreaId) return null;
-    const area = data.videoFrameAreas[assembly.videoFrameAreaId];
-    if (!area) return null;
-    if (useRawVideo && folderName) return buildMediaUrl(folderName, MediaPaths.frame(assembly.videoFrameAreaId));
-    return area.localPath ?? null;
-  }, [data, useRawVideo, folderName]);
+    if (!data || !resolver || !assembly.videoFrameAreaId) return null;
+    const img = resolver.resolveImage(assembly.videoFrameAreaId);
+    if (img?.kind === 'url') return img.url;
+    if (img?.kind === 'frameCapture' && resolver.folderName) {
+      return buildMediaUrl(resolver.folderName, MediaPaths.frame(assembly.videoFrameAreaId));
+    }
+    return null;
+  }, [data, resolver]);
 
   // Filter assemblies and their steps by partTool filter
   const filteredAssemblies = useMemo(() => {
@@ -376,34 +350,24 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
   const instructionHero = useMemo(() => {
     if (!data) return null;
 
-    let imageUrl: string | null = null;
-    let frameCaptureData: FrameCaptureData | null = null;
+    let image: ResolvedImage | null = null;
 
     // Primary: coverImageAreaId → videoFrameArea
-    if (data.coverImageAreaId) {
-      const area = data.videoFrameAreas[data.coverImageAreaId];
-      if (area) {
-        if (useRawVideo && folderName) {
-          imageUrl = buildMediaUrl(folderName, MediaPaths.frame(data.coverImageAreaId));
-          frameCaptureData = resolveRawFrameCapture(area, data.videos, folderName);
-        } else {
-          imageUrl = area.localPath ?? null;
-        }
-      }
+    if (data.coverImageAreaId && resolver) {
+      image = resolver.resolveImage(data.coverImageAreaId);
     }
 
     // Fallback: instructionPreviewImageId (static asset path)
-    if (!imageUrl && data.instructionPreviewImageId) {
-      imageUrl = data.instructionPreviewImageId;
+    if (!image && data.instructionPreviewImageId) {
+      image = { kind: 'url', url: data.instructionPreviewImageId };
     }
 
     return {
-      imageUrl,
-      frameCaptureData,
+      image,
       instructionName: data.instructionName,
       articleNumber: data.articleNumber ?? null,
     };
-  }, [data, useRawVideo, folderName]);
+  }, [data, resolver]);
 
   // Build containers array for DnD wrapper
   const dndContainers = useMemo(() => [
@@ -440,7 +404,6 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
         assembly={assembly}
         steps={filteredAssemblyStepsMap.get(assembly.id) ?? []}
         onStepSelect={onStepSelect}
-        useRawVideo={useRawVideo}
         editMode={editMode}
         allowEmpty={editMode}
         allSteps={editMode ? stepsWithPreview : undefined}
@@ -461,7 +424,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
         onDeleteSubstep={editCallbacks?.onDeleteSubstep}
       />
     ),
-    [filteredAssemblyStepsMap, onStepSelect, useRawVideo, editMode, stepsWithPreview, editCallbacks, resolveAssemblyImageUrl, expandedStepIds, handleExpandToggle],
+    [filteredAssemblyStepsMap, onStepSelect, editMode, stepsWithPreview, editCallbacks, resolveAssemblyImageUrl, expandedStepIds, handleExpandToggle],
   );
 
   const renderAssemblySection = useCallback(
@@ -498,11 +461,9 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
       <div className="px-4 pb-4 sm:px-6 sm:pb-6">
         {instructionHero && (
           <InstructionHeroBanner
-            imageUrl={instructionHero.imageUrl}
-            frameCaptureData={instructionHero.frameCaptureData}
+            image={instructionHero.image}
             instructionName={instructionHero.instructionName}
             articleNumber={instructionHero.articleNumber}
-            useRawVideo={useRawVideo}
             renderUpload={editCallbacks?.renderCoverImageUpload}
           />
         )}
@@ -540,7 +501,6 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                   <UnassignedSection
                     steps={visibleUnassigned}
                     onStepSelect={onStepSelect}
-                    useRawVideo={useRawVideo}
                     editMode={editMode}
                     onMoveStepToAssembly={editCallbacks?.onMoveStepToAssembly}
                     onRenameStep={editCallbacks?.onRenameStep}
@@ -575,9 +535,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 title={step.title}
                 description={step.description}
                 substepCount={step.substepCount}
-                previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
-                useRawVideo={useRawVideo}
-                frameCaptureData={step.frameCaptureData}
+                image={step.image}
                 onClick={() => onStepSelect(step.id)}
                 editMode={editMode}
                 onRenameStep={editCallbacks?.onRenameStep}
@@ -587,7 +545,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                 onExpandToggle={handleExpandToggle}
                 renderSubstepDropZone={editCallbacks?.renderSubstepDropZone}
               >
-                {step.substepPreviews.length > 0 && (
+                {step.substepPreviews && step.substepPreviews.length > 0 && (
                   editCallbacks?.renderSortableSubstepGrid
                     ? editCallbacks.renderSortableSubstepGrid(
                         step.id,
@@ -598,9 +556,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                             substepId={sub.id}
                             order={sub.order}
                             title={sub.title}
-                            imageUrl={sub.imageUrl}
-                            frameCaptureData={sub.frameCaptureData}
-                            useRawVideo={useRawVideo}
+                            image={sub.image}
                             onClick={() => onStepSelect(step.id)}
                             editMode={editMode}
                             onDeleteSubstep={editCallbacks?.onDeleteSubstep}
@@ -618,9 +574,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                             substepId={sub.id}
                             order={sub.order}
                             title={sub.title}
-                            imageUrl={sub.imageUrl}
-                            frameCaptureData={sub.frameCaptureData}
-                            useRawVideo={useRawVideo}
+                            image={sub.image}
                             onClick={() => onStepSelect(step.id)}
                             editMode={editMode}
                             onDeleteSubstep={editCallbacks?.onDeleteSubstep}

@@ -41,6 +41,7 @@ import {
 } from './viewportUtils';
 import {
   prepareSections,
+  frameToAccumulatedFrame,
   frameToSubstepPercent,
   substepPercentToFrame,
 } from '../../utils/drawingPercentHelpers';
@@ -525,6 +526,12 @@ function VideoEditorViewMode({
     ? frameToSubstepPercent(currentFrame, preparedSections)
     : totalFrames > 0 ? (currentFrame / totalFrames) * 100 : 0;
 
+  // Section-accumulated display values for time/frame readout
+  const accumulatedFrame = preparedSections
+    ? frameToAccumulatedFrame(currentFrame, preparedSections)
+    : currentFrame;
+  const displayCurrentTime = accumulatedFrame / videoData.fps;
+
   // Video drawing hook
   const videoDrawing = useVideoDrawing({
     substepId,
@@ -854,8 +861,8 @@ function VideoEditorViewMode({
         <div className="shrink-0 px-4 pb-3 pt-2 flex flex-col gap-2">
           <TrimPlaybackControls
             isPlaying={isPlayingInline || playback.isPlaying}
-            currentTime={playback.currentTime}
-            duration={playback.duration}
+            currentTime={displayCurrentTime}
+            duration={effectiveDuration}
             onTogglePlay={handleTogglePlay}
             fps={videoData.fps}
           />
@@ -875,8 +882,8 @@ function VideoEditorViewMode({
             <Playhead
               position={currentPercent}
               trackHeight={2}
-              currentTime={playback.currentTime}
-              currentFrame={currentFrame}
+              currentTime={displayCurrentTime}
+              currentFrame={accumulatedFrame}
               fps={videoData.fps}
               onDrag={handleSeekPercent}
             />

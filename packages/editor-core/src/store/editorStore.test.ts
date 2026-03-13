@@ -503,7 +503,10 @@ describe('useEditorStore', () => {
         result.current.addVideoFrameArea(newArea);
       });
 
-      expect(result.current.data?.videoFrameAreas['area-1']).toEqual(newArea);
+      expect(result.current.data?.videoFrameAreas['area-1']).toEqual({
+        ...newArea,
+        useBlurred: true, // store defaults useBlurred for SubstepImage type
+      });
     });
 
     it('updateVideoFrameArea updates area', () => {

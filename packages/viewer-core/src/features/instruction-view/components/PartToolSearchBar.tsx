@@ -18,7 +18,7 @@ interface PartToolSearchBarProps {
 const MAX_RESULTS = 6;
 
 function getSearchFields(pt: PartToolRow): string[] {
-  return [pt.name, pt.label ?? '', pt.partNumber ?? ''];
+  return [pt.name, pt.position ?? '', pt.partNumber ?? ''];
 }
 
 export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onClear }: PartToolSearchBarProps) {
@@ -85,9 +85,9 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
         <span className="flex-1 min-w-0 text-sm font-medium text-[var(--color-text-base)] truncate">
           {selectedPartTool.name}
         </span>
-        {selectedPartTool.label && (
+        {selectedPartTool.position && (
           <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] flex-shrink-0">
-            {selectedPartTool.label}
+            {selectedPartTool.position}
           </span>
         )}
         <button
@@ -148,9 +148,9 @@ export function PartToolSearchBar({ partTools, selectedPartTool, onSelect, onCle
                   <span className="flex-1 min-w-0 text-sm font-medium text-[var(--color-text-base)] truncate">
                     {pt.name}
                   </span>
-                  {pt.label && (
+                  {pt.position && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--color-bg-hover)] text-[var(--color-text-muted)] flex-shrink-0">
-                      {pt.label}
+                      {pt.position}
                     </span>
                   )}
                   {pt.partNumber && (

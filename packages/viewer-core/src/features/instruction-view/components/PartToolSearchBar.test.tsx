@@ -14,16 +14,16 @@ afterEach(cleanup);
 function makePart(overrides: Partial<PartToolRow> = {}): PartToolRow {
   return {
     id: 'pt-1', versionId: 'v1', instructionId: 'i1', previewImageId: null,
-    name: 'M6 Bolt', label: 'Steel', type: 'Part', partNumber: 'BLT-001',
+    name: 'M6 Bolt', position: 'Steel', type: 'Part', partNumber: 'BLT-001',
     amount: 4, description: null, unit: null, material: null, dimension: null, iconId: null,
     ...overrides,
   };
 }
 
 const partTools: PartToolRow[] = [
-  makePart({ id: 'pt-1', name: 'M6 Bolt', label: 'Steel', partNumber: 'BLT-001', type: 'Part' }),
-  makePart({ id: 'pt-2', name: 'Screwdriver', label: null, partNumber: null, type: 'Tool' }),
-  makePart({ id: 'pt-3', name: 'Washer', label: 'Zinc', partNumber: 'WSH-002', type: 'Part' }),
+  makePart({ id: 'pt-1', name: 'M6 Bolt', position: 'Steel', partNumber: 'BLT-001', type: 'Part' }),
+  makePart({ id: 'pt-2', name: 'Screwdriver', position: null, partNumber: null, type: 'Tool' }),
+  makePart({ id: 'pt-3', name: 'Washer', position: 'Zinc', partNumber: 'WSH-002', type: 'Part' }),
 ];
 
 describe('PartToolSearchBar', () => {

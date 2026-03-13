@@ -196,7 +196,7 @@ const baseProps: SubstepEditPopoverProps = {
       order: 1,
       partTool: {
         id: 'pt-1', versionId: 'v1', instructionId: 'i1', previewImageId: null,
-        name: 'Wrench', label: null, type: 'Tool' as const, partNumber: 'PT-001',
+        name: 'Wrench', position: null, type: 'Tool' as const, partNumber: 'PT-001',
         amount: 10, description: null, unit: null, material: 'Steel', dimension: '10mm',
         iconId: null,
       },
@@ -210,7 +210,7 @@ const baseProps: SubstepEditPopoverProps = {
       order: 2,
       partTool: {
         id: 'pt-2', versionId: 'v1', instructionId: 'i1', previewImageId: null,
-        name: 'Bolt M6', label: null, type: 'Part' as const, partNumber: null,
+        name: 'Bolt M6', position: null, type: 'Part' as const, partNumber: null,
         amount: 50, description: null, unit: null, material: null, dimension: null,
         iconId: null,
       },
@@ -222,7 +222,7 @@ const baseProps: SubstepEditPopoverProps = {
   hasImage: true,
   hasVideo: true,
   stepOrder: 1,
-  imageUrl: 'test-image.jpg',
+  image: { kind: 'url' as const, url: 'test-image.jpg' },
 };
 
 beforeEach(() => {

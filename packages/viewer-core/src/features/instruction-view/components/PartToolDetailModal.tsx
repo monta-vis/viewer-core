@@ -4,7 +4,7 @@ import { X } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
-import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
+import type { ResolvedImage } from '@/lib/mediaResolver';
 import { PartToolDetailContent } from './PartToolDetailContent';
 
 interface PartToolDetailModalProps {
@@ -12,16 +12,8 @@ interface PartToolDetailModalProps {
   item: AggregatedPartTool | null;
   /** Callback to close the modal */
   onClose: () => void;
-  /** Project folder name for mvis-media:// area image URLs */
-  folderName?: string;
-  /** PartTool-VideoFrameArea junction records from the store */
-  partToolVideoFrameAreas?: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>;
-  /** Whether to use blurred media variants */
-  useBlurred?: boolean;
-  /** Raw frame capture data for Editor preview */
-  frameCaptureData?: FrameCaptureData | null;
-  /** VideoFrameArea records for localPath fallback (mweb context) */
-  videoFrameAreas?: Record<string, { localPath?: string | null }>;
+  /** Resolved preview image (url or frameCapture) */
+  image?: ResolvedImage | null;
 }
 
 /**
@@ -33,7 +25,7 @@ interface PartToolDetailModalProps {
  * - Clean detail fields for technical data
  * - Smooth entrance animation
  */
-export function PartToolDetailModal({ item, onClose, folderName, partToolVideoFrameAreas, useBlurred, frameCaptureData, videoFrameAreas }: PartToolDetailModalProps) {
+export function PartToolDetailModal({ item, onClose, image }: PartToolDetailModalProps) {
   const { t } = useTranslation();
   const modalRef = useRef<HTMLDivElement>(null);
   const isOpen = item !== null;
@@ -106,11 +98,7 @@ export function PartToolDetailModal({ item, onClose, folderName, partToolVideoFr
 
           <PartToolDetailContent
             item={item}
-            folderName={folderName}
-            partToolVideoFrameAreas={partToolVideoFrameAreas}
-            useBlurred={useBlurred}
-            frameCaptureData={frameCaptureData}
-            videoFrameAreas={videoFrameAreas}
+            image={image}
           />
         </div>
       </div>

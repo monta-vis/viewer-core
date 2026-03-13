@@ -8,7 +8,7 @@ export function createDefaultPartTool(versionId: string, instructionId: string):
     instructionId,
     previewImageId: null,
     name: '',
-    label: null,
+    position: null,
     type: 'Part',
     partNumber: null,
     amount: 1,

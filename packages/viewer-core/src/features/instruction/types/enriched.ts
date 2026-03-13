@@ -147,7 +147,7 @@ export interface PartToolRow {
   instructionId: string;
   previewImageId: string | null;
   name: string;
-  label: string | null;
+  position: string | null;
   type: 'Part' | 'Tool';
   partNumber: string | null;
   amount: number;

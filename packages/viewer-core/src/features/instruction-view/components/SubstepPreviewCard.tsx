@@ -3,20 +3,16 @@ import { useTranslation } from 'react-i18next';
 import { Trash2 } from 'lucide-react';
 
 import { Card, IconButton, ConfirmDeleteDialog } from '@/components/ui';
-import { VideoFrameCapture } from './VideoFrameCapture';
-import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
+import { ResolvedImageView } from './ResolvedImageView';
+import type { ResolvedImage } from '@/lib/mediaResolver';
 
 interface SubstepPreviewCardProps {
   /** Substep display order (1-based) */
   order: number;
   /** Substep title — falls back to order number */
   title: string | null;
-  /** Pre-rendered thumbnail URL */
-  imageUrl?: string | null;
-  /** Raw frame capture data for Editor preview */
-  frameCaptureData?: FrameCaptureData | null;
-  /** Use raw video frame capture instead of pre-rendered image */
-  useRawVideo?: boolean;
+  /** Resolved image (url or frameCapture) */
+  image?: ResolvedImage | null;
   /** Substep ID — used for delete callbacks */
   substepId?: string;
   /** Called when card is clicked */
@@ -34,9 +30,7 @@ interface SubstepPreviewCardProps {
 export function SubstepPreviewCard({
   order,
   title,
-  imageUrl,
-  frameCaptureData,
-  useRawVideo = false,
+  image,
   substepId,
   onClick,
   editMode = false,
@@ -61,21 +55,10 @@ export function SubstepPreviewCard({
     >
       {/* Thumbnail */}
       <div className="relative aspect-square bg-black overflow-hidden rounded-t-xl">
-        {useRawVideo && frameCaptureData ? (
-          <VideoFrameCapture
-            videoId={frameCaptureData.videoId}
-            fps={frameCaptureData.fps}
-            frameNumber={frameCaptureData.frameNumber}
-            cropArea={frameCaptureData.cropArea}
-            videoSrc={frameCaptureData.videoSrc}
+        {image ? (
+          <ResolvedImageView
+            image={image}
             alt={label}
-            className="w-full h-full object-contain"
-          />
-        ) : imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={label}
-            loading="lazy"
             className="w-full h-full object-contain"
           />
         ) : (

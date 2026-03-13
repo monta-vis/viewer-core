@@ -61,7 +61,7 @@ function partToolToForm(pt: PartToolRow): SidebarFormState {
   return {
     type: pt.type,
     name: pt.name,
-    label: pt.label ?? '',
+    position: pt.position ?? '',
     partNumber: pt.partNumber ?? '',
     amount: pt.amount,
     unit: pt.unit ?? '',
@@ -78,7 +78,7 @@ function formToPartToolPrefill(form: SidebarFormState): Partial<PartToolRow> {
     type: form.type,
     amount: form.amount,
   };
-  const optionalFields = ['label', 'partNumber', 'unit', 'material', 'dimension', 'description'] as const;
+  const optionalFields = ['position', 'partNumber', 'unit', 'material', 'dimension', 'description'] as const;
   for (const field of optionalFields) {
     const trimmed = form[field].trim();
     if (trimmed) prefill[field] = trimmed;
@@ -114,7 +114,7 @@ function isFormDirty(current: SidebarFormState, snapshot: SidebarFormState): boo
   return (
     current.type !== snapshot.type ||
     current.name !== snapshot.name ||
-    current.label !== snapshot.label ||
+    current.position !== snapshot.position ||
     current.partNumber !== snapshot.partNumber ||
     current.amount !== snapshot.amount ||
     current.unit !== snapshot.unit ||
@@ -364,7 +364,7 @@ export function PartToolListPanel({
       const pt = row.partTool;
       return (
         pt.name.toLowerCase().includes(q) ||
-        (pt.label?.toLowerCase().includes(q) ?? false) ||
+        (pt.position?.toLowerCase().includes(q) ?? false) ||
         (pt.partNumber?.toLowerCase().includes(q) ?? false)
       );
     });

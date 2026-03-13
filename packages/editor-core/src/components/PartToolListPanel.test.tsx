@@ -65,7 +65,7 @@ vi.mock('react-i18next', () => ({
 
 const makePt = (id: string, name: string, type: 'Part' | 'Tool', amount = 1, extras?: Partial<PartToolRow>): PartToolRow => ({
   id, versionId: 'v1', instructionId: 'i1', previewImageId: null,
-  name, label: null, type, partNumber: null, amount,
+  name, position: null, type, partNumber: null, amount,
   description: null, unit: null, material: null, dimension: null, iconId: null,
   ...extras,
 });
@@ -291,7 +291,7 @@ describe('PartToolListPanel — inline sidebar form', () => {
   it('form populates on selection', async () => {
     const user = userEvent.setup();
     const partTools = {
-      p1: makePt('p1', 'Nut', 'Part', 3, { label: 'N1', partNumber: 'PN-42' }),
+      p1: makePt('p1', 'Nut', 'Part', 3, { position: 'N1', partNumber: 'PN-42' }),
     };
     renderPanel({ partTools });
 
@@ -426,7 +426,7 @@ const catalogItems: PartToolIconItem[] = [
 describe('PartToolListPanel — initialEditPartToolId', () => {
   it('pre-selects the partTool when open transitions to true with initialEditPartToolId', () => {
     const partTools = {
-      p1: makePt('p1', 'Nut', 'Part', 3, { label: 'N1' }),
+      p1: makePt('p1', 'Nut', 'Part', 3, { position: 'N1' }),
       p2: makePt('p2', 'Bolt', 'Part', 2),
     };
     renderPanel({ partTools, initialEditPartToolId: 'p1' });

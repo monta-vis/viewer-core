@@ -6,15 +6,14 @@ import { clsx } from 'clsx';
 
 import { CollapsiblePanel, IconButton, TextInputModal } from '@/components/ui';
 import type { TextInputSuggestion } from '@/components/ui';
-import type { VideoFrameAreaRow, VideoRow } from '@/features/instruction';
 import { useViewerData } from '../context';
 import {
   useFilteredPartsTools,
   type AggregatedPartTool,
 } from '../hooks/useFilteredPartsTools';
-import { resolvePartToolImageUrl } from '../utils/resolvePartToolImageUrl';
-import { resolvePartToolFrameCapture, type FrameCaptureData } from '../utils/resolveRawFrameCapture';
-import { VideoFrameCapture } from './VideoFrameCapture';
+import { useMediaResolverOptional } from '@/lib/MediaResolverContext';
+import { ResolvedImageView } from './ResolvedImageView';
+import type { ResolvedImage } from '@/lib/mediaResolver';
 import { PartToolDetailModal } from './PartToolDetailModal';
 import { StepCountSlider } from './StepCountSlider';
 
@@ -53,12 +52,6 @@ interface PartsDrawerProps {
   totalSteps: number;
   /** ID of the substep that opened the drawer (for amount highlighting) */
   highlightedSubstepId?: string;
-  /** Project folder name for mvis-media:// area image URLs */
-  folderName?: string;
-  /** Whether to use blurred media variants */
-  useBlurred?: boolean;
-  /** Use raw video frame capture instead of exported images (Editor preview). Default: false */
-  useRawVideo?: boolean;
   /** Show inline edit controls. Default: false */
   editMode?: boolean;
   /** Called when edit icon is clicked on a PartToolCard. Opens the PartToolListPanel with this partTool pre-selected. */
@@ -85,9 +78,6 @@ export function PartsDrawer({
   currentStepNumber,
   totalSteps,
   highlightedSubstepId,
-  folderName,
-  useBlurred,
-  useRawVideo = false,
   editMode = false,
   onEditPartTool,
   initialStepCount,
@@ -95,6 +85,7 @@ export function PartsDrawer({
 }: PartsDrawerProps) {
   const { t } = useTranslation();
   const data = useViewerData();
+  const resolver = useMediaResolverOptional();
 
   // Selected item for read-only detail modal
   const [selectedItem, setSelectedItem] = useState<AggregatedPartTool | null>(null);
@@ -140,8 +131,6 @@ export function PartsDrawer({
   const [prevIsOpen, setPrevIsOpen] = useState(false);
 
   // Reset state DURING RENDER when drawer opens (not in useEffect/useLayoutEffect)
-  // This is React's "derived state during render" pattern - ensures state is correct
-  // BEFORE DOM commit, preventing the width animation glitch caused by stale state.
   if (isOpen && !prevIsOpen) {
     setPrevIsOpen(true);
     setSelectedCount(initialStepCount ?? 1);
@@ -207,6 +196,12 @@ export function PartsDrawer({
     return items;
   }, [totalSteps, t]);
 
+  // Resolve detail modal image via resolver
+  const detailModalImage = useMemo<ResolvedImage | null>(() => {
+    if (!selectedItem || !resolver) return null;
+    return resolver.resolvePartToolImage(selectedItem.partTool.id);
+  }, [selectedItem, resolver]);
+
   return (
     <CollapsiblePanel
       isOpen={isOpen}
@@ -236,12 +231,6 @@ export function PartsDrawer({
                   item={item}
                   onClick={() => setSelectedItem(item)}
                   highlightedSubstepId={highlightedSubstepId}
-                  folderName={folderName}
-                  partToolVideoFrameAreas={data?.partToolVideoFrameAreas}
-                  useBlurred={useBlurred}
-                  useRawVideo={useRawVideo}
-                  videoFrameAreas={data?.videoFrameAreas}
-                  videos={data?.videos}
                   editMode={editMode}
                   onEditClick={onEditPartTool ? () => onEditPartTool(item.partTool.id) : undefined}
                   onPartToolHover={onPartToolHover}
@@ -253,21 +242,7 @@ export function PartsDrawer({
       <PartToolDetailModal
         item={selectedItem}
         onClose={() => setSelectedItem(null)}
-        folderName={folderName}
-        partToolVideoFrameAreas={data?.partToolVideoFrameAreas}
-        useBlurred={useBlurred}
-        videoFrameAreas={data?.videoFrameAreas}
-        frameCaptureData={
-          useRawVideo && selectedItem && folderName
-            ? resolvePartToolFrameCapture(
-                selectedItem.partTool.id,
-                data?.partToolVideoFrameAreas ?? {},
-                data?.videoFrameAreas ?? {},
-                data?.videos ?? {},
-                folderName,
-              )
-            : null
-        }
+        image={detailModalImage}
       />
 
       {/* Step count filter modal */}
@@ -329,12 +304,6 @@ export const PartToolCard = memo(function PartToolCard({
   item,
   onClick,
   highlightedSubstepId,
-  folderName,
-  partToolVideoFrameAreas,
-  useBlurred,
-  useRawVideo = false,
-  videoFrameAreas,
-  videos,
   editMode = false,
   onEditClick,
   onPartToolHover,
@@ -342,17 +311,12 @@ export const PartToolCard = memo(function PartToolCard({
   item: AggregatedPartTool;
   onClick: () => void;
   highlightedSubstepId?: string;
-  folderName?: string;
-  partToolVideoFrameAreas?: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>;
-  useBlurred?: boolean;
-  useRawVideo?: boolean;
-  videoFrameAreas?: Record<string, VideoFrameAreaRow>;
-  videos?: Record<string, VideoRow>;
   editMode?: boolean;
   onEditClick?: () => void;
   onPartToolHover?: (partToolId: string | null) => void;
 }) {
   const { t } = useTranslation();
+  const resolver = useMediaResolverOptional();
   const Icon = item.partTool.type === 'Part' ? PartIcon : ToolIcon;
   const iconColorClass = item.partTool.type === 'Part'
     ? 'text-[var(--color-element-part)]'
@@ -363,37 +327,18 @@ export const PartToolCard = memo(function PartToolCard({
     ? 'border-l-[var(--color-element-part)]'
     : 'border-l-[var(--color-element-tool)]';
 
-  const previewImageUrl = resolvePartToolImageUrl(
-    item.partTool.id,
-    folderName,
-    partToolVideoFrameAreas ?? {},
-    useBlurred,
-    videoFrameAreas,
-  );
-
-  // Compute raw frame capture data for Editor preview
-  const frameCaptureData: FrameCaptureData | null = useRawVideo && folderName
-    ? resolvePartToolFrameCapture(
-        item.partTool.id,
-        partToolVideoFrameAreas ?? {},
-        videoFrameAreas ?? {},
-        videos ?? {},
-        folderName,
-      )
-    : null;
+  const image: ResolvedImage | null = useMemo(() => {
+    if (!resolver) return null;
+    return resolver.resolvePartToolImage(item.partTool.id);
+  }, [resolver, item.partTool.id]);
 
   // Calculate substep-specific amount display
-  // If highlighted substep uses this item and multiple substeps in the same step use it,
-  // show "N/Mx" format (substep amount / step total)
   const substepAmount = highlightedSubstepId
     ? item.amountsPerSubstep.get(highlightedSubstepId)
     : undefined;
 
   const stepTotalAmount = item.totalAmount;
 
-  // Determine if we should show the fractional amount (N/Mx)
-  // Show fractional when: substep is highlighted, item is used in that substep,
-  // and item is used in multiple substeps (indicated by substepAmount being less than total)
   const showFractionalAmount = substepAmount !== undefined && substepAmount < stepTotalAmount;
 
   // Highlight state: when a substep is highlighted, mark cards that belong to it
@@ -424,22 +369,11 @@ export const PartToolCard = memo(function PartToolCard({
     >
       {/* Image — fills card height */}
       <div className="w-22 flex-shrink-0 flex items-center justify-center overflow-hidden bg-black">
-        {frameCaptureData ? (
-          <VideoFrameCapture
-            videoId={frameCaptureData.videoId}
-            fps={frameCaptureData.fps}
-            frameNumber={frameCaptureData.frameNumber}
-            cropArea={frameCaptureData.cropArea}
-            videoSrc={frameCaptureData.videoSrc}
+        {image ? (
+          <ResolvedImageView
+            image={image}
             alt={item.partTool.name}
             className="w-full h-full"
-          />
-        ) : previewImageUrl ? (
-          <img
-            src={previewImageUrl}
-            alt={item.partTool.name}
-            loading="lazy"
-            className="w-full h-full object-contain"
           />
         ) : (
           <Icon className={clsx(iconColorClass, 'opacity-60 w-10 h-10')} />

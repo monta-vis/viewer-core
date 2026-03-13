@@ -20,7 +20,7 @@ type TabId = 'manual' | 'catalog';
 interface ManualFormState {
   type: 'Part' | 'Tool';
   name: string;
-  label: string;
+  position: string;
   partNumber: string;
   amount: number;
   unit: string;
@@ -32,7 +32,7 @@ interface ManualFormState {
 const INITIAL_MANUAL: ManualFormState = {
   type: 'Part',
   name: '',
-  label: '',
+  position: '',
   partNumber: '',
   amount: 1,
   unit: '',
@@ -93,7 +93,7 @@ export function PartToolAddPopover({
       type: manual.type,
       amount: manual.amount,
     };
-    const optionalFields = ['label', 'partNumber', 'unit', 'material', 'dimension', 'description'] as const;
+    const optionalFields = ['position', 'partNumber', 'unit', 'material', 'dimension', 'description'] as const;
     for (const field of optionalFields) {
       const trimmed = manual[field].trim();
       if (trimmed) prefill[field] = trimmed;
@@ -263,13 +263,13 @@ function ManualTab({ values, onChange, onSubmit, canSubmit }: ManualTabProps) {
         onChange={(e) => set('name', e.target.value)}
       />
 
-      {/* Label */}
+      {/* Position */}
       <EditInput
-        data-testid="parttool-add-manual-label"
+        data-testid="parttool-add-manual-position"
         size="sm"
-        placeholder={t('editorCore.partToolLabel', 'Label')}
-        value={values.label}
-        onChange={(e) => set('label', e.target.value)}
+        placeholder={t('editorCore.partToolPosition', 'Position')}
+        value={values.position}
+        onChange={(e) => set('position', e.target.value)}
       />
 
       {/* Part# + Amount row */}

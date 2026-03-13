@@ -12,9 +12,9 @@ import type {
   EnrichedSubstepNote,
   EnrichedSubstepPartTool,
   SafetyIconCategory,
-  FrameCaptureData,
   ViewportKeyframeRow,
   DrawingRow,
+  ResolvedImage,
 } from '@monta-vis/viewer-core';
 import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon, ConfirmDeleteDialog } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
@@ -52,10 +52,8 @@ export interface SubstepEditPopoverProps {
   stepOrder?: number;
   /** Total substeps for the "N/M" badge */
   totalSubsteps?: number;
-  /** Image URL for the SubstepCard preview */
-  imageUrl?: string | null;
-  /** Frame capture data for video thumbnail in the SubstepCard preview */
-  frameCaptureData?: FrameCaptureData | null;
+  /** Resolved image for the SubstepCard preview */
+  image?: ResolvedImage | null;
   /** Video data for inline playback in the SubstepCard preview */
   videoData?: { videoSrc: string; startFrame: number; endFrame: number; fps: number; viewportKeyframes: ViewportKeyframeRow[]; videoAspectRatio: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number }[] } | null;
   /** Title for the SubstepCard preview */
@@ -237,8 +235,7 @@ export function SubstepEditPopover({
   hasVideo,
   stepOrder = 1,
   totalSubsteps,
-  imageUrl,
-  frameCaptureData,
+  image,
   videoData,
   title,
   noteIconLabels,
@@ -655,8 +652,7 @@ export function SubstepEditPopover({
                       <SubstepCard
                         stepOrder={stepOrder}
                         totalSubsteps={totalSubsteps}
-                        imageUrl={imageUrl}
-                        frameCaptureData={frameCaptureData}
+                        image={image}
                         videoData={videoData}
                         title={title ?? null}
                         descriptions={[]}
@@ -676,7 +672,7 @@ export function SubstepEditPopover({
                       <div className={ROW_CLASS} data-testid="media-image-row">
                         <Image className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
                         <span className="flex-1 truncate">{t('editorCore.image', 'Image')}</span>
-                        {imageUrl && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
+                        {image?.kind === 'url' && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
                           <button type="button" aria-label={t('editorCore.editImage', 'Edit image')} className={EDIT_BTN_CLASS} onClick={() => setImageEditDialogOpen(true)} data-testid="edit-image-btn">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -702,11 +698,11 @@ export function SubstepEditPopover({
                             onCancel={handleCropCancel}
                           />
                         )}
-                        {imageEditDialogOpen && imageUrl && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
+                        {imageEditDialogOpen && image?.kind === 'url' && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
                           <ImageEditDialog
                             open={imageEditDialogOpen}
                             onClose={() => setImageEditDialogOpen(false)}
-                            imageSrc={imageUrl}
+                            imageSrc={image.url}
                             videoFrameAreaId={videoFrameAreaId ?? null}
                             versionId={versionId}
                             drawings={drawings}

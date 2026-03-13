@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   prepareSections,
+  frameToAccumulatedFrame,
   frameToSubstepPercent,
   substepPercentToFrame,
 } from './drawingPercentHelpers';
@@ -87,6 +88,55 @@ describe('drawingPercentHelpers', () => {
 
     it('returns 0 for zero total frames', () => {
       expect(frameToSubstepPercent(50, [])).toBe(0);
+    });
+  });
+
+  describe('frameToAccumulatedFrame', () => {
+    it('returns 0 for frame before all sections', () => {
+      const sections = [
+        { startFrame: 150, endFrame: 300 },
+        { startFrame: 450, endFrame: 600 },
+      ];
+      expect(frameToAccumulatedFrame(100, sections)).toBe(0);
+    });
+
+    it('returns accumulated frame within first section', () => {
+      const sections = [
+        { startFrame: 150, endFrame: 300 },
+        { startFrame: 450, endFrame: 600 },
+      ];
+      // Frame 200 is 50 frames into section 1
+      expect(frameToAccumulatedFrame(200, sections)).toBe(50);
+    });
+
+    it('returns accumulated frame spanning across sections', () => {
+      const sections = [
+        { startFrame: 150, endFrame: 300 },
+        { startFrame: 450, endFrame: 600 },
+      ];
+      // Section 1 = 150 frames. Frame 500 is 50 into section 2 → 150 + 50 = 200
+      expect(frameToAccumulatedFrame(500, sections)).toBe(200);
+    });
+
+    it('returns totalFrames for frame past all sections', () => {
+      const sections = [
+        { startFrame: 150, endFrame: 300 },
+        { startFrame: 450, endFrame: 600 },
+      ];
+      // Total = 150 + 150 = 300
+      expect(frameToAccumulatedFrame(700, sections)).toBe(300);
+    });
+
+    it('returns 0 for empty sections', () => {
+      expect(frameToAccumulatedFrame(50, [])).toBe(0);
+    });
+
+    it('accepts PreparedSections', () => {
+      const prepared = prepareSections([
+        { startFrame: 150, endFrame: 300 },
+        { startFrame: 450, endFrame: 600 },
+      ]);
+      expect(frameToAccumulatedFrame(200, prepared)).toBe(50);
     });
   });
 

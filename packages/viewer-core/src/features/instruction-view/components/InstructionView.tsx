@@ -12,7 +12,7 @@ import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartTool
 
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
-import { buildMediaUrl, MediaPaths, resolveFramePath } from '@/lib/media';
+import { buildMediaUrl, MediaPaths } from '@/lib/media';
 
 import { PartToolBadge } from './PartToolBadge';
 import { SubstepCard } from './SubstepCard';
@@ -21,7 +21,6 @@ import { StepOverview } from './StepOverview';
 import type { SubstepPreview } from './AssemblySection';
 import { PartsDrawer } from './PartsDrawer';
 import { SpeedDrawer } from './SpeedDrawer';
-import { resolveRawFrameCapture } from '../utils/resolveRawFrameCapture';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
 import { resolveTutorialTargets, type TutorialTargetResult } from '../utils/resolveTutorialTargets';
 import { computeTutorialToggle } from '../utils/tutorialToggle';
@@ -39,9 +38,13 @@ import { useSwipeGestures, type DrawerRefs } from '../hooks/useSwipeGestures';
 import { useVisibleStep } from '../hooks/useVisibleStep';
 import { useVisibleSubstep } from '../hooks/useVisibleSubstep';
 import { usePartToolSubstepMap } from '../hooks/usePartToolSubstepMap';
-import { buildVideoEntry, type SubstepVideoEntry } from '../utils/buildVideoEntry';
+import type { SubstepVideoEntry } from '../utils/buildVideoEntry';
 import { StepSeparator } from './StepSeparator';
 import { AssemblySeparator } from './AssemblySeparator';
+import { createProcessedResolver } from '@/lib/createProcessedResolver';
+import { createRawResolver } from '@/lib/createRawResolver';
+import { MediaResolverProvider } from '@/lib/MediaResolverContext';
+import type { MediaResolver } from '@/lib/mediaResolver';
 
 /** Stable empty array to avoid new-reference re-renders in SubstepCard effects */
 const EMPTY_DRAWINGS: DrawingRow[] = [];
@@ -202,6 +205,23 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
     if (!videoPath) return fallback;
     return buildMediaUrl(folderName, videoPath);
   }, [useRawVideo, folderName]);
+
+  // Create MediaResolver based on mode
+  const resolver: MediaResolver | null = useMemo(() => {
+    if (!data) return null;
+    if (useRawVideo && folderName) {
+      return createRawResolver({
+        folderName,
+        data,
+        resolveSourceVideoUrl,
+      });
+    }
+    return createProcessedResolver({
+      data,
+      folderName,
+      useBlurred,
+    });
+  }, [data, useRawVideo, folderName, useBlurred, resolveSourceVideoUrl]);
 
   // Ref for the grid container (for responsive column calculation)
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -534,23 +554,16 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
     return map;
   }, [data, allSubsteps, tutorialDisplayMap]);
 
-  // Stable options for buildVideoEntry (avoids recreating object per substep)
-  const videoEntryOptions = useMemo(() => ({
-    useRawVideo,
-    folderName,
-    resolveSourceVideoUrl,
-  }), [useRawVideo, folderName, resolveSourceVideoUrl]);
-
   // Compute per-substep video data for inline card playback (all steps)
   const substepVideoDataMap = useMemo(() => {
     const map = new Map<string, SubstepVideoEntry>();
-    if (!data) return map;
+    if (!resolver) return map;
     for (const substep of allSubsteps) {
-      const entry = buildVideoEntry(substep, data, videoEntryOptions);
+      const entry = resolver.resolveVideo(substep.id);
       if (entry) map.set(substep.id, entry);
     }
     return map;
-  }, [data, allSubsteps, videoEntryOptions]);
+  }, [resolver, allSubsteps]);
 
   // Pre-compute per-substep edit callbacks (stable references for React.memo)
   const substepEditCallbacksMap = useMemo(() => {
@@ -733,11 +746,12 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
   }, []);
 
   // Early return if no data available yet (loading state)
-  if (!data) {
+  if (!data || !resolver) {
     return null;
   }
 
   return (
+    <MediaResolverProvider resolver={resolver}>
     <div
       ref={rootRef}
       className="h-full flex flex-col relative min-h-0"
@@ -866,9 +880,6 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
           currentStepNumber={currentIndex + 1}
           totalSteps={totalSteps}
           highlightedSubstepId={highlightedSubstep?.substepId}
-          folderName={folderName}
-          useBlurred={useBlurred}
-          useRawVideo={useRawVideo}
           editMode={effectiveEditMode}
           onEditPartTool={effectiveEditMode ? onEditPartTool : undefined}
           initialStepCount={partsDrawerInitialCount}
@@ -888,13 +899,11 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
               return (
               <div key={currentStep.id} ref={(el) => { if (el) stepSectionRefs.current.set(currentStep.id, el); }}>
                 {assemblyChanged && assembly && (() => {
-                const assemblyArea = assembly.videoFrameAreaId
-                  ? data.videoFrameAreas[assembly.videoFrameAreaId]
+                const assemblyResolvedImage = assembly.videoFrameAreaId
+                  ? resolver.resolveImage(assembly.videoFrameAreaId)
                   : null;
-                const assemblyImageUrl = assemblyArea
-                  ? (useRawVideo && folderName
-                      ? buildMediaUrl(folderName, resolveFramePath(assembly.videoFrameAreaId!, !!useBlurred, assemblyArea.useBlurred))
-                      : assemblyArea.localPath ?? null)
+                const assemblyImageUrl = assemblyResolvedImage?.kind === 'url'
+                  ? assemblyResolvedImage.url
                   : null;
                 return (
                   <AssemblySeparator
@@ -938,16 +947,9 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                       const imageRow = firstImageRowId
                         ? data.substepImages[firstImageRowId]
                         : null;
-                      const area = imageRow
-                        ? data.videoFrameAreas[imageRow.videoFrameAreaId]
-                        : null;
 
-                      const frameCaptureData = useRawVideo && folderName
-                        ? resolveRawFrameCapture(area, data.videos, folderName)
-                        : null;
-
-                      const imageUrl = !useRawVideo && area?.localPath
-                        ? area.localPath
+                      const substepImage = imageRow && resolver
+                        ? resolver.resolveImage(imageRow.videoFrameAreaId)
                         : null;
 
                       const descriptions = substep.descriptionRowIds
@@ -993,8 +995,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                                 title={substep.title}
                                 stepOrder={index + 1}
                                 totalSubsteps={stepSubsteps.length}
-                                imageUrl={imageUrl}
-                                frameCaptureData={frameCaptureData}
+                                image={substepImage}
                                 descriptions={descriptions}
                                 notes={notes}
                                 partTools={partTools}
@@ -1085,8 +1086,6 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
           <StepOverview
             onStepSelect={handleOverviewStepSelect}
             activeStepId={visibleStepId}
-            useRawVideo={useRawVideo}
-            folderName={folderName}
             editMode={effectiveEditMode}
             editCallbacks={effectiveEditMode ? {
               onAddAssembly: editCallbacks?.onAddAssembly,
@@ -1118,5 +1117,6 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
       />
 
     </div>
+    </MediaResolverProvider>
   );
 }

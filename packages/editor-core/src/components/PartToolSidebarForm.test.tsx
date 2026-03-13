@@ -50,7 +50,7 @@ afterEach(() => {
 const EMPTY_FORM: SidebarFormState = {
   type: 'Part',
   name: '',
-  label: '',
+  position: '',
   partNumber: '',
   amount: 1,
   unit: '',
@@ -62,7 +62,7 @@ const EMPTY_FORM: SidebarFormState = {
 const FILLED_FORM: SidebarFormState = {
   type: 'Part',
   name: 'Bolt M6',
-  label: 'B6',
+  position: 'B6',
   partNumber: 'PN-001',
   amount: 3,
   unit: 'pcs',
@@ -91,7 +91,7 @@ describe('PartToolSidebarForm', () => {
       expect(screen.getByText('Name *')).toBeInTheDocument();
       expect(screen.getByText('Amount')).toBeInTheDocument();
       expect(screen.getByText('Type')).toBeInTheDocument();
-      expect(screen.getByText('Label')).toBeInTheDocument();
+      expect(screen.getByText('Position')).toBeInTheDocument();
       expect(screen.getByText('Part #')).toBeInTheDocument();
       expect(screen.getByText('Unit')).toBeInTheDocument();
       expect(screen.getByText('Material')).toBeInTheDocument();
@@ -103,7 +103,7 @@ describe('PartToolSidebarForm', () => {
       renderForm({ values: FILLED_FORM });
       expect(screen.getByTestId('sidebar-form-name')).toHaveTextContent('Bolt M6');
       expect(screen.getByTestId('sidebar-form-amount')).toHaveTextContent('3');
-      expect(screen.getByTestId('sidebar-form-label')).toHaveTextContent('B6');
+      expect(screen.getByTestId('sidebar-form-position')).toHaveTextContent('B6');
       expect(screen.getByTestId('sidebar-form-partNumber')).toHaveTextContent('PN-001');
       expect(screen.getByTestId('sidebar-form-unit')).toHaveTextContent('pcs');
       expect(screen.getByTestId('sidebar-form-material')).toHaveTextContent('Steel');

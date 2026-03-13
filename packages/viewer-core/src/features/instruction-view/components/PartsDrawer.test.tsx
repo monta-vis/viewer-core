@@ -10,21 +10,6 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-// Mock resolvePartToolImageUrl
-vi.mock('../utils/resolvePartToolImageUrl', () => ({
-  resolvePartToolImageUrl: () => null,
-}));
-
-// Mock resolveRawFrameCapture
-vi.mock('../utils/resolveRawFrameCapture', () => ({
-  resolvePartToolFrameCapture: () => null,
-}));
-
-// Mock VideoFrameCapture
-vi.mock('./VideoFrameCapture', () => ({
-  VideoFrameCapture: () => null,
-}));
-
 // Mock CollapsiblePanel to always render children (bypass animation)
 vi.mock('@/components/ui', () => ({
   CollapsiblePanel: ({ children }: { children: React.ReactNode }) => <div data-testid="collapsible-panel">{children}</div>,

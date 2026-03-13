@@ -455,7 +455,7 @@ export function ViewPage() {
 
   // Stable ref to avoid creating new videoAnnotationData objects when viewerData
   // changes due to drawing updates (which would reset the video element).
-  const videoAnnotationDataRef = useRef<{ videoSrc: string; fps: number; durationSeconds: number; contentAspectRatio?: number | null } | null>(null);
+  const videoAnnotationDataRef = useRef<{ videoSrc: string; fps: number; durationSeconds: number; contentAspectRatio?: number | null; sections?: { startFrame: number; endFrame: number; contentAspectRatio?: number | null }[] } | null>(null);
 
   const videoAnnotationData = useMemo(() => {
     if (!annotatingVideoSubstepId || !viewerData || !decodedFolderName) {
@@ -468,14 +468,20 @@ export function ViewPage() {
     const videoSrc = resolveStandaloneVideoSrc(annotatingVideoSubstepId, decodedFolderName);
     const durationSeconds = meta.totalFrames / meta.fps;
     const contentAspectRatio = meta.firstSection.contentAspectRatio;
+    const sections = meta.allSections.length > 1 ? meta.allSections : undefined;
 
     // Return the cached object if values haven't changed
     const prev = videoAnnotationDataRef.current;
-    if (prev && prev.videoSrc === videoSrc && prev.fps === meta.fps && prev.durationSeconds === durationSeconds && prev.contentAspectRatio === contentAspectRatio) {
+    const sectionsMatch = prev?.sections === sections || (
+      prev?.sections != null && sections != null &&
+      prev.sections.length === sections.length &&
+      prev.sections.every((s, i) => s.startFrame === sections[i].startFrame && s.endFrame === sections[i].endFrame)
+    );
+    if (prev && prev.videoSrc === videoSrc && prev.fps === meta.fps && prev.durationSeconds === durationSeconds && prev.contentAspectRatio === contentAspectRatio && sectionsMatch) {
       return prev;
     }
 
-    const next = { videoSrc, fps: meta.fps, durationSeconds, contentAspectRatio };
+    const next = { videoSrc, fps: meta.fps, durationSeconds, contentAspectRatio, sections };
     videoAnnotationDataRef.current = next;
     return next;
   }, [annotatingVideoSubstepId, viewerData, decodedFolderName, getSubstepVideoMeta]);
@@ -938,6 +944,7 @@ export function ViewPage() {
                   open={!!annotatingVideoSubstepId}
                   onClose={closeAnnotationEditor}
                   videoData={videoAnnotationData}
+                  sections={videoAnnotationData.sections}
                   substepId={annotatingVideoSubstepId}
                   versionId={getVersionId()}
                   drawings={viewerData?.drawings ?? {}}

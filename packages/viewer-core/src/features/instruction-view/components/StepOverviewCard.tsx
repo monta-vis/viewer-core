@@ -5,8 +5,8 @@ import { clsx } from 'clsx';
 
 import { Card, TextInputModal, IconButton, ConfirmDeleteDialog } from '@/components/ui';
 import { CollapsiblePanel } from '@/components/ui/CollapsiblePanel';
-import { VideoFrameCapture } from './VideoFrameCapture';
-import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
+import { ResolvedImageView } from './ResolvedImageView';
+import type { ResolvedImage } from '@/lib/mediaResolver';
 
 interface StepOverviewCardProps {
   /** Step number (1-based) */
@@ -17,12 +17,8 @@ interface StepOverviewCardProps {
   description: string | null;
   /** Number of substeps in this step */
   substepCount: number;
-  /** Pre-rendered image URL (for exported VideoFrameArea mode) */
-  previewImageUrl?: string | null;
-  /** Use raw video frame capture instead of pre-rendered image. Default: false */
-  useRawVideo?: boolean;
-  /** Raw frame capture data with resolved videoSrc (for Editor preview) */
-  frameCaptureData?: FrameCaptureData | null;
+  /** Resolved preview image (url or frameCapture) */
+  image?: ResolvedImage | null;
   /** Called when card is clicked */
   onClick?: () => void;
   /** Step ID — used for drag-and-drop transfer */
@@ -57,9 +53,7 @@ export function StepOverviewCard({
   title,
   description,
   substepCount,
-  previewImageUrl,
-  useRawVideo = false,
-  frameCaptureData,
+  image,
   onClick,
   stepId,
   draggable = false,
@@ -116,21 +110,10 @@ export function StepOverviewCard({
       <div className="flex flex-row">
         {/* Thumbnail — 1:1 square, left side */}
         <div className="relative w-[40%] flex-shrink-0 aspect-square bg-black overflow-hidden rounded-l-xl">
-          {useRawVideo && frameCaptureData ? (
-            <VideoFrameCapture
-              videoId={frameCaptureData.videoId}
-              fps={frameCaptureData.fps}
-              frameNumber={frameCaptureData.frameNumber}
-              cropArea={frameCaptureData.cropArea}
-              videoSrc={frameCaptureData.videoSrc}
+          {image ? (
+            <ResolvedImageView
+              image={image}
               alt={title || `${t('instructionView.step', 'Step')} ${stepNumber}`}
-              className="w-full h-full object-contain"
-            />
-          ) : previewImageUrl ? (
-            <img
-              src={previewImageUrl}
-              alt={title || `${t('instructionView.step', 'Step')} ${stepNumber}`}
-              loading="lazy"
               className="w-full h-full object-contain"
             />
           ) : (

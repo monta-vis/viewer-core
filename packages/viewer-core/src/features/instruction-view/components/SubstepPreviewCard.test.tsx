@@ -22,8 +22,13 @@ vi.mock('@/components/ui', () => ({
   ),
 }));
 
-vi.mock('./VideoFrameCapture', () => ({
-  VideoFrameCapture: () => <div data-testid="video-frame-capture" />,
+vi.mock('./ResolvedImageView', () => ({
+  ResolvedImageView: ({ image, alt, className }: { image: { kind: string; url?: string; data?: Record<string, unknown> } | null; alt: string; className?: string }) => {
+    if (!image) return null;
+    if (image.kind === 'url') return <img src={image.url} alt={alt} className={className} />;
+    if (image.kind === 'frameCapture') return <div data-testid="video-frame-capture" />;
+    return null;
+  },
 }));
 
 afterEach(() => cleanup());
@@ -41,24 +46,26 @@ describe('SubstepPreviewCard', () => {
     expect(screen.getByText('Attach bolt')).toBeTruthy();
   });
 
-  it('renders thumbnail image when imageUrl provided', () => {
-    render(<SubstepPreviewCard order={1} title={null} imageUrl="/img.png" />);
+  it('renders thumbnail image when image is url kind', () => {
+    render(<SubstepPreviewCard order={1} title={null} image={{ kind: 'url', url: '/img.png' }} />);
     const img = screen.getByRole('img');
     expect(img.getAttribute('src')).toBe('/img.png');
   });
 
-  it('renders VideoFrameCapture when useRawVideo + frameCaptureData', () => {
+  it('renders VideoFrameCapture when image is frameCapture kind', () => {
     render(
       <SubstepPreviewCard
         order={1}
         title={null}
-        useRawVideo
-        frameCaptureData={{
-          videoId: 'v1',
-          fps: 30,
-          frameNumber: 100,
-          cropArea: null,
-          videoSrc: 'video.mp4',
+        image={{
+          kind: 'frameCapture',
+          data: {
+            videoId: 'v1',
+            fps: 30,
+            frameNumber: 100,
+            cropArea: null,
+            videoSrc: 'video.mp4',
+          },
         }}
       />,
     );

@@ -10,8 +10,8 @@ interface PrintPartToolBadgeProps {
 export function PrintPartToolBadge({ partTool }: PrintPartToolBadgeProps) {
   return (
     <span className="print-part-badge">
-      {partTool.label && (
-        <strong>{partTool.label}</strong>
+      {partTool.position && (
+        <strong>{partTool.position}</strong>
       )}
       <span>{partTool.name}</span>
       {partTool.amount > 1 && (

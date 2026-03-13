@@ -11,7 +11,7 @@
  */
 
 import { createElement, type ReactNode, useCallback, useMemo } from 'react';
-import type { Assembly, PartToolRow } from '@monta-vis/viewer-core';
+import type { Assembly, PartToolRow, SubstepPreview } from '@monta-vis/viewer-core';
 import type { StepWithPreview } from '@monta-vis/viewer-core';
 import { useEditorStore } from '../store';
 import { createDefaultPartTool } from '../utils/partToolHelpers';
@@ -88,8 +88,8 @@ export interface EditCallbacks {
   /** Wraps a step's substep previews with sortable context (per step container). */
   renderSortableSubstepGrid?: (
     containerId: string,
-    substeps: Array<{ id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }>,
-    renderSubstep: (substep: { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }) => ReactNode,
+    substeps: SubstepPreview[],
+    renderSubstep: (substep: SubstepPreview) => ReactNode,
   ) => ReactNode;
   /** Renders a droppable zone for collapsed steps so substeps can be dropped onto them. */
   renderSubstepDropZone?: (stepId: string) => ReactNode;
@@ -395,15 +395,13 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     [],
   );
 
-  type SubstepPreviewItem = { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown };
-
   const renderSortableSubstepGrid = useCallback(
     (
       containerId: string,
-      substeps: SubstepPreviewItem[],
-      renderSubstep: (substep: SubstepPreviewItem) => ReactNode,
+      substeps: SubstepPreview[],
+      renderSubstep: (substep: SubstepPreview) => ReactNode,
     ) =>
-      createElement(SortableSubstepContainer<SubstepPreviewItem>, {
+      createElement(SortableSubstepContainer<SubstepPreview>, {
         containerId,
         items: substeps,
         getItemId: (s) => s.id,

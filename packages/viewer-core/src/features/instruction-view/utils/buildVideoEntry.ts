@@ -115,6 +115,8 @@ export function buildVideoEntry(
   }
 
   // Processed mode — use merged substep video (all sections concatenated)
+  // Viewport keyframes are NOT collected here because processed videos
+  // already have viewport transforms baked in.
   let totalFrames = 0;
   for (const rowId of substep.videoSectionRowIds) {
     const row = data.substepVideoSections[rowId];

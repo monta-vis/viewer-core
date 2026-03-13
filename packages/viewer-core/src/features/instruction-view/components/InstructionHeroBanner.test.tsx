@@ -3,10 +3,13 @@ import { render, screen, cleanup } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { InstructionHeroBanner } from './InstructionHeroBanner';
 
-vi.mock('./VideoFrameCapture', () => ({
-  VideoFrameCapture: (props: Record<string, unknown>) => (
-    <div data-testid="video-frame-capture" data-video-id={props.videoId as string} />
-  ),
+vi.mock('./ResolvedImageView', () => ({
+  ResolvedImageView: ({ image, alt, className }: { image: { kind: string; url?: string; data?: Record<string, unknown> } | null; alt: string; className?: string }) => {
+    if (!image) return null;
+    if (image.kind === 'url') return <img src={image.url} alt={alt} className={className} />;
+    if (image.kind === 'frameCapture') return <div data-testid="video-frame-capture" data-video-id={(image.data as Record<string, unknown>)?.videoId as string} />;
+    return null;
+  },
 }));
 
 vi.mock('@/components/ui', () => ({
@@ -18,10 +21,10 @@ vi.mock('@/components/ui', () => ({
 afterEach(() => cleanup());
 
 describe('InstructionHeroBanner', () => {
-  it('renders image from imageUrl', () => {
+  it('renders image from url kind', () => {
     render(
       <InstructionHeroBanner
-        imageUrl="/images/cover.png"
+        image={{ kind: 'url', url: '/images/cover.png' }}
         instructionName="Test Instruction"
       />,
     );
@@ -44,7 +47,7 @@ describe('InstructionHeroBanner', () => {
   it('displays instruction name (truncated via CSS)', () => {
     render(
       <InstructionHeroBanner
-        imageUrl="/img.png"
+        image={{ kind: 'url', url: '/img.png' }}
         instructionName="Very Long Instruction Name That Should Be Truncated"
       />,
     );
@@ -74,19 +77,19 @@ describe('InstructionHeroBanner', () => {
     expect(screen.queryByText('ART-')).toBeNull();
   });
 
-  it('renders VideoFrameCapture when frameCaptureData provided and useRawVideo is true', () => {
-    const frameCaptureData = {
-      videoSrc: 'mvis-media://folder/video.mp4',
-      videoId: 'vid-1',
-      fps: 30,
-      frameNumber: 42,
-    };
-
+  it('renders VideoFrameCapture when image is frameCapture kind', () => {
     render(
       <InstructionHeroBanner
         instructionName="Test"
-        frameCaptureData={frameCaptureData}
-        useRawVideo={true}
+        image={{
+          kind: 'frameCapture',
+          data: {
+            videoSrc: 'mvis-media://folder/video.mp4',
+            videoId: 'vid-1',
+            fps: 30,
+            frameNumber: 42,
+          },
+        }}
       />,
     );
 
@@ -94,20 +97,11 @@ describe('InstructionHeroBanner', () => {
     expect(screen.getByTestId('video-frame-capture').getAttribute('data-video-id')).toBe('vid-1');
   });
 
-  it('does not render VideoFrameCapture when useRawVideo is false', () => {
-    const frameCaptureData = {
-      videoSrc: 'mvis-media://folder/video.mp4',
-      videoId: 'vid-1',
-      fps: 30,
-      frameNumber: 42,
-    };
-
+  it('renders image (not frame capture) for url kind', () => {
     render(
       <InstructionHeroBanner
         instructionName="Test"
-        imageUrl="/img.png"
-        frameCaptureData={frameCaptureData}
-        useRawVideo={false}
+        image={{ kind: 'url', url: '/img.png' }}
       />,
     );
 

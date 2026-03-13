@@ -1,10 +1,11 @@
 import { buildMediaUrl, resolveFramePath } from '@/lib/media';
+import { sortPartToolJunctions } from '@/lib/mediaResolver';
 
 /**
  * Resolve ALL area image URLs for a PartTool (not just the first one).
  * Returns them sorted: preview images first, then by order.
  *
- * Same resolution logic as `resolvePartToolImageUrl` but returns the full list.
+ * Used internally by createProcessedResolver.
  */
 export function resolveAllPartToolImageUrls(
   partToolId: string,
@@ -18,10 +19,7 @@ export function resolveAllPartToolImageUrls(
 
   if (areas.length === 0) return [];
 
-  const sorted = [...areas].sort((a, b) => {
-    if (a.isPreviewImage !== b.isPreviewImage) return a.isPreviewImage ? -1 : 1;
-    return a.order - b.order;
-  });
+  const sorted = sortPartToolJunctions(areas);
 
   const urls: string[] = [];
 

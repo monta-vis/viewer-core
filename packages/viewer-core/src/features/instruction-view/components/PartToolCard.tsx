@@ -5,7 +5,7 @@ import { PartIcon, ToolIcon } from '@/lib/icons';
 
 interface PartToolCardProps {
   name: string;
-  label?: string | null;
+  position?: string | null;
   partNumber?: string | null;
   type: 'part' | 'tool';
   totalAmount: number;
@@ -24,7 +24,7 @@ interface PartToolCardProps {
  */
 export function PartToolCard({
   name,
-  label,
+  position,
   partNumber,
   type,
   totalAmount,
@@ -259,7 +259,7 @@ export function PartToolCard({
           >
             {name}
           </div>
-          {label && (
+          {position && (
             <span
               className={clsx(
                 'flex-shrink-0 rounded font-bold tabular-nums',
@@ -271,7 +271,7 @@ export function PartToolCard({
                 border: `1px solid ${colors.border}`,
               }}
             >
-              {label}
+              {position}
             </span>
           )}
         </div>

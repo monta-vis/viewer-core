@@ -4,28 +4,17 @@ import { Hash, FileText, Ruler, Box, Scale, Tag, Images } from 'lucide-react';
 import { PartIcon, ToolIcon } from '@/lib/icons';
 
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
-import { resolvePartToolImageUrl } from '../utils/resolvePartToolImageUrl';
-import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
-import { VideoFrameCapture } from './VideoFrameCapture';
-
-const EMPTY_JUNCTIONS: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }> = {};
+import type { ResolvedImage } from '@/lib/mediaResolver';
+import { ResolvedImageView } from './ResolvedImageView';
 
 interface PartToolDetailContentProps {
   /** The aggregated part/tool to display */
   item: AggregatedPartTool;
-  /** Project folder name for mvis-media:// area image URLs */
-  folderName?: string;
-  /** PartTool-VideoFrameArea junction records from the store */
-  partToolVideoFrameAreas?: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>;
-  /** Whether to use blurred media variants */
-  useBlurred?: boolean;
-  /** Raw frame capture data for Editor preview */
-  frameCaptureData?: FrameCaptureData | null;
-  /** VideoFrameArea records for localPath fallback (mweb context) */
-  videoFrameAreas?: Record<string, { localPath?: string | null }>;
+  /** Resolved preview image via MediaResolver */
+  image?: ResolvedImage | null;
   /** Optional slot rendered after the content section (e.g. edit actions) */
   actionSlot?: ReactNode;
-  /** Pre-resolved preview image URL; when provided, skips internal resolvePartToolImageUrl */
+  /** Pre-resolved preview image URL */
   previewImageUrl?: string | null;
   /** When true, render only the image hero section (no text fields). */
   compact?: boolean;
@@ -46,11 +35,7 @@ interface PartToolDetailContentProps {
  */
 export function PartToolDetailContent({
   item,
-  folderName,
-  partToolVideoFrameAreas,
-  useBlurred,
-  frameCaptureData,
-  videoFrameAreas,
+  image,
   actionSlot,
   previewImageUrl: previewImageUrlProp,
   compact,
@@ -77,33 +62,29 @@ export function PartToolDetailContent({
 
   const hasMultipleImages = imageUrls && imageUrls.length > 1;
 
-  // Resolve hero image URL: multi-image gallery > explicit prop > internal resolution
+  // Image priority cascade:
+  // 1. Multi-image gallery (imageUrls with length > 1) — overrides everything
+  // 2. Explicit previewImageUrl prop — legacy callers that supply a pre-resolved URL
+  // 3. ResolvedImage (image prop) — standard path via MediaResolver
+  const useResolvedImage = image && !hasMultipleImages && previewImageUrlProp === undefined;
+
   function getResolvedImageUrl(): string | null {
     if (hasMultipleImages) return imageUrls[selectedIndex];
     if (previewImageUrlProp !== undefined) return previewImageUrlProp;
-    return resolvePartToolImageUrl(
-      item.partTool.id,
-      folderName,
-      partToolVideoFrameAreas ?? EMPTY_JUNCTIONS,
-      useBlurred,
-      videoFrameAreas,
-    );
+    return null;
   }
-  const resolvedImageUrl = getResolvedImageUrl();
+  const resolvedImageUrl = useResolvedImage ? null : getResolvedImageUrl();
+  const hasImage = useResolvedImage ? !!image : !!resolvedImageUrl;
 
   return (
     <div data-testid="parttool-detail-content">
       {/* Image Section - Hero area */}
       <div className="relative bg-black overflow-hidden aspect-square">
-        {frameCaptureData ? (
-          <VideoFrameCapture
-            videoId={frameCaptureData.videoId}
-            fps={frameCaptureData.fps}
-            frameNumber={frameCaptureData.frameNumber}
-            cropArea={frameCaptureData.cropArea}
-            videoSrc={frameCaptureData.videoSrc}
+        {useResolvedImage ? (
+          <ResolvedImageView
+            image={image}
             alt={item.partTool.name}
-            className="w-full h-full"
+            className="w-full h-full object-contain"
           />
         ) : resolvedImageUrl ? (
           <img
@@ -122,7 +103,7 @@ export function PartToolDetailContent({
         )}
 
         {/* Subtle vignette overlay (only when an image is shown) */}
-        {(frameCaptureData || resolvedImageUrl) && (
+        {hasImage && (
           <div
             className="absolute inset-0 pointer-events-none"
             style={{
@@ -217,10 +198,10 @@ export function PartToolDetailContent({
           </h2>
 
           {/* Label */}
-          {item.partTool.label && (
+          {item.partTool.position && (
             <div className="flex items-center gap-2 text-[var(--color-text-muted)]">
               <Tag className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
-              <span className="font-semibold text-sm">{item.partTool.label}</span>
+              <span className="font-semibold text-sm">{item.partTool.position}</span>
             </div>
           )}
 

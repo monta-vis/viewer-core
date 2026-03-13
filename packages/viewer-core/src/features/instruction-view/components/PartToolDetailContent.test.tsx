@@ -11,10 +11,6 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-vi.mock('../utils/resolvePartToolImageUrl', () => ({
-  resolvePartToolImageUrl: () => null,
-}));
-
 afterEach(cleanup);
 
 const mockPart: AggregatedPartTool = {
@@ -24,7 +20,7 @@ const mockPart: AggregatedPartTool = {
     instructionId: 'i1',
     previewImageId: null,
     name: 'Steel Bolt',
-    label: 'Label-A',
+    position: 'Label-A',
     type: 'Part',
     partNumber: 'BLT-001',
     amount: 4,
@@ -45,7 +41,7 @@ const mockToolMinimal: AggregatedPartTool = {
     instructionId: 'i1',
     previewImageId: null,
     name: 'Wrench',
-    label: null,
+    position: null,
     type: 'Tool',
     partNumber: null,
     amount: 1,

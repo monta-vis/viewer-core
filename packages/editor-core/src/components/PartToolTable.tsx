@@ -61,7 +61,7 @@ export function PartToolTable({
             <th className="px-2 py-1.5 font-medium w-[2.5rem]">{t('editorCore.thumbnail', 'Img')}</th>
           )}
           <th className="px-2 py-1.5 font-medium w-[2.5rem]">{t('editorCore.typeColumn', 'Type')}</th>
-          {!compact && <th className="px-2 py-1.5 font-medium w-[3.5rem]">{t('editorCore.partToolLabel', 'Label')}</th>}
+          {!compact && <th className="px-2 py-1.5 font-medium w-[3.5rem]">{t('editorCore.partToolPosition', 'Position')}</th>}
           <th className="px-2 py-1.5 font-medium w-[10rem]">{t('editorCore.partToolName', 'Name')}</th>
           <th className="px-2 py-1.5 font-medium w-[7rem]">{t('editorCore.partToolPartNumber', 'Part#')}</th>
           <th className="px-2 py-1.5 font-medium w-[3.5rem]">{t('editorCore.partToolAmount', 'Amt')}</th>
@@ -186,10 +186,10 @@ const PartToolTableRow = memo(function PartToolTableRow({
         </span>
       </td>
 
-      {/* Label */}
+      {/* Position */}
       {!compact && (
         <td className="px-2 py-1.5">
-          {renderCell('label', pt.label ?? '', t('editorCore.partToolLabel', 'Label'))}
+          {renderCell('position', pt.position ?? '', t('editorCore.partToolPosition', 'Position'))}
         </td>
       )}
 

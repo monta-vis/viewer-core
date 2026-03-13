@@ -16,6 +16,8 @@ const mockUpdateAssembly = vi.fn();
 const mockAssignStepToAssembly = vi.fn();
 const mockUpdateStep = vi.fn();
 const mockAddVideoFrameArea = vi.fn();
+const mockDeletePartTool = vi.fn();
+const mockDeleteStep = vi.fn();
 
 let mockData: Record<string, Record<string, Record<string, unknown>>> | null = null;
 
@@ -38,6 +40,8 @@ vi.mock('../store', () => ({
         assignStepToAssembly: mockAssignStepToAssembly,
         updateStep: mockUpdateStep,
         addVideoFrameArea: mockAddVideoFrameArea,
+        deletePartTool: mockDeletePartTool,
+        deleteStep: mockDeleteStep,
       }),
     }
   ),

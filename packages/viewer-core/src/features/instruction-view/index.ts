@@ -34,6 +34,7 @@ export { StepOverviewCard } from './components/StepOverviewCard';
 export { SubstepPreviewCard } from './components/SubstepPreviewCard';
 export type { StepWithPreview, SubstepPreview } from './components/AssemblySection';
 export { VideoFrameCapture } from './components/VideoFrameCapture';
+export { ResolvedImageView } from './components/ResolvedImageView';
 export { PartsToolsOverviewCard } from './components/PartsToolsOverviewCard';
 export { StepRangeSlider } from './components/StepRangeSlider';
 export { StepCountSlider } from './components/StepCountSlider';
@@ -43,10 +44,10 @@ export { PartToolDetailContent } from './components/PartToolDetailContent';
 export { NoteCard } from './components/NoteCard';
 
 // Utils
-export { buildVideoEntry, buildStandaloneVideoEntry, type SubstepVideoEntry } from './utils/buildVideoEntry';
+export { type SubstepVideoEntry } from './utils/buildVideoEntry';
 export { sqliteToSnapshot } from './utils/sqliteToSnapshot';
 export { transformSnapshotToStore } from './utils/transformSnapshotToStore';
-export { resolveRawFrameCapture, resolvePartToolFrameCapture, type FrameCaptureData } from './utils/resolveRawFrameCapture';
+export { type FrameCaptureData } from './utils/resolveRawFrameCapture';
 export { resolveTutorialTargets, type TutorialTargetResult } from './utils/resolveTutorialTargets';
 export { computeTutorialToggle, type ActiveTutorial } from './utils/tutorialToggle';
 
@@ -62,8 +63,6 @@ export {
 export { applyTranslationsToStore, type TranslationRow } from './utils/applyTranslations';
 export { flattenTranslations } from './utils/flattenTranslations';
 export { getImageDrawings, getVideoDrawings } from './utils/filterSubstepDrawings';
-export { resolvePartToolImageUrl } from './utils/resolvePartToolImageUrl';
-export { resolveAllPartToolImageUrls } from './utils/resolveAllPartToolImageUrls';
 
 // Hooks
 export { useVisibleStep } from './hooks/useVisibleStep';

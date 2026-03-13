@@ -9,25 +9,13 @@ import { StepAssignmentDialog } from './StepAssignmentDialog';
 import type { Assembly } from '@/features/instruction';
 import { StepOverviewCard } from './StepOverviewCard';
 import { SubstepPreviewCard } from './SubstepPreviewCard';
-import type { FrameCaptureData } from '../utils/resolveRawFrameCapture';
-
-/**
- * Get the preview image URL for a step (local mode: use localPath only).
- */
-export function getStepPreviewUrl(
-  step: StepWithPreview,
-  useRawVideo: boolean,
-): string | null {
-  if (useRawVideo) return null;
-  return step.previewLocalPath || null;
-}
+import type { ResolvedImage } from '@/lib/mediaResolver';
 
 export interface SubstepPreview {
   id: string;
   order: number;
   title: string | null;
-  imageUrl: string | null;
-  frameCaptureData?: FrameCaptureData | null;
+  image: ResolvedImage | null;
 }
 
 export interface StepWithPreview {
@@ -36,12 +24,8 @@ export interface StepWithPreview {
   title: string | null;
   description: string | null;
   substepCount: number;
-  /** VideoFrameArea ID for exported image URL */
-  previewAreaId?: string | null;
-  /** Pre-exported image URL (for standalone/snapshot mode) */
-  previewLocalPath?: string | null;
-  /** Raw frame capture data for Editor preview (resolves source video) */
-  frameCaptureData?: FrameCaptureData | null;
+  /** Resolved step preview image (url or frameCapture) */
+  image: ResolvedImage | null;
   /** Compact substep preview data for expansion panel */
   substepPreviews?: SubstepPreview[];
 }
@@ -55,7 +39,6 @@ function hasStepDrag(e: React.DragEvent): boolean {
 function renderSubstepChildren(
   step: StepWithPreview,
   opts: {
-    useRawVideo: boolean;
     editMode?: boolean;
     onDeleteSubstep?: (substepId: string) => void;
     renderSortableSubstepGrid?: (
@@ -76,9 +59,7 @@ function renderSubstepChildren(
         substepId={sub.id}
         order={sub.order}
         title={sub.title}
-        imageUrl={sub.imageUrl}
-        frameCaptureData={sub.frameCaptureData}
-        useRawVideo={opts.useRawVideo}
+        image={sub.image}
         onClick={() => opts.onStepSelect(step.id)}
         editMode={opts.editMode}
         onDeleteSubstep={opts.onDeleteSubstep}
@@ -97,9 +78,7 @@ function renderSubstepChildren(
           substepId={sub.id}
           order={sub.order}
           title={sub.title}
-          imageUrl={sub.imageUrl}
-          frameCaptureData={sub.frameCaptureData}
-          useRawVideo={opts.useRawVideo}
+          image={sub.image}
           onClick={() => opts.onStepSelect(step.id)}
           editMode={opts.editMode}
           onDeleteSubstep={opts.onDeleteSubstep}
@@ -118,8 +97,6 @@ interface AssemblySectionProps {
   onStepSelect: (stepId: string) => void;
   /** Whether section is expanded by default */
   defaultExpanded?: boolean;
-  /** Use raw video frame capture instead of pre-rendered images. Default: false */
-  useRawVideo?: boolean;
   /** Edit mode active */
   editMode?: boolean;
   /** Allow rendering with 0 steps (edit mode) */
@@ -180,7 +157,6 @@ export function AssemblySection({
   steps,
   onStepSelect,
   defaultExpanded = true,
-  useRawVideo = false,
   editMode = false,
   allowEmpty = false,
   onDeleteAssembly,
@@ -263,6 +239,28 @@ export function AssemblySection({
       onMoveStepToAssembly?.(stepId, assembly.id);
     }
   };
+
+  const renderStepCard = (step: StepWithPreview, opts?: { draggable?: boolean }) => (
+    <StepOverviewCard
+      stepNumber={step.order}
+      title={step.title}
+      description={step.description}
+      substepCount={step.substepCount}
+      image={step.image}
+      onClick={() => onStepSelect(step.id)}
+      stepId={step.id}
+      draggable={opts?.draggable}
+      editMode={editMode}
+      onRenameStep={onRenameStep}
+      onDeleteStep={onDeleteStep}
+      renderPreviewUpload={renderPreviewUpload}
+      expanded={expandedStepIds?.has(step.id)}
+      onExpandToggle={onExpandToggle}
+      renderSubstepDropZone={renderSubstepDropZone}
+    >
+      {renderSubstepChildren(step, { editMode, onDeleteSubstep, renderSortableSubstepGrid, onStepSelect })}
+    </StepOverviewCard>
+  );
 
   return (
     <Card
@@ -415,28 +413,7 @@ export function AssemblySection({
       {isExpanded && (
         <div className="p-4">
           {renderSortableStepGrid
-            ? renderSortableStepGrid(assembly.id, steps, (step) => (
-                <StepOverviewCard
-                  stepNumber={step.order}
-                  title={step.title}
-                  description={step.description}
-                  substepCount={step.substepCount}
-                  previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
-                  useRawVideo={useRawVideo}
-                  frameCaptureData={step.frameCaptureData}
-                  onClick={() => onStepSelect(step.id)}
-                  stepId={step.id}
-                  editMode={editMode}
-                  onRenameStep={onRenameStep}
-                  onDeleteStep={onDeleteStep}
-                  renderPreviewUpload={renderPreviewUpload}
-                  expanded={expandedStepIds?.has(step.id)}
-                  onExpandToggle={onExpandToggle}
-                  renderSubstepDropZone={renderSubstepDropZone}
-                >
-                  {renderSubstepChildren(step, { useRawVideo, editMode, onDeleteSubstep, renderSortableSubstepGrid, onStepSelect })}
-                </StepOverviewCard>
-              ))
+            ? renderSortableStepGrid(assembly.id, steps, (step) => renderStepCard(step))
             : steps.length > 0 ? (
               <div
                 className="grid gap-4"
@@ -445,28 +422,7 @@ export function AssemblySection({
                 }}
               >
                 {steps.map((step) => (
-                  <StepOverviewCard
-                    key={step.id}
-                    stepNumber={step.order}
-                    title={step.title}
-                    description={step.description}
-                    substepCount={step.substepCount}
-                    previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
-                    useRawVideo={useRawVideo}
-                    frameCaptureData={step.frameCaptureData}
-                    onClick={() => onStepSelect(step.id)}
-                    stepId={step.id}
-                    draggable={editMode}
-                    editMode={editMode}
-                    onRenameStep={onRenameStep}
-                    onDeleteStep={onDeleteStep}
-                    renderPreviewUpload={renderPreviewUpload}
-                    expanded={expandedStepIds?.has(step.id)}
-                    onExpandToggle={onExpandToggle}
-                    renderSubstepDropZone={renderSubstepDropZone}
-                  >
-                    {renderSubstepChildren(step, { useRawVideo, editMode, onDeleteSubstep, renderSortableSubstepGrid, onStepSelect })}
-                  </StepOverviewCard>
+                  <div key={step.id}>{renderStepCard(step, { draggable: editMode })}</div>
                 ))}
               </div>
             ) : (
@@ -540,8 +496,6 @@ interface UnassignedSectionProps {
   onStepSelect: (stepId: string) => void;
   /** Whether section is expanded by default */
   defaultExpanded?: boolean;
-  /** Use raw video frame capture instead of pre-rendered images. Default: false */
-  useRawVideo?: boolean;
   /** Edit mode active */
   editMode?: boolean;
   /** Called to move a step to an assembly */
@@ -569,7 +523,6 @@ export function UnassignedSection({
   steps,
   onStepSelect,
   defaultExpanded = true,
-  useRawVideo = false,
   editMode = false,
   onMoveStepToAssembly,
   onRenameStep,
@@ -604,6 +557,23 @@ export function UnassignedSection({
       onMoveStepToAssembly?.(stepId, null);
     }
   };
+
+  const renderStepCard = (step: StepWithPreview, opts?: { draggable?: boolean }) => (
+    <StepOverviewCard
+      stepNumber={step.order}
+      title={step.title}
+      description={step.description}
+      substepCount={step.substepCount}
+      image={step.image}
+      onClick={() => onStepSelect(step.id)}
+      stepId={step.id}
+      draggable={opts?.draggable}
+      editMode={editMode}
+      onRenameStep={onRenameStep}
+      onDeleteStep={onDeleteStep}
+      renderPreviewUpload={renderPreviewUpload}
+    />
+  );
 
   return (
     <Card
@@ -646,23 +616,7 @@ export function UnassignedSection({
       {isExpanded && (
         <div className="p-4">
           {renderSortableStepGrid
-            ? renderSortableStepGrid('unassigned', steps, (step) => (
-                <StepOverviewCard
-                  stepNumber={step.order}
-                  title={step.title}
-                  description={step.description}
-                  substepCount={step.substepCount}
-                  previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
-                  useRawVideo={useRawVideo}
-                  frameCaptureData={step.frameCaptureData}
-                  onClick={() => onStepSelect(step.id)}
-                  stepId={step.id}
-                  editMode={editMode}
-                  onRenameStep={onRenameStep}
-                  onDeleteStep={onDeleteStep}
-                  renderPreviewUpload={renderPreviewUpload}
-                />
-              ))
+            ? renderSortableStepGrid('unassigned', steps, (step) => renderStepCard(step))
             : (
               <div
                 className="grid gap-4"
@@ -671,23 +625,7 @@ export function UnassignedSection({
                 }}
               >
                 {steps.map((step) => (
-                  <StepOverviewCard
-                    key={step.id}
-                    stepNumber={step.order}
-                    title={step.title}
-                    description={step.description}
-                    substepCount={step.substepCount}
-                    previewImageUrl={getStepPreviewUrl(step, useRawVideo)}
-                    useRawVideo={useRawVideo}
-                    frameCaptureData={step.frameCaptureData}
-                    onClick={() => onStepSelect(step.id)}
-                    stepId={step.id}
-                    draggable={editMode}
-                    editMode={editMode}
-                    onRenameStep={onRenameStep}
-                    onDeleteStep={onDeleteStep}
-                    renderPreviewUpload={renderPreviewUpload}
-                  />
+                  <div key={step.id}>{renderStepCard(step, { draggable: editMode })}</div>
                 ))}
               </div>
             )

@@ -145,6 +145,7 @@ export { useDrawingDeleteKey } from './hooks/useDrawingDeleteKey';
 // Drawing percent helpers (frame ↔ substep percent conversion)
 export {
   prepareSections,
+  frameToAccumulatedFrame,
   frameToSubstepPercent,
   substepPercentToFrame,
   type PreparedSections,

@@ -42,6 +42,13 @@ export * from './types/snapshot';
 // Media utilities (URL construction, path conventions)
 export { buildMediaUrl, MediaPaths, publicAsset, DEFAULT_FPS, resolveFramePath, resolveSubstepVideoPath } from './lib/media';
 
+// Media Resolver (unified media resolution API)
+export type { MediaResolver, ResolvedImage, FrameCacheProvider, FrameCacheKey } from './lib/mediaResolver';
+export { sortPartToolJunctions } from './lib/mediaResolver';
+export { createProcessedResolver, type ProcessedResolverConfig } from './lib/createProcessedResolver';
+export { createRawResolver, type RawResolverConfig } from './lib/createRawResolver';
+export { MediaResolverProvider, useMediaResolver, useMediaResolverOptional } from './lib/MediaResolverContext';
+
 // Default translations for viewer-core components
 export { viewerCoreTranslations } from './lib/translations';
 
