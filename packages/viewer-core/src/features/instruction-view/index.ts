@@ -25,6 +25,7 @@ export { StepSeparator } from './components/StepSeparator';
 export { AssemblySeparator } from './components/AssemblySeparator';
 export { SubstepCard, type SubstepEditCallbacks } from './components/SubstepCard';
 export { StepOverview } from './components/StepOverview';
+export { InstructionHeroBanner, type InstructionHeroBannerProps } from './components/InstructionHeroBanner';
 export type { StepOverviewEditCallbacks } from './components/StepOverview';
 export { PartToolBadge } from './components/PartToolBadge';
 export { PartToolSearchBar } from './components/PartToolSearchBar';

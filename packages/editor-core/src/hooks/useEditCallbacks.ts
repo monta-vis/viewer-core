@@ -63,6 +63,8 @@ export interface EditCallbacks {
   ) => ReactNode;
   renderPreviewUpload?: (stepId: string) => ReactNode;
   renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
+  /** Render prop for instruction cover image upload button */
+  renderCoverImageUpload?: () => ReactNode;
   /** Wraps all assembly sections with unified DnD context. When present, replaces renderAssemblyList. */
   renderStepDndWrapper?: (
     containers: Array<{ containerId: string; stepIds: string[] }>,
@@ -249,6 +251,7 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
 
   const canUploadStep = !!(persistence?.uploadStepPreviewImage && projectId);
   const canUploadAssembly = !!(persistence?.uploadAssemblyPreviewImage && projectId);
+  const canUploadCover = !!(persistence?.uploadCoverImage && projectId);
 
   /** Shared upload logic for step/assembly preview images. */
   const handlePreviewUpload = useCallback(
@@ -322,6 +325,24 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
             persistence!.uploadAssemblyPreviewImage!,
             (store, id, vfaId) => store.updateAssembly(id, { videoFrameAreaId: vfaId }),
             'renderAssemblyPreviewUpload',
+          );
+        },
+      }),
+    [handlePreviewUpload, persistence],
+  );
+
+  const renderCoverImageUpload = useCallback(
+    (): ReactNode =>
+      createElement(PreviewImageUploadButton, {
+        variant: 'thumbnail',
+        onUpload: (file: File, crop: NormalizedCrop) => {
+          const coverUploadFn = (pid: string, _eid: string, src: ImageSource, c: NormalizedCrop) =>
+            persistence!.uploadCoverImage!(pid, src, c);
+          handlePreviewUpload(
+            '', file, crop,
+            coverUploadFn,
+            (store, _id, vfaId) => store.updateCoverImageAreaId(vfaId),
+            'renderCoverImageUpload',
           );
         },
       }),
@@ -433,6 +454,7 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     renderAssemblyList,
     renderPreviewUpload: canUploadStep ? renderPreviewUpload : undefined,
     renderAssemblyPreviewUpload: canUploadAssembly ? renderAssemblyPreviewUpload : undefined,
+    renderCoverImageUpload: canUploadCover ? renderCoverImageUpload : undefined,
     renderStepDndWrapper,
     renderSortableStepGrid,
     renderSortableAssembly,
@@ -459,8 +481,10 @@ export function useEditCallbacks(options?: UseEditCallbacksOptions): EditCallbac
     renderAssemblyList,
     canUploadStep,
     canUploadAssembly,
+    canUploadCover,
     renderPreviewUpload,
     renderAssemblyPreviewUpload,
+    renderCoverImageUpload,
     renderStepDndWrapper,
     renderSortableStepGrid,
     renderSortableAssembly,

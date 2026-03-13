@@ -12,6 +12,7 @@ import { buildMediaUrl, MediaPaths } from '@/lib/media';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
 import { PartToolSearchBar } from './PartToolSearchBar';
 import { SubstepPreviewCard } from './SubstepPreviewCard';
+import { InstructionHeroBanner } from './InstructionHeroBanner';
 import { usePartToolStepMap } from '../hooks/usePartToolStepMap';
 
 export interface StepOverviewEditCallbacks {
@@ -61,6 +62,8 @@ export interface StepOverviewEditCallbacks {
   renderSubstepDropZone?: (stepId: string) => ReactNode;
   /** Called when a substep should be deleted */
   onDeleteSubstep?: (substepId: string) => void;
+  /** Render prop for instruction cover image upload button (injected by editor-core via app shell) */
+  renderCoverImageUpload?: () => ReactNode;
 }
 
 interface StepOverviewProps {
@@ -369,6 +372,39 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
     return unassignedSteps.filter((s) => filteredStepIds.has(s.id));
   }, [unassignedSteps, filteredStepIds]);
 
+  // Resolve instruction cover image for hero banner
+  const instructionHero = useMemo(() => {
+    if (!data) return null;
+
+    let imageUrl: string | null = null;
+    let frameCaptureData: FrameCaptureData | null = null;
+
+    // Primary: coverImageAreaId → videoFrameArea
+    if (data.coverImageAreaId) {
+      const area = data.videoFrameAreas[data.coverImageAreaId];
+      if (area) {
+        if (useRawVideo && folderName) {
+          imageUrl = buildMediaUrl(folderName, MediaPaths.frame(data.coverImageAreaId));
+          frameCaptureData = resolveRawFrameCapture(area, data.videos, folderName);
+        } else {
+          imageUrl = area.localPath ?? null;
+        }
+      }
+    }
+
+    // Fallback: instructionPreviewImageId (static asset path)
+    if (!imageUrl && data.instructionPreviewImageId) {
+      imageUrl = data.instructionPreviewImageId;
+    }
+
+    return {
+      imageUrl,
+      frameCaptureData,
+      instructionName: data.instructionName,
+      articleNumber: data.articleNumber ?? null,
+    };
+  }, [data, useRawVideo, folderName]);
+
   // Build containers array for DnD wrapper
   const dndContainers = useMemo(() => [
     ...filteredAssemblies.map((a) => ({
@@ -460,6 +496,17 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
       )}
 
       <div className="px-4 pb-4 sm:px-6 sm:pb-6">
+        {instructionHero && (
+          <InstructionHeroBanner
+            imageUrl={instructionHero.imageUrl}
+            frameCaptureData={instructionHero.frameCaptureData}
+            instructionName={instructionHero.instructionName}
+            articleNumber={instructionHero.articleNumber}
+            useRawVideo={useRawVideo}
+            renderUpload={editCallbacks?.renderCoverImageUpload}
+          />
+        )}
+
         {useGroupedLayout ? (
           // Grouped layout: Steps organized by Assembly
           (() => {

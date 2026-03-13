@@ -159,6 +159,8 @@ interface InstructionViewProps {
       substeps: SubstepPreview[],
       renderSubstep: (substep: SubstepPreview) => ReactNode,
     ) => ReactNode;
+    /** Render prop for instruction cover image upload button */
+    renderCoverImageUpload?: () => ReactNode;
   };
   /** Web3Forms access key for feedback submission (provided by app layer). */
   web3FormsKey?: string;
@@ -1102,6 +1104,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
               renderSortableAssembly: editCallbacks?.renderSortableAssembly,
               renderSortableSubstepGrid: editCallbacks?.renderSortableSubstepGrid,
               onDeleteSubstep: editCallbacks?.onDeleteSubstep,
+              renderCoverImageUpload: editCallbacks?.renderCoverImageUpload,
             } : undefined}
           />
         </Drawer>
