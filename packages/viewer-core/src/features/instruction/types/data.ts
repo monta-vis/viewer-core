@@ -25,6 +25,8 @@ import type {
   PartToolVideoFrameAreaRow,
   DrawingRow,
   ViewportKeyframe,
+  VariantRow,
+  VariantExclusionRow,
 } from './enriched';
 
 export interface InstructionData {
@@ -58,6 +60,8 @@ export interface InstructionData {
   drawings: Record<string, DrawingRow>;
   substepTutorials: Record<string, SubstepTutorialRow>;
   safetyIcons: Record<string, SafetyIconRow>;
+  variants: Record<string, VariantRow>;
+  variantExclusions: Record<string, VariantExclusionRow>;
 }
 
 /**

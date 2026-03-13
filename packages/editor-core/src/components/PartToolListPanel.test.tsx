@@ -30,6 +30,32 @@ vi.mock('@monta-vis/viewer-core', async () => {
     PartToolDetailContent: ({ item }: { item: { partTool: { name: string } } }) => (
       <div data-testid="parttool-detail-content">{item.partTool.name}</div>
     ),
+    ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
+      open ? (
+        <div data-testid="confirm-delete-dialog">
+          <button data-testid="confirm-delete-confirm" onClick={() => { onConfirm(); onClose(); }}>Delete</button>
+          <button data-testid="confirm-delete-cancel" onClick={onClose}>Cancel</button>
+        </div>
+      ) : null
+    ),
+    TextInputModal: ({ value, onConfirm, onCancel }: {
+      label: string; value: string; onConfirm: (v: string) => void; onCancel: () => void; inputType?: string;
+    }) => (
+      <div data-testid="text-input-modal">
+        <input data-testid="text-input-modal-input" defaultValue={value} />
+        <button data-testid="text-input-modal-confirm" onClick={(e) => {
+          const input = (e.currentTarget.parentElement as HTMLElement).querySelector('input');
+          onConfirm(input?.value ?? value);
+        }}>Confirm</button>
+        <button data-testid="text-input-modal-cancel" onClick={onCancel}>Cancel</button>
+      </div>
+    ),
+    IconButton: ({ icon, 'aria-label': ariaLabel, onClick, ...rest }: Record<string, unknown>) => (
+      <button aria-label={ariaLabel as string} onClick={onClick as () => void} data-testid={rest['data-testid'] as string}>{icon as React.ReactNode}</button>
+    ),
+    Button: ({ children, disabled, onClick, ...rest }: Record<string, unknown>) => (
+      <button disabled={disabled as boolean} onClick={onClick as () => void} data-testid={rest['data-testid'] as string}>{children as React.ReactNode}</button>
+    ),
   };
 });
 
@@ -68,6 +94,26 @@ function renderPanel(overrides: Partial<PartToolListPanelProps> = {}) {
     ...overrides,
   };
   return render(<PartToolListPanel {...defaults} />);
+}
+
+/** Helper: edit a BoxedField via the TextInputModal mock */
+async function editFieldViaModal(user: ReturnType<typeof userEvent.setup>, fieldTestId: string, newValue: string) {
+  await user.click(screen.getByTestId(fieldTestId));
+  const modalInput = screen.getByTestId('text-input-modal-input');
+  await user.clear(modalInput);
+  await user.type(modalInput, newValue);
+  await user.click(screen.getByTestId('text-input-modal-confirm'));
+}
+
+/** Helper: assert a BoxedField displays the expected value */
+function expectFieldValue(fieldTestId: string, expectedValue: string) {
+  const field = screen.getByTestId(fieldTestId);
+  const valueEl = field.querySelector('[data-testid="boxed-field-value"]');
+  if (expectedValue === '') {
+    expect(valueEl?.textContent).toBe('\u00A0');
+  } else {
+    expect(valueEl?.textContent).toBe(expectedValue);
+  }
 }
 
 describe('PartToolListPanel', () => {
@@ -154,7 +200,7 @@ describe('PartToolListPanel', () => {
     expect(screen.queryByTestId('parttool-list-import')).not.toBeInTheDocument();
   });
 
-  it('row selection is highlighted', async () => {
+  it('edit click highlights the row', async () => {
     const user = userEvent.setup();
     const partTools = {
       p1: makePt('p1', 'Nut', 'Part'),
@@ -162,7 +208,7 @@ describe('PartToolListPanel', () => {
     };
     renderPanel({ partTools });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
     const row = screen.getByTestId('parttool-list-row-p1');
     expect(row.className).toContain('bg-[var(--color-bg-selected)]');
   });
@@ -181,8 +227,8 @@ describe('PartToolListPanel', () => {
     );
 
     // Select the item
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
-    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Nut');
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+    expectFieldValue('sidebar-form-name', 'Nut');
 
     // Re-render without the item (simulating deletion)
     rerender(
@@ -196,7 +242,7 @@ describe('PartToolListPanel', () => {
     );
 
     // Sidebar form should be empty (add mode)
-    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('');
+    expectFieldValue('sidebar-form-name', '');
   });
 });
 
@@ -217,7 +263,7 @@ describe('PartToolListPanel — inline sidebar form', () => {
     const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({ partTools });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
 
     expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
     expect(screen.getByTestId('sidebar-form')).toBeInTheDocument();
@@ -228,7 +274,7 @@ describe('PartToolListPanel — inline sidebar form', () => {
     const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({ partTools });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
     expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
     expect(screen.queryByTestId('sidebar-hero-placeholder')).not.toBeInTheDocument();
 
@@ -245,7 +291,7 @@ describe('PartToolListPanel — inline sidebar form', () => {
 
   it('empty state: no item selected → form fields empty, both buttons disabled', () => {
     renderPanel();
-    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('');
+    expectFieldValue('sidebar-form-name', '');
     expect(screen.getByTestId('sidebar-form-add-btn')).toBeDisabled();
     expect(screen.getByTestId('sidebar-form-update-btn')).toBeDisabled();
   });
@@ -257,12 +303,12 @@ describe('PartToolListPanel — inline sidebar form', () => {
     };
     renderPanel({ partTools });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
 
-    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Nut');
-    expect(screen.getByTestId('sidebar-form-label')).toHaveValue('N1');
-    expect(screen.getByTestId('sidebar-form-partNumber')).toHaveValue('PN-42');
-    expect(screen.getByTestId('sidebar-form-amount')).toHaveValue(3);
+    expectFieldValue('sidebar-form-name', 'Nut');
+    expectFieldValue('sidebar-form-label', 'N1');
+    expectFieldValue('sidebar-form-partNumber', 'PN-42');
+    expectFieldValue('sidebar-form-amount', '3');
   });
 
   it('Add enables when fields filled (no selection)', async () => {
@@ -271,7 +317,7 @@ describe('PartToolListPanel — inline sidebar form', () => {
 
     expect(screen.getByTestId('sidebar-form-add-btn')).toBeDisabled();
 
-    await user.type(screen.getByTestId('sidebar-form-name'), 'NewPart');
+    await editFieldViaModal(user, 'sidebar-form-name', 'NewPart');
 
     expect(screen.getByTestId('sidebar-form-add-btn')).toBeEnabled();
     expect(screen.getByTestId('sidebar-form-update-btn')).toBeDisabled();
@@ -282,7 +328,7 @@ describe('PartToolListPanel — inline sidebar form', () => {
     const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
     renderPanel({ partTools });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
 
     expect(screen.getByTestId('sidebar-form-add-btn')).toBeDisabled();
     expect(screen.getByTestId('sidebar-form-update-btn')).toBeDisabled();
@@ -293,11 +339,9 @@ describe('PartToolListPanel — inline sidebar form', () => {
     const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
     renderPanel({ partTools });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
-    // Modify name
-    const nameInput = screen.getByTestId('sidebar-form-name');
-    await user.clear(nameInput);
-    await user.type(nameInput, 'Bolt');
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+    // Modify name via modal
+    await editFieldViaModal(user, 'sidebar-form-name', 'Bolt');
 
     expect(screen.getByTestId('sidebar-form-add-btn')).toBeEnabled();
     expect(screen.getByTestId('sidebar-form-update-btn')).toBeEnabled();
@@ -308,7 +352,7 @@ describe('PartToolListPanel — inline sidebar form', () => {
     const cbs = makeCallbacks();
     renderPanel({ callbacks: cbs });
 
-    await user.type(screen.getByTestId('sidebar-form-name'), 'NewPart');
+    await editFieldViaModal(user, 'sidebar-form-name', 'NewPart');
     await user.click(screen.getByTestId('sidebar-form-add-btn'));
 
     expect(cbs.onAddPartTool).toHaveBeenCalledWith(
@@ -322,10 +366,8 @@ describe('PartToolListPanel — inline sidebar form', () => {
     const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
     renderPanel({ partTools, callbacks: cbs });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
-    const nameInput = screen.getByTestId('sidebar-form-name');
-    await user.clear(nameInput);
-    await user.type(nameInput, 'Modified Nut');
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+    await editFieldViaModal(user, 'sidebar-form-name', 'Modified Nut');
     await user.click(screen.getByTestId('sidebar-form-add-btn'));
 
     expect(cbs.onAddPartTool).toHaveBeenCalledWith(
@@ -339,24 +381,27 @@ describe('PartToolListPanel — inline sidebar form', () => {
     const partTools = { p1: makePt('p1', 'Nut', 'Part', 2) };
     renderPanel({ partTools, callbacks: cbs });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
-    const nameInput = screen.getByTestId('sidebar-form-name');
-    await user.clear(nameInput);
-    await user.type(nameInput, 'Bolt');
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+    await editFieldViaModal(user, 'sidebar-form-name', 'Bolt');
     await user.click(screen.getByTestId('sidebar-form-update-btn'));
 
     expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('p1', expect.objectContaining({ name: 'Bolt' }));
   });
 
-  it('Delete calls onDeletePartTool', async () => {
+  it('Delete opens confirmation dialog and confirming calls onDeletePartTool', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
     const partTools = { p1: makePt('p1', 'Nut', 'Part') };
     renderPanel({ partTools, callbacks: cbs });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
     await user.click(screen.getByTestId('sidebar-form-delete-btn'));
 
+    // Sidebar form opens its own ConfirmDeleteDialog
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+    expect(cbs.onDeletePartTool).not.toHaveBeenCalled();
+
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(cbs.onDeletePartTool).toHaveBeenCalledWith('p1');
   });
 
@@ -368,12 +413,12 @@ describe('PartToolListPanel — inline sidebar form', () => {
     };
     renderPanel({ partTools });
 
-    await user.click(screen.getByTestId('parttool-list-row-p1'));
-    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Nut');
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+    expectFieldValue('sidebar-form-name', 'Nut');
 
-    await user.click(screen.getByTestId('parttool-list-row-p2'));
-    expect(screen.getByTestId('sidebar-form-name')).toHaveValue('Bolt');
-    expect(screen.getByTestId('sidebar-form-amount')).toHaveValue(5);
+    await user.click(screen.getByTestId('parttool-list-row-edit-p2'));
+    expectFieldValue('sidebar-form-name', 'Bolt');
+    expectFieldValue('sidebar-form-amount', '5');
   });
 });
 
@@ -385,6 +430,39 @@ const catalogItems: PartToolIconItem[] = [
   { id: 'cat1/bolt.png', filename: 'bolt.png', category: 'Fasteners', label: 'Bolt M6', tags: ['DIN 931'], itemType: 'Part', catalogDirName: 'cat1' },
   { id: 'cat1/wrench.png', filename: 'wrench.png', category: 'Tools', label: 'Wrench', tags: [], itemType: 'Tool', catalogDirName: 'cat1' },
 ];
+
+describe('PartToolListPanel — initialEditPartToolId', () => {
+  it('pre-selects the partTool when open transitions to true with initialEditPartToolId', () => {
+    const partTools = {
+      p1: makePt('p1', 'Nut', 'Part', 3, { label: 'N1' }),
+      p2: makePt('p2', 'Bolt', 'Part', 2),
+    };
+    renderPanel({ partTools, initialEditPartToolId: 'p1' });
+
+    // Sidebar form should be populated with the pre-selected partTool
+    expectFieldValue('sidebar-form-name', 'Nut');
+    expectFieldValue('sidebar-form-label', 'N1');
+    expectFieldValue('sidebar-form-amount', '3');
+    // Detail content should show
+    expect(screen.getByTestId('parttool-detail-content')).toBeInTheDocument();
+  });
+
+  it('does not pre-select when initialEditPartToolId is null', () => {
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools, initialEditPartToolId: null });
+
+    expectFieldValue('sidebar-form-name', '');
+    expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
+  });
+
+  it('does not pre-select when partTool ID does not exist', () => {
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    renderPanel({ partTools, initialEditPartToolId: 'nonexistent' });
+
+    expectFieldValue('sidebar-form-name', '');
+    expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
+  });
+});
 
 describe('PartToolListPanel — add popover integration', () => {
   it('"+" opens add popover with catalog tabs when catalogItems provided', async () => {

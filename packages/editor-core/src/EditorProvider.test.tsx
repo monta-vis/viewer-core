@@ -48,6 +48,8 @@ function createMockData(): InstructionData {
     drawings: {},
     substepTutorials: {},
     safetyIcons: {},
+    variants: {},
+    variantExclusions: {},
   };
 }
 

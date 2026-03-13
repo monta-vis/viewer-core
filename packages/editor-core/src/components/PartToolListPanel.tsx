@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Plus, X, Download } from 'lucide-react';
+import { Plus, X, Download, Replace } from 'lucide-react';
 import type { PartToolRow, SubstepPartToolRow, AggregatedPartTool } from '@monta-vis/viewer-core';
 import { PartIcon, PartToolDetailContent } from '@monta-vis/viewer-core';
-import { sortPartToolRows } from '../utils/partToolHelpers';
+import { sortPartToolRows, isUnknownPartTool } from '../utils/partToolHelpers';
 import { ICON_BTN_CLASS } from './editButtonStyles';
 import { PartToolTable, type PartToolTableItem, type PartToolTableCallbacks, type PartToolTableImageCallbacks } from './PartToolTable';
 import type { PartToolImageItem } from './PartToolImagePicker';
@@ -25,6 +25,8 @@ export interface PartToolListPanelCallbacks {
   onDeleteImage?: (partToolId: string, areaId: string) => void;
   /** Optional platform feature: set preview image for a part/tool. */
   onSetPreviewImage?: (partToolId: string, junctionId: string, areaId: string) => void;
+  /** Optional: global merge — reassign ALL substep junctions from source → target, delete source. */
+  onGlobalReplace?: (sourcePartToolId: string, targetPartToolId: string) => void;
 }
 
 export interface PartToolListPanelProps {
@@ -43,6 +45,12 @@ export interface PartToolListPanelProps {
   catalogItems?: PartToolIconItem[];
   /** Resolve catalog icon URL for display. */
   getCatalogIconUrl?: (item: PartToolIconItem) => string;
+  /** Pre-highlight this partTool in the table (current substep's assignment). */
+  highlightPartToolId?: string | null;
+  /** Called when user confirms replacing the substep's partTool with a different one. */
+  onSubstepReplace?: (newPartToolId: string) => void;
+  /** Pre-select this partTool for editing when the panel opens. */
+  initialEditPartToolId?: string | null;
 }
 
 /** Convert a PartToolRow to SidebarFormState */
@@ -81,6 +89,23 @@ function isFormFilled(form: SidebarFormState): boolean {
   return form.name.trim().length > 0;
 }
 
+/** Aggregate a partTool's amounts from substep assignments. */
+function aggregatePartTool(
+  pt: PartToolRow,
+  substepPartTools: Record<string, SubstepPartToolRow>,
+): AggregatedPartTool {
+  const amountsPerSubstep = new Map<string, number>();
+  let totalAmount = 0;
+  for (const spt of Object.values(substepPartTools)) {
+    if (spt.partToolId === pt.id) {
+      amountsPerSubstep.set(spt.substepId, spt.amount);
+      totalAmount += spt.amount;
+    }
+  }
+  if (totalAmount === 0) totalAmount = pt.amount;
+  return { partTool: pt, totalAmount, amountsPerSubstep };
+}
+
 /** Compare two form states for dirty-checking */
 function isFormDirty(current: SidebarFormState, snapshot: SidebarFormState): boolean {
   return (
@@ -108,6 +133,9 @@ export function PartToolListPanel({
   isImporting,
   catalogItems,
   getCatalogIconUrl,
+  highlightPartToolId,
+  onSubstepReplace,
+  initialEditPartToolId,
 }: PartToolListPanelProps) {
   const { t } = useTranslation();
 
@@ -118,6 +146,11 @@ export function PartToolListPanel({
   const [sidebarForm, setSidebarForm] = useState<SidebarFormState>(EMPTY_SIDEBAR_FORM);
   const snapshotRef = useRef<SidebarFormState>(EMPTY_SIDEBAR_FORM);
 
+  // Detail dialog state (row click opens detail; optionally shows Replace button)
+  const [detailTarget, setDetailTarget] = useState<PartToolTableItem | null>(null);
+  // Discard unsaved changes dialog state
+  const [discardTarget, setDiscardTarget] = useState<{ row: PartToolTableItem } | null>(null);
+
   // Reset selection if item was deleted
   useEffect(() => {
     if (selectedPartToolId && !partTools[selectedPartToolId]) {
@@ -127,23 +160,86 @@ export function PartToolListPanel({
     }
   }, [selectedPartToolId, partTools]);
 
-  // Escape to close (only when add popover is closed)
+  // Pre-select a partTool when panel opens with initialEditPartToolId
+  const prevOpenRef = useRef(false);
   useEffect(() => {
-    if (!open || addPopoverOpen) return;
+    const justOpened = open && !prevOpenRef.current;
+    prevOpenRef.current = open;
+    if (!justOpened || !initialEditPartToolId) return;
+    const pt = partTools[initialEditPartToolId];
+    if (!pt) return;
+    setSelectedPartToolId(initialEditPartToolId);
+    const form = partToolToForm(pt);
+    setSidebarForm(form);
+    snapshotRef.current = form;
+  }, [open, initialEditPartToolId, partTools]);
+
+  // Escape to close (only when add popover is closed and no dialog is open)
+  useEffect(() => {
+    if (!open || addPopoverOpen || detailTarget || discardTarget) return;
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
     };
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
-  }, [open, onClose, addPopoverOpen]);
+  }, [open, onClose, addPopoverOpen, detailTarget, discardTarget]);
 
-  // ── Row click → select for sidebar ──
+  // ── Row click → show detail dialog (optionally with Replace button) ──
   const handleRowClick = useCallback((row: PartToolTableItem) => {
+    setDetailTarget(row);
+  }, []);
+
+  const handleDetailClose = useCallback(() => {
+    setDetailTarget(null);
+  }, []);
+
+  const handleDetailReplace = useCallback(() => {
+    if (!detailTarget) return;
+    if (highlightPartToolId && onSubstepReplace) {
+      // Substep-scoped: replace only the current substep junction
+      onSubstepReplace(detailTarget.rowId);
+    } else if (selectedPartToolId && callbacks.onGlobalReplace) {
+      // Global merge: reassign all junctions from selected → clicked row
+      callbacks.onGlobalReplace(selectedPartToolId, detailTarget.rowId);
+      setSelectedPartToolId(null);
+      setSidebarForm(EMPTY_SIDEBAR_FORM);
+      snapshotRef.current = EMPTY_SIDEBAR_FORM;
+    }
+    setDetailTarget(null);
+  }, [detailTarget, highlightPartToolId, onSubstepReplace, selectedPartToolId, callbacks]);
+
+  // ── Edit icon click (switch sidebar to that partTool) ──
+  const handleEditClick = useCallback((row: PartToolTableItem) => {
+    // If already editing this partTool, do nothing
+    if (selectedPartToolId === row.rowId) return;
+
+    // Check for unsaved changes
+    const dirty = isFormDirty(sidebarForm, snapshotRef.current);
+    if (dirty && selectedPartToolId) {
+      setDiscardTarget({ row });
+      return;
+    }
+
+    // Load new partTool into sidebar
     setSelectedPartToolId(row.rowId);
-    const pt = row.partTool;
-    const form = partToolToForm(pt);
+    const form = partToolToForm(row.partTool);
     setSidebarForm(form);
     snapshotRef.current = form;
+  }, [selectedPartToolId, sidebarForm]);
+
+  // ── Discard dialog handlers ──
+  const handleDiscardConfirm = useCallback(() => {
+    if (discardTarget) {
+      setSelectedPartToolId(discardTarget.row.rowId);
+      const form = partToolToForm(discardTarget.row.partTool);
+      setSidebarForm(form);
+      snapshotRef.current = form;
+    }
+    setDiscardTarget(null);
+  }, [discardTarget]);
+
+  const handleDiscardCancel = useCallback(() => {
+    setDiscardTarget(null);
   }, []);
 
   // ── Deselect → switch to add mode ──
@@ -196,6 +292,8 @@ export function PartToolListPanel({
   }, [selectedPartToolId, sidebarForm, dirty, callbacks]);
 
   // ── Delete handler ──
+  // PartToolSidebarForm handles its own confirmation dialog,
+  // so this handler fires the actual delete directly.
   const handleDelete = useCallback(() => {
     if (selectedPartToolId) {
       callbacks.onDeletePartTool(selectedPartToolId);
@@ -205,7 +303,7 @@ export function PartToolListPanel({
     }
   }, [selectedPartToolId, callbacks]);
 
-  // ── Sorted + filtered table rows ──
+  // ── Sorted + filtered table rows (split into named / unknown) ──
   const allTableRows: PartToolTableItem[] = useMemo(() => {
     const sorted = sortPartToolRows(partTools);
     return sorted.map((pt) => ({
@@ -227,6 +325,15 @@ export function PartToolListPanel({
       );
     });
   }, [allTableRows, searchQuery]);
+
+  const namedRows = useMemo(
+    () => filteredTableRows.filter((r) => !isUnknownPartTool(r.partTool)),
+    [filteredTableRows],
+  );
+  const unknownRows = useMemo(
+    () => filteredTableRows.filter((r) => isUnknownPartTool(r.partTool)),
+    [filteredTableRows],
+  );
 
   // ── Table callbacks adapter ──
   const tableCallbacks: PartToolTableCallbacks = useMemo(() => ({
@@ -258,18 +365,17 @@ export function PartToolListPanel({
     if (!selectedPartToolId) return null;
     const pt = partTools[selectedPartToolId];
     if (!pt) return null;
-    const amountsPerSubstep = new Map<string, number>();
-    let totalAmount = 0;
-    for (const spt of Object.values(substepPartTools)) {
-      if (spt.partToolId === selectedPartToolId) {
-        amountsPerSubstep.set(spt.substepId, spt.amount);
-        totalAmount += spt.amount;
-      }
-    }
-    // Fallback: if no substep entries, use the partTool's own amount
-    if (totalAmount === 0) totalAmount = pt.amount;
-    return { partTool: pt, totalAmount, amountsPerSubstep };
+    return aggregatePartTool(pt, substepPartTools);
   }, [selectedPartToolId, partTools, substepPartTools]);
+
+  // ── Aggregated item for detail dialog ──
+  const detailTargetAggregated: AggregatedPartTool | null = useMemo(() => {
+    if (!detailTarget) return null;
+    return aggregatePartTool(detailTarget.partTool, substepPartTools);
+  }, [detailTarget, substepPartTools]);
+
+  // Highlight: highlightPartToolId (from substep context) or sidebar-selected item
+  const effectiveHighlightId = highlightPartToolId ?? selectedPartToolId;
 
   if (!open) return null;
 
@@ -349,17 +455,36 @@ export function PartToolListPanel({
 
             {/* Table */}
             <div className="flex-1 overflow-y-auto px-4 pb-4">
-              <PartToolTable
-                rows={filteredTableRows}
-                callbacks={tableCallbacks}
-                getPreviewUrl={getPreviewUrl}
-                imageCallbacks={imageCallbacks}
-                getPartToolImages={getPartToolImages}
-                testIdPrefix="parttool-list-row"
-                compact
-                selectedRowId={selectedPartToolId}
-                onRowClick={handleRowClick}
-              />
+              {(() => {
+                const sharedTableProps = {
+                  callbacks: tableCallbacks,
+                  getPreviewUrl,
+                  imageCallbacks,
+                  getPartToolImages,
+                  testIdPrefix: 'parttool-list-row' as const,
+                  compact: true,
+                  selectedRowId: effectiveHighlightId,
+                  onRowClick: handleRowClick,
+                  onEditClick: handleEditClick,
+                };
+                return (
+                  <>
+                    <PartToolTable rows={namedRows} {...sharedTableProps} />
+                    {unknownRows.length > 0 && (
+                      <>
+                        <div className="flex items-center gap-2 px-2 pt-4 pb-2" data-testid="unassigned-divider">
+                          <div className="flex-1 border-t border-[var(--color-border-base)]" />
+                          <span className="text-xs font-medium text-[var(--color-text-muted)] uppercase tracking-wider">
+                            {t('editorCore.unassigned', 'Unassigned')}
+                          </span>
+                          <div className="flex-1 border-t border-[var(--color-border-base)]" />
+                        </div>
+                        <PartToolTable rows={unknownRows} {...sharedTableProps} />
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
 
@@ -375,7 +500,7 @@ export function PartToolListPanel({
               </div>
             ) : (
               <div className="shrink-0" data-testid="sidebar-hero-placeholder">
-                <div className="relative bg-[var(--color-bg-base)] aspect-square sm:aspect-[4/3]">
+                <div className="relative bg-black overflow-hidden aspect-square">
                   <div className="w-full h-full flex items-center justify-center">
                     <PartIcon className="w-24 h-24 opacity-20" style={{ color: 'var(--color-element-part)' }} />
                   </div>
@@ -404,6 +529,83 @@ export function PartToolListPanel({
         catalogItems={catalogItems}
         getCatalogIconUrl={getCatalogIconUrl}
       />
+
+      {/* Detail Dialog (optionally shows Replace when editing a different partTool) */}
+      {detailTarget && detailTargetAggregated && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="parttool-detail-dialog"
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={handleDetailClose} />
+          <div className="relative w-[28rem] max-h-[80vh] flex flex-col rounded-2xl bg-[var(--color-bg-elevated)] shadow-xl overflow-hidden">
+            <PartToolDetailContent
+              item={detailTargetAggregated}
+              previewImageUrl={getPreviewUrl?.(detailTarget.rowId) ?? null}
+              compact
+            />
+            <div className="flex gap-2 p-4 border-t border-[var(--color-border-base)]">
+              {(highlightPartToolId ?? selectedPartToolId) != null &&
+               detailTarget.rowId !== (highlightPartToolId ?? selectedPartToolId) &&
+               (highlightPartToolId ? onSubstepReplace : callbacks.onGlobalReplace) && (
+                <button
+                  type="button"
+                  data-testid="replace-confirm-btn"
+                  onClick={handleDetailReplace}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90 transition-opacity cursor-pointer"
+                >
+                  <Replace className="w-3.5 h-3.5" />
+                  {t('editorCore.replace', 'Replace')}
+                </button>
+              )}
+              <button
+                type="button"
+                data-testid="detail-close-btn"
+                onClick={handleDetailClose}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-hover)] text-[var(--color-text-base)] hover:bg-[var(--color-bg-active)] transition-colors cursor-pointer"
+              >
+                {t('common.close', 'Close')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Discard Unsaved Changes Dialog */}
+      {discardTarget && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          data-testid="discard-confirm-dialog"
+          className="fixed inset-0 z-[60] flex items-center justify-center"
+        >
+          <div className="absolute inset-0 bg-black/40" onClick={handleDiscardCancel} />
+          <div className="relative w-[24rem] flex flex-col rounded-2xl bg-[var(--color-bg-elevated)] shadow-xl overflow-hidden p-6">
+            <p className="text-base text-[var(--color-text-base)] mb-4">
+              {t('editorCore.discardChanges', 'Discard unsaved changes?')}
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                data-testid="discard-confirm-btn"
+                onClick={handleDiscardConfirm}
+                className="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-primary)] text-white hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                {t('editorCore.discard', 'Discard')}
+              </button>
+              <button
+                type="button"
+                data-testid="discard-cancel-btn"
+                onClick={handleDiscardCancel}
+                className="flex-1 px-3 py-2 rounded-lg text-sm font-medium bg-[var(--color-bg-hover)] text-[var(--color-text-base)] hover:bg-[var(--color-bg-active)] transition-colors cursor-pointer"
+              >
+                {t('common.cancel', 'Cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>,
     document.body,
   );

@@ -19,6 +19,7 @@ import {
 } from "@monta-vis/db-utils";
 import { getElectronPaths } from "./electronPaths.js";
 import { createAuditHelper } from "./auditHelpers.js";
+import { ensureViewerMigrated } from "./migrations.js";
 
 /** Image extensions to search for, in priority order. */
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.gif', '.bmp', '.tiff'];
@@ -200,6 +201,8 @@ const ALLOWED_TABLES: Record<string, keyof ElectronProjectData> = {
   substep_tutorials: "substepTutorials",
   safety_icons: "safetyIcons",
   translations: "translations",
+  variants: "variants",
+  variant_exclusions: "variantExclusions",
 };
 
 // ---------------------------------------------------------------------------
@@ -217,15 +220,16 @@ const VIEWER_SAVE_CONFIG: SaveConfig = {
     "part_tools", "substep_descriptions", "substep_notes", "substep_part_tools",
     "substep_images", "substep_video_sections", "part_tool_video_frame_areas",
     "branding", "translations", "substep_tutorials",
+    "variants", "variant_exclusions",
   ]),
   deleteOrder: [
     // Leaf / junction tables
-    "substep_tutorials", "substep_notes", "substep_part_tools",
+    "variant_exclusions", "substep_tutorials", "substep_notes", "substep_part_tools",
     "substep_images", "substep_video_sections", "substep_descriptions",
     "part_tool_video_frame_areas", "viewport_keyframes", "translations",
     "drawings", "branding",
     // Mid-level
-    "video_frame_areas", "video_sections", "notes", "part_tools",
+    "variants", "video_frame_areas", "video_sections", "notes", "part_tools",
     // Parent tables
     "videos", "substeps", "steps", "assemblies",
   ],
@@ -244,129 +248,8 @@ export function getProjectData(folderName: string): ElectronProjectData {
     throw new Error(`Project not found: ${folderName}`);
   }
 
-  // Migrate old table name: substep_references → substep_tutorials (once)
-  {
-    const migrationDb = new Database(dbPath);
-    try {
-      const hasOldTable = migrationDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='substep_references'").get();
-      const hasNewTable = migrationDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='substep_tutorials'").get();
-      if (hasOldTable && !hasNewTable) {
-        migrationDb.exec("ALTER TABLE substep_references RENAME TO substep_tutorials");
-      }
-    } finally {
-      migrationDb.close();
-    }
-  }
-
-  // Drop has_blurred_version columns (no longer needed — blur uses media_blurred/ folder)
-  {
-    const migDb = new Database(dbPath);
-    try {
-      const vsCols = migDb.pragma("table_info(video_sections)") as Array<{ name: string }>;
-      if (vsCols.some(c => c.name === "has_blurred_version")) {
-        migDb.exec("ALTER TABLE video_sections DROP COLUMN has_blurred_version");
-      }
-      const vfaCols = migDb.pragma("table_info(video_frame_areas)") as Array<{ name: string }>;
-      if (vfaCols.some(c => c.name === "has_blurred_version")) {
-        migDb.exec("ALTER TABLE video_frame_areas DROP COLUMN has_blurred_version");
-      }
-      // Add fps column to video_sections for standalone uploaded videos (no parent videos row)
-      if (!vsCols.some(c => c.name === "fps")) {
-        migDb.exec("ALTER TABLE video_sections ADD COLUMN fps REAL DEFAULT NULL");
-      }
-    } finally {
-      migDb.close();
-    }
-  }
-
-  // Add optional preview image columns (video_frame_area_id) to steps, assemblies, substeps
-  {
-    const migDb = new Database(dbPath);
-    try {
-      const stepCols = migDb.pragma("table_info(steps)") as Array<{ name: string }>;
-      if (!stepCols.some(c => c.name === "video_frame_area_id")) {
-        migDb.exec("ALTER TABLE steps ADD COLUMN video_frame_area_id TEXT DEFAULT NULL");
-      }
-      const assemblyCols = migDb.pragma("table_info(assemblies)") as Array<{ name: string }>;
-      if (!assemblyCols.some(c => c.name === "video_frame_area_id")) {
-        migDb.exec("ALTER TABLE assemblies ADD COLUMN video_frame_area_id TEXT DEFAULT NULL");
-      }
-      const substepCols = migDb.pragma("table_info(substeps)") as Array<{ name: string }>;
-      if (!substepCols.some(c => c.name === "repeat_video_frame_area_id")) {
-        migDb.exec("ALTER TABLE substeps ADD COLUMN repeat_video_frame_area_id TEXT DEFAULT NULL");
-      }
-    } finally {
-      migDb.close();
-    }
-  }
-
-  // Migrate drawings: add video_frame_area_id (with ON DELETE CASCADE), drop substep_image_id
-  {
-    const migDb = new Database(dbPath);
-    migDb.pragma("foreign_keys = OFF");
-    try {
-      const drawingCols = migDb.pragma("table_info(drawings)") as Array<{ name: string; type: string; notnull: number; dflt_value: string | null }>;
-      const hasSubstepImageId = drawingCols.some(c => c.name === "substep_image_id");
-      const hasVfaId = drawingCols.some(c => c.name === "video_frame_area_id");
-
-      if (!hasVfaId) {
-        // First add the column and populate from substep_images join
-        migDb.exec("ALTER TABLE drawings ADD COLUMN video_frame_area_id TEXT REFERENCES video_frame_areas(id)");
-        migDb.exec(`UPDATE drawings SET video_frame_area_id = (
-          SELECT si.video_frame_area_id FROM substep_images si WHERE si.id = drawings.substep_image_id
-        ) WHERE substep_image_id IS NOT NULL AND video_frame_area_id IS NULL`);
-      }
-
-      if (hasSubstepImageId) {
-        // Recreate table without substep_image_id, with PK on id and ON DELETE CASCADE on video_frame_area_id.
-        // Re-read columns after potential ALTER TABLE so video_frame_area_id is included.
-        const currentCols = migDb.pragma("table_info(drawings)") as Array<{ name: string; type: string; notnull: number; dflt_value: string | null }>;
-        const keptCols = currentCols.filter(c => c.name !== "substep_image_id");
-        // Hardcode known column definitions to avoid interpolating raw dflt_value SQL expressions
-        const knownColumnDefs: Record<string, string> = {
-          id: '"id" TEXT PRIMARY KEY',
-          instruction_id: '"instruction_id" TEXT REFERENCES instructions(id)',
-          video_frame_area_id: '"video_frame_area_id" TEXT REFERENCES video_frame_areas(id) ON DELETE CASCADE',
-          version_id: '"version_id" TEXT NOT NULL',
-          substep_id: '"substep_id" TEXT',
-          type: '"type" TEXT NOT NULL',
-          path_data: '"path_data" TEXT NOT NULL',
-          color: '"color" TEXT NOT NULL',
-          stroke_width: '"stroke_width" REAL NOT NULL',
-          start_frame: '"start_frame" INTEGER',
-          end_frame: '"end_frame" INTEGER',
-          '"order"': '"order" INTEGER NOT NULL DEFAULT 0',
-          text: '"text" TEXT',
-          font_size: '"font_size" REAL',
-        };
-        const columnDefs = keptCols.map(c => {
-          const colKey = c.name === "order" ? '"order"' : c.name;
-          const known = knownColumnDefs[colKey];
-          if (known) return known;
-          // Fallback for unexpected columns: validate name/type to prevent injection
-          if (!/^[a-zA-Z0-9_]+$/.test(c.name) || !/^[a-zA-Z0-9_ ()]+$/.test(c.type)) {
-            throw new Error(`[getProjectData] Unexpected column name/type in drawings table: ${c.name} ${c.type}`);
-          }
-          const nullable = c.notnull ? " NOT NULL" : "";
-          return `"${c.name}" ${c.type}${nullable}`;
-        }).join(", ");
-        const colNames = keptCols.map(c => `"${c.name}"`).join(", ");
-
-        migDb.exec("BEGIN TRANSACTION");
-        migDb.exec(`CREATE TABLE drawings_new (${columnDefs})`);
-        migDb.exec(`INSERT INTO drawings_new (${colNames}) SELECT ${colNames} FROM drawings`);
-        migDb.exec("DROP TABLE drawings");
-        migDb.exec("ALTER TABLE drawings_new RENAME TO drawings");
-        migDb.exec("COMMIT");
-      }
-    } catch (err) {
-      try { migDb.exec("ROLLBACK"); } catch { /* ignore */ }
-      console.error("[getProjectData] Drawings migration failed:", err);
-      throw err;
-    } finally {
-      migDb.close();
-    }
-  }
+  // Run all migrations (bootstrap + shared v44-v46)
+  ensureViewerMigrated(dbPath);
 
   const db = new Database(dbPath, { readonly: true });
   try {
@@ -406,6 +289,8 @@ export function getProjectData(folderName: string): ElectronProjectData {
       substepTutorials: [],
       safetyIcons: [],
       translations: [],
+      variants: [],
+      variantExclusions: [],
     };
 
     for (const [tableName, key] of Object.entries(ALLOWED_TABLES)) {

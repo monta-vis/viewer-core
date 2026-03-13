@@ -109,7 +109,7 @@ export function PartToolCard({
           />
 
           {/* Preview image area */}
-          <div className="relative aspect-[4/3]" style={{ background: colors.bg }}>
+          <div className="relative aspect-square bg-black overflow-hidden">
             {previewImageUrl ? (
               <img
                 src={previewImageUrl}

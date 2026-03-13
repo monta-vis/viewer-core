@@ -47,7 +47,13 @@ export type {
   SubstepTutorialRow,
   SubstepTutorialRow as SubstepReferenceRow,
   SubstepRow,
+  VariantRow,
+  VariantExclusionRow,
+  VariantExclusionEntityType,
 } from './types';
+
+// Variant filter utility
+export { getVariantExcludedIds, type VariantExcludedIds } from './utils/variantFilter';
 
 // Shape types
 export type { ShapeType, ShapeColor } from './types';

@@ -72,6 +72,8 @@ function createMockInstructionData(): InstructionData {
     images: {},
     substepTutorials: {},
     safetyIcons: {},
+    variants: {},
+    variantExclusions: {},
   };
 }
 

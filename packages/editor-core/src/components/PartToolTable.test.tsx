@@ -39,6 +39,14 @@ vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
         </div>
       );
     },
+    ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
+      open ? (
+        <div data-testid="confirm-delete-dialog">
+          <button data-testid="confirm-delete-confirm" onClick={() => { onConfirm(); onClose(); }}>Delete</button>
+          <button data-testid="confirm-delete-cancel" onClick={onClose}>Cancel</button>
+        </div>
+      ) : null
+    ),
   };
 });
 
@@ -161,15 +169,37 @@ describe('PartToolTable', () => {
     expect(cbs.onUpdateAmount).toHaveBeenCalledWith('spt-1', 5);
   });
 
-  it('delete fires onDelete with row id', async () => {
+  it('delete button opens confirmation dialog', async () => {
     const user = userEvent.setup();
     const cbs = makeCallbacks();
     const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
     render(<PartToolTable rows={rows} callbacks={cbs} />);
 
-    const deleteBtn = screen.getByTestId('parttool-row-delete-spt-1');
-    await user.click(deleteBtn);
+    await user.click(screen.getByTestId('parttool-row-delete-spt-1'));
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+    expect(cbs.onDelete).not.toHaveBeenCalled();
+  });
+
+  it('confirming delete dialog fires onDelete with row id', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-delete-spt-1'));
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(cbs.onDelete).toHaveBeenCalledWith('spt-1');
+  });
+
+  it('canceling delete dialog does NOT fire onDelete', async () => {
+    const user = userEvent.setup();
+    const cbs = makeCallbacks();
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={cbs} />);
+
+    await user.click(screen.getByTestId('parttool-row-delete-spt-1'));
+    await user.click(screen.getByTestId('confirm-delete-cancel'));
+    expect(cbs.onDelete).not.toHaveBeenCalled();
   });
 
   it('shows red text on empty name', () => {

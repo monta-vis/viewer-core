@@ -44,6 +44,8 @@ type ElectronProjectData = {
   substepTutorials?: Record<string, unknown>[];
   safetyIcons?: Record<string, unknown>[];
   translations?: Record<string, unknown>[];
+  variants?: Record<string, unknown>[];
+  variantExclusions?: Record<string, unknown>[];
 };
 
 /** Helper: key an array of rows by their `id` field. */
@@ -320,5 +322,7 @@ export function sqliteToSnapshot(data: ElectronProjectData, useBlurred = false):
     assemblies: keyById<SnapshotAssembly>(data.assemblies),
     substepTutorials: keyById(data.substepTutorials ?? []),
     safetyIcons: keyById(data.safetyIcons ?? []),
+    variants: keyById(data.variants ?? []),
+    variantExclusions: keyById(data.variantExclusions ?? []),
   };
 }

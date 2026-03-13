@@ -9,3 +9,16 @@ export type {
   Logger,
   TableInfo,
 } from "./types.js";
+
+// Migration infrastructure
+export type { Migration, MigrationConfig } from "./migrationTypes.js";
+export { dbColumns, hasColumn, dbTableExists } from "./migrationHelpers.js";
+export { runMigrations, ensureMigrated } from "./migrationRunner.js";
+export {
+  migrateV44_renameTutorials,
+  migrateV45_previewColumns,
+  migrateV46_variants,
+  migrateV47_variantPreviewImage,
+  SHARED_MIGRATIONS,
+  SHARED_SCHEMA_VERSION,
+} from "./sharedMigrations.js";

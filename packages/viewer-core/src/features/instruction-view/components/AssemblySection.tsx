@@ -4,7 +4,7 @@ import { ChevronDown, GripVertical, Plus, Trash2, X } from 'lucide-react';
 import { AssemblyIcon } from '@/lib/icons';
 import { clsx } from 'clsx';
 
-import { Card, Badge, IconButton, DialogShell } from '@/components/ui';
+import { Card, Badge, IconButton, DialogShell, ConfirmDeleteDialog } from '@/components/ui';
 import { StepAssignmentDialog } from './StepAssignmentDialog';
 import type { Assembly } from '@/features/instruction';
 import { StepOverviewCard } from './StepOverviewCard';
@@ -27,7 +27,7 @@ export interface SubstepPreview {
   order: number;
   title: string | null;
   imageUrl: string | null;
-  frameCaptureData: unknown;
+  frameCaptureData?: FrameCaptureData | null;
 }
 
 export interface StepWithPreview {
@@ -77,7 +77,7 @@ function renderSubstepChildren(
         order={sub.order}
         title={sub.title}
         imageUrl={sub.imageUrl}
-        frameCaptureData={sub.frameCaptureData as FrameCaptureData | null}
+        frameCaptureData={sub.frameCaptureData}
         useRawVideo={opts.useRawVideo}
         onClick={() => opts.onStepSelect(step.id)}
         editMode={opts.editMode}
@@ -98,7 +98,7 @@ function renderSubstepChildren(
           order={sub.order}
           title={sub.title}
           imageUrl={sub.imageUrl}
-          frameCaptureData={sub.frameCaptureData as FrameCaptureData | null}
+          frameCaptureData={sub.frameCaptureData}
           useRawVideo={opts.useRawVideo}
           onClick={() => opts.onStepSelect(step.id)}
           editMode={opts.editMode}
@@ -207,6 +207,7 @@ export function AssemblySection({
   const [isDragOver, setIsDragOver] = useState(false);
   const [assignDialogOpen, setAssignDialogOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   if (steps.length === 0 && !allowEmpty) return null;
@@ -234,6 +235,10 @@ export function AssemblySection({
 
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
     onDeleteAssembly?.(assembly.id);
   };
 
@@ -489,6 +494,15 @@ export function AssemblySection({
           onMoveStepToAssembly={onMoveStepToAssembly}
         />
       )}
+
+      {/* Confirm Delete Dialog */}
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        title={t('editorCore.deleteAssembly', 'Delete assembly?')}
+        message={t('editorCore.deleteAssemblyConfirm', 'All step assignments will be removed. This action cannot be undone.')}
+      />
 
       {/* Image preview popup */}
       {assemblyImageUrl && (

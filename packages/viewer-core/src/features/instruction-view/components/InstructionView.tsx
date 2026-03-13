@@ -9,7 +9,7 @@ import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, UNASSIGNED_S
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
 import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, SubstepRow, RichTutorialDisplay, SafetyIconCategory } from '@/features/instruction';
-import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
+
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
 import { buildMediaUrl, MediaPaths, resolveFramePath } from '@/lib/media';
@@ -18,6 +18,7 @@ import { PartToolBadge } from './PartToolBadge';
 import { SubstepCard } from './SubstepCard';
 import type { SubstepEditCallbacks } from './SubstepCard';
 import { StepOverview } from './StepOverview';
+import type { SubstepPreview } from './AssemblySection';
 import { PartsDrawer } from './PartsDrawer';
 import { SpeedDrawer } from './SpeedDrawer';
 import { resolveRawFrameCapture } from '../utils/resolveRawFrameCapture';
@@ -155,8 +156,8 @@ interface InstructionViewProps {
     /** Wraps a step's substep previews with sortable context (per step container). */
     renderSortableSubstepGrid?: (
       containerId: string,
-      substeps: Array<{ id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }>,
-      renderSubstep: (substep: { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }) => ReactNode,
+      substeps: SubstepPreview[],
+      renderSubstep: (substep: SubstepPreview) => ReactNode,
     ) => ReactNode;
   };
   /** Web3Forms access key for feedback submission (provided by app layer). */
@@ -178,8 +179,8 @@ interface InstructionViewProps {
     hasVideo: boolean;
     substepId?: string;
   }) => ReactNode;
-  /** Render function for the part/tool editor (provided by editor-core via app shell). Passed to PartsDrawer. */
-  renderPartToolEditor?: (props: { item: AggregatedPartTool; onClose: () => void }) => ReactNode;
+  /** Called when edit icon is clicked on a PartToolCard. Opens the PartToolListPanel with this partTool pre-selected. */
+  onEditPartTool?: (partToolId: string) => void;
 }
 
 /**
@@ -187,7 +188,7 @@ interface InstructionViewProps {
  *
  * Shows substeps as cards with inline video playback, images, descriptions, and notes.
  */
-export function InstructionView({ selectedStepId, instructionId, onBreak, breakVariant = 'close', activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, web3FormsKey, noteIconLabels, renderEditPopover, renderPartToolEditor }: InstructionViewProps) {
+export function InstructionView({ selectedStepId, instructionId, onBreak, breakVariant = 'close', activityLogger, initialSubstepId, useRawVideo = false, folderName, useBlurred, initialPartsDrawerOpen = false, tutorial = false, editModeActive = false, editCallbacks, web3FormsKey, noteIconLabels, renderEditPopover, onEditPartTool }: InstructionViewProps) {
   const { t } = useTranslation();
   const data = useViewerData();
   const { playbackSpeed } = useVideo();
@@ -867,7 +868,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
           useBlurred={useBlurred}
           useRawVideo={useRawVideo}
           editMode={effectiveEditMode}
-          renderPartToolEditor={effectiveEditMode ? renderPartToolEditor : undefined}
+          onEditPartTool={effectiveEditMode ? onEditPartTool : undefined}
           initialStepCount={partsDrawerInitialCount}
           onPartToolHover={setHighlightedPartToolId}
         />

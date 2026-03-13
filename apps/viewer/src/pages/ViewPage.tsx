@@ -18,7 +18,7 @@ import {
   Navbar,
   useTheme,
 } from "@monta-vis/viewer-core";
-import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, AggregatedPartTool, DrawingRow, ViewportKeyframeRow } from "@monta-vis/viewer-core";
+import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, DrawingRow, ViewportKeyframeRow } from "@monta-vis/viewer-core";
 import { buildMediaUrl, MediaPaths, DEFAULT_FPS } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
@@ -26,7 +26,6 @@ import {
   useEditCallbacks,
   SubstepEditPopover,
   PartToolListPanel,
-  PartToolDetailEditor,
   VideoEditorDialog,
   createDefaultPartTool,
   type SafetyIconCatalog,
@@ -339,7 +338,6 @@ export function ViewPage() {
     onDeleteSubstep,
     onDeleteImage,
     onDeleteTutorial,
-    onDeletePartTool,
     onUpdatePartTool,
     onUpdateSubstepPartToolAmount,
     onAddSubstepPartTool,
@@ -493,7 +491,19 @@ export function ViewPage() {
   // ── Stable close callbacks for dialogs ──
   const closeVideoEditor = useCallback(() => setEditingVideoSubstepId(null), []);
   const closeAnnotationEditor = useCallback(() => setAnnotatingVideoSubstepId(null), []);
-  const closePartToolList = useCallback(() => setPartToolListOpen(false), []);
+
+  // ── PartTool edit state (pre-select in PartToolListPanel) ──
+  const [editPartToolId, setEditPartToolId] = useState<string | null>(null);
+
+  const closePartToolList = useCallback(() => {
+    setPartToolListOpen(false);
+    setEditPartToolId(null);
+  }, []);
+
+  const onEditPartTool = useCallback((partToolId: string) => {
+    setEditPartToolId(partToolId);
+    setPartToolListOpen(true);
+  }, []);
 
   const onSaveVideoEdits = useCallback((result: VideoEditorResult) => {
     const store = useEditorStore.getState();
@@ -834,35 +844,6 @@ export function ViewPage() {
     [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
   );
 
-  // ── Part/tool editor render function (render prop for PartsDrawer) ──
-  const renderPartToolEditor = useCallback(
-    ({ item, onClose }: { item: AggregatedPartTool; onClose: () => void }) => {
-      const previewUrl = getPartToolPreviewUrl(item.partTool.id);
-      return (
-        <PartToolDetailEditor
-          partToolId={item.partTool.id}
-          item={item}
-          onClose={onClose}
-          imageCallbacks={imageCallbacks}
-          getPartToolImages={getPartToolImages}
-          onEditPartToolAmount={(partToolId, newAmount) => {
-            const store = useEditorStore.getState();
-            const num = parseInt(newAmount, 10);
-            if (!isNaN(num) && num > 0) {
-              store.updatePartTool(partToolId, { amount: num });
-            }
-          }}
-          onDeletePartTool={(partToolId) => {
-            onDeletePartTool(partToolId);
-            onClose();
-          }}
-          onUpdatePartTool={onUpdatePartTool}
-          previewImageUrl={previewUrl}
-        />
-      );
-    },
-    [imageCallbacks, getPartToolImages, getPartToolPreviewUrl, onDeletePartTool, onUpdatePartTool],
-  );
 
   // Build noteIconLabels map: safetyIconId (entry UUID) → localized label
   const noteIconLabels = useMemo(() => {
@@ -930,7 +911,7 @@ export function ViewPage() {
                   editModeActive={editEnabled && editModeActive}
                   editCallbacks={editEnabled ? editCallbacks : undefined}
                   renderEditPopover={editEnabled ? renderEditPopover : undefined}
-                  renderPartToolEditor={editEnabled ? renderPartToolEditor : undefined}
+                  onEditPartTool={editEnabled ? onEditPartTool : undefined}
                   web3FormsKey={import.meta.env.VITE_WEB3FORMS_KEY}
                   noteIconLabels={noteIconLabels}
                 />
@@ -966,6 +947,7 @@ export function ViewPage() {
                   callbacks={partToolListCallbacks}
                   getPreviewUrl={getPartToolPreviewUrl}
                   getPartToolImages={getPartToolImages}
+                  initialEditPartToolId={editPartToolId}
                   catalogItems={catalogItems.length > 0 ? catalogItems : undefined}
                   getCatalogIconUrl={catalogItems.length > 0 ? getCatalogIconUrl : undefined}
                   folderName={decodedFolderName}

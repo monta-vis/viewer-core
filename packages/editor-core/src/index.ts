@@ -116,9 +116,6 @@ export {
   type PartToolImageItem,
 } from './components/PartToolImagePicker';
 
-// PartToolDetailEditor (full editable detail view for a single part/tool — render prop for PartsDrawer)
-export { PartToolDetailEditor, type PartToolDetailEditorProps } from './components/PartToolDetailEditor';
-
 // PartToolSidebarForm (inline editable form for part/tool sidebar)
 export { PartToolSidebarForm, EMPTY_SIDEBAR_FORM, type PartToolSidebarFormProps, type SidebarFormState } from './components/PartToolSidebarForm';
 
@@ -224,6 +221,7 @@ export {
 export {
   createDefaultPartTool,
   isPartToolNameValid,
+  isUnknownPartTool,
   sortSubstepPartTools,
   sortPartToolRows,
   computeUsedAmount,

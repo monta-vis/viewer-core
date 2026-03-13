@@ -11,7 +11,7 @@ export type AuditChangeType = "create" | "update" | "delete";
 
 /** Logger interface for optional structured logging. */
 export interface Logger {
-  info: (...args: unknown[]) => void;
+  debug: (...args: unknown[]) => void;
   warn: (...args: unknown[]) => void;
   error: (...args: unknown[]) => void;
 }

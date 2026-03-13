@@ -67,6 +67,8 @@ function makeData(overrides: Partial<InstructionData> = {}): InstructionData {
     },
     substepTutorials: {},
     safetyIcons: {},
+    variants: {},
+    variantExclusions: {},
     ...overrides,
   } as InstructionData;
 }

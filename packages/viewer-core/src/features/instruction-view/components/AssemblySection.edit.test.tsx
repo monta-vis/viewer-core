@@ -27,6 +27,14 @@ vi.mock('@/components/ui', () => ({
   ),
   DialogShell: ({ open, onClose, children }: { open: boolean; onClose: () => void; children: ReactNode }) =>
     open ? <div data-testid="dialog-shell" role="dialog"><button aria-label="close-dialog" onClick={onClose} />{children}</div> : null,
+  ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
+    open ? (
+      <div data-testid="confirm-delete-dialog">
+        <button data-testid="confirm-delete-confirm" onClick={() => { onConfirm(); onClose(); }}>Delete</button>
+        <button data-testid="confirm-delete-cancel" onClick={onClose}>Cancel</button>
+      </div>
+    ) : null
+  ),
 }));
 
 vi.mock('./StepOverviewCard', () => ({
@@ -200,7 +208,7 @@ describe('AssemblySection edit mode', () => {
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
   });
 
-  it('delete button calls onDeleteAssembly(assemblyId) directly', () => {
+  it('delete button opens confirmation dialog and confirming calls onDeleteAssembly', () => {
     const onDelete = vi.fn();
 
     render(
@@ -217,6 +225,10 @@ describe('AssemblySection edit mode', () => {
     );
 
     fireEvent.click(screen.getByLabelText(/delete assembly/i));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId('confirm-delete-confirm'));
     expect(onDelete).toHaveBeenCalledWith('asm-1');
   });
 

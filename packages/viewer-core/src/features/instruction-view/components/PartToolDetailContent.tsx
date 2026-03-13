@@ -29,6 +29,8 @@ interface PartToolDetailContentProps {
   previewImageUrl?: string | null;
   /** When true, render only the image hero section (no text fields). */
   compact?: boolean;
+  /** When true, scale down badges and placeholder for smaller containers. */
+  compactBadges?: boolean;
 }
 
 /**
@@ -50,9 +52,11 @@ export function PartToolDetailContent({
   actionSlot,
   previewImageUrl: previewImageUrlProp,
   compact,
+  compactBadges: compactBadgesProp,
 }: PartToolDetailContentProps) {
   const { t } = useTranslation();
 
+  const smallBadges = compact || compactBadgesProp;
   const isPart = item.partTool.type === 'Part';
   const Icon = isPart ? PartIcon : ToolIcon;
   const accentColor = isPart ? 'var(--color-element-part)' : 'var(--color-element-tool)';
@@ -73,7 +77,7 @@ export function PartToolDetailContent({
   return (
     <div data-testid="parttool-detail-content">
       {/* Image Section - Hero area */}
-      <div className="relative bg-[var(--color-bg-base)] aspect-square sm:aspect-[4/3]">
+      <div className="relative bg-black overflow-hidden aspect-square">
         {frameCaptureData ? (
           <VideoFrameCapture
             videoId={frameCaptureData.videoId}
@@ -94,7 +98,7 @@ export function PartToolDetailContent({
         ) : (
           <div className="w-full h-full flex items-center justify-center">
             <Icon
-              className="w-24 h-24 opacity-20"
+              className={smallBadges ? 'w-10 h-10 opacity-20' : 'w-24 h-24 opacity-20'}
               style={{ color: accentColor }}
             />
           </div>
@@ -113,20 +117,24 @@ export function PartToolDetailContent({
         {/* Type badge - top left */}
         <div
           data-testid="parttool-detail-type-badge"
-          className="absolute top-3 left-3 px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 text-white font-medium text-sm"
+          className={smallBadges
+            ? 'absolute top-1.5 left-1.5 px-2 py-1 rounded-full backdrop-blur-md flex items-center gap-1 text-white font-medium text-xs'
+            : 'absolute top-3 left-3 px-3 py-1.5 rounded-full backdrop-blur-md flex items-center gap-2 text-white font-medium text-sm'}
           style={{ backgroundColor: `color-mix(in srgb, ${accentColor} 85%, black)` }}
         >
-          <Icon className="w-4 h-4" />
+          <Icon className={smallBadges ? 'w-3 h-3' : 'w-4 h-4'} />
           <span>{typeLabel}</span>
         </div>
 
         {/* Quantity badge - bottom right */}
         <div
           data-testid="parttool-detail-amount"
-          className="absolute bottom-3 right-3 px-5 py-2 rounded-xl bg-white/95 backdrop-blur-md shadow-lg border border-black/5"
+          className={smallBadges
+            ? 'absolute bottom-1.5 right-1.5 px-3 py-1 rounded-lg bg-white/95 backdrop-blur-md shadow-lg border border-black/5'
+            : 'absolute bottom-3 right-3 px-5 py-2 rounded-xl bg-white/95 backdrop-blur-md shadow-lg border border-black/5'}
         >
           <span
-            className="text-2xl font-bold tabular-nums"
+            className={smallBadges ? 'text-base font-bold tabular-nums' : 'text-2xl font-bold tabular-nums'}
             style={{ color: accentColor }}
           >
             {item.totalAmount}×

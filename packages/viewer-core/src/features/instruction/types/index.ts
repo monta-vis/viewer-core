@@ -21,6 +21,9 @@ export type {
   PartToolVideoFrameAreaRow,
   DrawingRow,
   ProxyStatus,
+  VariantRow,
+  VariantExclusionRow,
+  VariantExclusionEntityType,
 
   // Enriched types (with grouped relation IDs)
   Step,

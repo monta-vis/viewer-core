@@ -45,6 +45,8 @@ function makeData(overrides: Partial<InstructionData> = {}): InstructionData {
     drawings: {},
     substepTutorials: {},
     safetyIcons: {},
+    variants: {},
+    variantExclusions: {},
     ...overrides,
   } as InstructionData;
 }

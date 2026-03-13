@@ -11,18 +11,19 @@ import type {
   SubstepDescriptionRow,
   EnrichedSubstepNote,
   EnrichedSubstepPartTool,
-  PartToolRow,
   SafetyIconCategory,
   FrameCaptureData,
   ViewportKeyframeRow,
   DrawingRow,
 } from '@monta-vis/viewer-core';
-import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon, DialogShell } from '@monta-vis/viewer-core';
+import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon, ConfirmDeleteDialog } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
 import { ImageCropDialog } from './ImageCropDialog';
 import { ImageEditDialog } from './ImageEditDialog';
 import type { NormalizedCrop } from '../persistence/types';
-import { PartToolTable, type PartToolTableItem, type PartToolTableImageCallbacks } from './PartToolTable';
+import type { PartToolTableImageCallbacks } from './PartToolTable';
+import { PartToolDetailContent } from '@monta-vis/viewer-core';
+import type { AggregatedPartTool } from '@monta-vis/viewer-core';
 import type { PartToolImageItem } from './PartToolImagePicker';
 import { PreviewImageUploadButton } from './PreviewImageUploadButton';
 import { VideoTrimDialog } from './VideoTrimDialog';
@@ -178,10 +179,7 @@ export function SubstepEditPopover({
   noteIconLabels,
   folderName,
   catalogs = [],
-  allSubstepPartTools,
   getPreviewUrl,
-  getPartToolImages,
-  imageCallbacks,
   onUploadSubstepImage,
   onOpenPartToolList,
   videoFrameAreaId,
@@ -265,7 +263,11 @@ export function SubstepEditPopover({
   const videoFileInputRef = useRef<HTMLInputElement>(null);
   const pendingVideoFileRef = useRef<File | null>(null);
   const [videoTrimDialogOpen, setVideoTrimDialogOpen] = useState(false);
-  const [confirmDeleteSubstep, setConfirmDeleteSubstep] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    title: string;
+    message: string;
+    onConfirm: () => void;
+  } | null>(null);
 
   const handleVideoUploadClick = useCallback(() => {
     videoFileInputRef.current?.click();
@@ -377,26 +379,11 @@ export function SubstepEditPopover({
     [captureSnapshot],
   );
 
-  // ── PartToolTable rows + callbacks (memoized to avoid re-renders) ──
-  const partToolTableRows: PartToolTableItem[] = useMemo(
-    () => partTools.map((spt) => ({ rowId: spt.id, partTool: spt.partTool, amount: spt.amount })),
+  // ── PartTool card items (memoized to avoid re-renders) ──
+  const partToolCards: AggregatedPartTool[] = useMemo(
+    () => partTools.map((spt) => ({ partTool: spt.partTool, totalAmount: spt.amount, amountsPerSubstep: new Map() })),
     [partTools],
   );
-
-  const partToolCallbacks = useMemo(() => ({
-    onUpdatePartTool: (ptId: string, updates: Partial<PartToolRow>) => {
-      callbacks.onUpdatePartTool?.(ptId, updates);
-      captureSnapshot();
-    },
-    onUpdateAmount: (sptId: string, amount: number) => {
-      callbacks.onUpdateSubstepPartToolAmount?.(sptId, amount);
-      captureSnapshot();
-    },
-    onDelete: (sptId: string) => {
-      callbacks.onDeleteSubstepPartTool?.(sptId);
-      captureSnapshot();
-    },
-  }), [callbacks, captureSnapshot]);
 
   const handleAddPartTool = useCallback(() => {
     callbacks.onAddSubstepPartTool?.();
@@ -546,7 +533,11 @@ export function SubstepEditPopover({
                 data-testid="delete-substep-btn"
                 aria-label={t('editorCore.deleteSubstep', 'Delete substep')}
                 className={`${DELETE_BTN_CLASS} mr-2`}
-                onClick={() => setConfirmDeleteSubstep(true)}
+                onClick={() => setDeleteConfirm({
+                  title: t('editorCore.deleteSubstepConfirmTitle', 'Delete substep?'),
+                  message: t('editorCore.deleteSubstepConfirmMessage', 'This action cannot be undone.'),
+                  onConfirm: () => { fire(callbacks.onDeleteSubstep); onClose(); },
+                })}
               >
                 <Trash2 className="h-4 w-4" />
               </button>
@@ -674,7 +665,11 @@ export function SubstepEditPopover({
                             <Upload className="h-3.5 w-3.5" />
                           </button>
                         )}
-                        <button type="button" aria-label={t('editorCore.deleteVideo', 'Delete video')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteVideo)}>
+                        <button type="button" aria-label={t('editorCore.deleteVideo', 'Delete video')} className={DELETE_BTN_CLASS} onClick={() => setDeleteConfirm({
+                          title: t('editorCore.deleteVideoConfirmTitle', 'Delete video?'),
+                          message: t('editorCore.deleteConfirmMessage', 'This action cannot be undone.'),
+                          onConfirm: () => fire(callbacks.onDeleteVideo),
+                        })}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -742,7 +737,11 @@ export function SubstepEditPopover({
                         <button type="button" className="flex-1 truncate cursor-pointer text-left" onClick={() => openEditDesc(desc.id, desc.text)}>
                           <span className="text-[var(--color-text-muted)] mr-1.5">•</span>{desc.text}
                         </button>
-                        <button type="button" aria-label={t('editorCore.deleteDescription', 'Delete description')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteDescription, desc.id)}>
+                        <button type="button" aria-label={t('editorCore.deleteDescription', 'Delete description')} className={DELETE_BTN_CLASS} onClick={() => setDeleteConfirm({
+                          title: t('editorCore.deleteDescriptionConfirmTitle', 'Delete description?'),
+                          message: t('editorCore.deleteConfirmMessage', 'This action cannot be undone.'),
+                          onConfirm: () => fireWithArg(callbacks.onDeleteDescription, desc.id),
+                        })}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -843,7 +842,11 @@ export function SubstepEditPopover({
                             )}
                             <span className="flex-1 truncate">{noteRow.note.text}</span>
                           </button>
-                          <button type="button" aria-label={t('editorCore.deleteNote', 'Delete note')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteNote, noteRow.id)}>
+                          <button type="button" aria-label={t('editorCore.deleteNote', 'Delete note')} className={DELETE_BTN_CLASS} onClick={() => setDeleteConfirm({
+                            title: t('editorCore.deleteNoteConfirmTitle', 'Delete note?'),
+                            message: t('editorCore.deleteConfirmMessage', 'This action cannot be undone.'),
+                            onConfirm: () => fireWithArg(callbacks.onDeleteNote, noteRow.id),
+                          })}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
@@ -950,7 +953,11 @@ export function SubstepEditPopover({
                         variant="inline"
                       />
                     )}
-                    <button type="button" aria-label={t('editorCore.deleteRepeat', 'Delete repeat')} className={DELETE_BTN_CLASS} onClick={() => fire(callbacks.onDeleteRepeat)}>
+                    <button type="button" aria-label={t('editorCore.deleteRepeat', 'Delete repeat')} className={DELETE_BTN_CLASS} onClick={() => setDeleteConfirm({
+                      title: t('editorCore.deleteRepeatConfirmTitle', 'Delete repeat?'),
+                      message: t('editorCore.deleteConfirmMessage', 'This action cannot be undone.'),
+                      onConfirm: () => fire(callbacks.onDeleteRepeat),
+                    })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -999,7 +1006,11 @@ export function SubstepEditPopover({
                   <div key={`${ref.kind}-${idx}`} className={ROW_CLASS} data-testid={`popover-tutorial-${idx}`}>
                     <GraduationCap className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
                     <button type="button" className="flex-1 truncate cursor-pointer text-left" onClick={() => fireWithArg(callbacks.onEditTutorial, idx)}>{ref.label}</button>
-                    <button type="button" aria-label={t('editorCore.deleteTutorial', 'Delete tutorial')} className={DELETE_BTN_CLASS} onClick={() => fireWithArg(callbacks.onDeleteTutorial, idx)}>
+                    <button type="button" aria-label={t('editorCore.deleteTutorial', 'Delete tutorial')} className={DELETE_BTN_CLASS} onClick={() => setDeleteConfirm({
+                      title: t('editorCore.deleteTutorialConfirmTitle', 'Delete tutorial?'),
+                      message: t('editorCore.deleteConfirmMessage', 'This action cannot be undone.'),
+                      onConfirm: () => fireWithArg(callbacks.onDeleteTutorial, idx),
+                    })}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
@@ -1029,16 +1040,55 @@ export function SubstepEditPopover({
             }
             emptyText={t('editorCore.noPartsTools', 'No parts/tools')}
           >
-            {partToolTableRows.length > 0 ? (
-              <PartToolTable
-                rows={partToolTableRows}
-                callbacks={partToolCallbacks}
-                allSubstepPartTools={allSubstepPartTools}
-                onOpenPartToolList={onOpenPartToolList}
-                getPreviewUrl={getPreviewUrl}
-                getPartToolImages={getPartToolImages}
-                imageCallbacks={imageCallbacks}
-              />
+            {partToolCards.length > 0 ? (
+              <div data-testid="parttool-cards-scroll" className="flex overflow-x-auto gap-2 pb-1">
+                {partToolCards.map((item, index) => (
+                  <div
+                    key={item.partTool.id}
+                    className="group relative flex-shrink-0 w-48 rounded-xl overflow-hidden border border-[var(--color-border-base)] shadow-sm cursor-pointer"
+                    role={onOpenPartToolList ? 'button' : undefined}
+                    tabIndex={onOpenPartToolList ? 0 : undefined}
+                    aria-label={onOpenPartToolList ? t('editorCore.editPartTool', 'Edit part/tool') : undefined}
+                    onClick={onOpenPartToolList}
+                    onKeyDown={onOpenPartToolList ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenPartToolList(); } } : undefined}
+                  >
+                    <PartToolDetailContent
+                      item={item}
+                      previewImageUrl={getPreviewUrl?.(item.partTool.id) ?? null}
+                      compactBadges
+                    />
+                    {onOpenPartToolList && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/30 transition-colors pointer-events-none">
+                        <Pencil className="h-5 w-5 text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-md" />
+                      </div>
+                    )}
+                    {callbacks.onDeleteSubstepPartTool && (
+                      <button
+                        type="button"
+                        data-testid={`parttool-delete-${partTools[index].id}`}
+                        aria-label={t('editorCore.deletePartTool', 'Delete part/tool')}
+                        className="absolute top-1 right-1 z-10 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const ptId = partTools[index].id;
+                          setDeleteConfirm({
+                            title: t('editorCore.deletePartToolConfirmTitle', 'Delete part/tool?'),
+                            message: t('editorCore.deleteConfirmMessage', 'This action cannot be undone.'),
+                            onConfirm: () => {
+                              callbacks.onDeleteSubstepPartTool!(ptId);
+                              captureSnapshot();
+                            },
+                          });
+                        }}
+                      >
+                        <div className={DELETE_BTN_CLASS}>
+                          <Trash2 className="h-3 w-3" />
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
             ) : undefined}
           </SectionCard>
           </div>{/* end mt-4 wrapper */}
@@ -1048,39 +1098,12 @@ export function SubstepEditPopover({
     </div>,
     document.body,
   )}
-    <DialogShell
-      open={confirmDeleteSubstep}
-      onClose={() => setConfirmDeleteSubstep(false)}
-      maxWidth="max-w-sm"
-    >
-      <div className="flex flex-col gap-4">
-        <h3 className="text-lg font-semibold text-[var(--color-text-base)]">
-          {t('editorCore.deleteSubstepConfirmTitle', 'Delete substep?')}
-        </h3>
-        <p className="text-sm text-[var(--color-text-muted)]">
-          {t('editorCore.deleteSubstepConfirmMessage', 'This action cannot be undone.')}
-        </p>
-        <div className="flex justify-end gap-2">
-          <Button
-            variant="ghost"
-            data-testid="delete-substep-cancel"
-            onClick={() => setConfirmDeleteSubstep(false)}
-          >
-            {t('common.cancel', 'Cancel')}
-          </Button>
-          <Button
-            variant="danger"
-            data-testid="delete-substep-confirm"
-            onClick={() => {
-              fire(callbacks.onDeleteSubstep);
-              setConfirmDeleteSubstep(false);
-              onClose();
-            }}
-          >
-            {t('common.delete', 'Delete')}
-          </Button>
-        </div>
-      </div>
-    </DialogShell>
+    <ConfirmDeleteDialog
+      open={deleteConfirm !== null}
+      onClose={() => setDeleteConfirm(null)}
+      onConfirm={deleteConfirm?.onConfirm ?? (() => {})}
+      title={deleteConfirm?.title ?? ''}
+      message={deleteConfirm?.message ?? ''}
+    />
   </>);
 }

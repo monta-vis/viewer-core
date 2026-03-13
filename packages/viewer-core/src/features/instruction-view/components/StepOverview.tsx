@@ -6,7 +6,7 @@ import { UNASSIGNED_STEP_ID, sortSubstepsByVideoFrame, buildSortData, type Assem
 import { useViewerData } from '../context';
 import { sortedValues, byOrder, byStepNumber } from '@/lib/sortedValues';
 import { StepOverviewCard } from './StepOverviewCard';
-import { AssemblySection, UnassignedSection, getStepPreviewUrl, type StepWithPreview } from './AssemblySection';
+import { AssemblySection, UnassignedSection, getStepPreviewUrl, type StepWithPreview, type SubstepPreview } from './AssemblySection';
 import { resolveRawFrameCapture, type FrameCaptureData } from '../utils/resolveRawFrameCapture';
 import { buildMediaUrl, MediaPaths } from '@/lib/media';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
@@ -54,8 +54,8 @@ export interface StepOverviewEditCallbacks {
   /** Wraps a step's substep previews with sortable context (per step container). */
   renderSortableSubstepGrid?: (
     containerId: string,
-    substeps: Array<{ id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }>,
-    renderSubstep: (substep: { id: string; order: number; title: string | null; imageUrl: string | null; frameCaptureData: unknown }) => ReactNode,
+    substeps: SubstepPreview[],
+    renderSubstep: (substep: SubstepPreview) => ReactNode,
   ) => ReactNode;
   /** Renders a droppable zone for collapsed steps so substeps can be dropped onto them. */
   renderSubstepDropZone?: (stepId: string) => ReactNode;
@@ -552,7 +552,7 @@ export function StepOverview({ onStepSelect, useRawVideo = false, folderName, ed
                             order={sub.order}
                             title={sub.title}
                             imageUrl={sub.imageUrl}
-                            frameCaptureData={sub.frameCaptureData as FrameCaptureData | null}
+                            frameCaptureData={sub.frameCaptureData}
                             useRawVideo={useRawVideo}
                             onClick={() => onStepSelect(step.id)}
                             editMode={editMode}

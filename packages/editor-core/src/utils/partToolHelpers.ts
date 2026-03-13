@@ -25,6 +25,11 @@ export function isPartToolNameValid(name: string): boolean {
   return name.trim().length > 0;
 }
 
+/** Returns true when a partTool has no name (created via drawing without naming). */
+export function isUnknownPartTool(pt: { name: string }): boolean {
+  return pt.name.trim().length === 0;
+}
+
 /** Sort PartTools: Parts first, then Tools, alphabetical within each group. */
 export function sortPartToolRows(partTools: Record<string, PartToolRow>): PartToolRow[] {
   return Object.values(partTools).sort((a, b) => {

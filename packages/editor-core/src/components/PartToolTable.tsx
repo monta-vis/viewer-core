@@ -1,8 +1,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Trash2, ImagePlus, X, Plus } from 'lucide-react';
+import { Trash2, ImagePlus, X, Plus, Pencil } from 'lucide-react';
 import type { PartToolRow } from '@monta-vis/viewer-core';
-import { TextInputModal, PartIcon, ToolIcon } from '@monta-vis/viewer-core';
+import { TextInputModal, PartIcon, ToolIcon, ConfirmDeleteDialog } from '@monta-vis/viewer-core';
 import { computeUsedAmount, isPartToolNameValid } from '../utils/partToolHelpers';
 import { ImageCropDialog } from './ImageCropDialog';
 import { PartToolImagePicker, type PartToolImageItem } from './PartToolImagePicker';
@@ -71,6 +71,8 @@ export interface PartToolTableProps {
   };
   /** Compact mode: shows only thumbnail/type/name/part#/amount columns, forces read-only, hides addRow. */
   compact?: boolean;
+  /** Called when the edit icon is clicked on a row (compact mode only). */
+  onEditClick?: (row: PartToolTableItem) => void;
 }
 
 /** Compact inline-editable table for partTools — used by both SubstepEditPopover and PartToolListPanel. */
@@ -89,6 +91,7 @@ export function PartToolTable({
   editingRowId,
   addRow,
   compact,
+  onEditClick,
 }: PartToolTableProps) {
   const { t } = useTranslation();
   const effectiveReadOnly = compact || readOnly;
@@ -96,7 +99,7 @@ export function PartToolTable({
   const effectiveAddRow = compact ? undefined : addRow;
   const showAllSubstepPartTools = !compact && !!allSubstepPartTools;
   const showThumbnails = !!getPreviewUrl;
-  const showActionCol = !effectiveReadOnly || !!effectiveEditingRowId || !!effectiveAddRow;
+  const showActionCol = !effectiveReadOnly || !!effectiveEditingRowId || !!effectiveAddRow || (compact && !!onEditClick);
 
   return (
     <table className="w-full text-base border-collapse" data-testid="parttool-table">
@@ -153,6 +156,7 @@ export function PartToolTable({
               onRowClick={onRowClick}
               showActionCol={showActionCol}
               compact={compact}
+              onEditClick={onEditClick}
             />
           );
         })}
@@ -191,6 +195,7 @@ interface RowProps {
   onRowClick?: (row: PartToolTableItem) => void;
   showActionCol?: boolean;
   compact?: boolean;
+  onEditClick?: (row: PartToolTableItem) => void;
 }
 
 const PartToolTableRow = memo(function PartToolTableRow({
@@ -208,6 +213,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
   onRowClick,
   showActionCol,
   compact,
+  onEditClick,
 }: RowProps) {
   const { t } = useTranslation();
   const pt = row.partTool;
@@ -219,6 +225,7 @@ const PartToolTableRow = memo(function PartToolTableRow({
 
   // ── Modal-based cell editing ──
   const [editingField, setEditingField] = useState<EditingField | null>(null);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // ── Inline editing local state ──
   const [localValues, setLocalValues] = useState({
@@ -587,22 +594,41 @@ const PartToolTableRow = memo(function PartToolTableRow({
         </td>
       )}
 
-      {/* Delete / Action */}
+      {/* Delete / Edit Action */}
       {showActionCol && (
         <td className="px-2 py-1.5">
-          {(!readOnly || isEditing) && (
+          {compact && onEditClick ? (
+            <button
+              type="button"
+              data-testid={`${testIdPrefix}-edit-${row.rowId}`}
+              aria-label={t('editorCore.editPartTool', 'Edit part/tool')}
+              className="flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-primary)] transition-colors cursor-pointer"
+              onClick={(e) => { e.stopPropagation(); onEditClick(row); }}
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          ) : (!readOnly || isEditing) && (
             <button
               type="button"
               data-testid={`${testIdPrefix}-delete-${row.rowId}`}
               aria-label={t('editorCore.deletePartTool', 'Delete part/tool')}
               className="flex items-center justify-center text-[var(--color-text-muted)] hover:text-[var(--color-text-danger)] transition-colors cursor-pointer"
-              onClick={handleDelete}
+              onClick={() => setConfirmDeleteOpen(true)}
             >
               <Trash2 className="h-3 w-3" />
             </button>
           )}
         </td>
       )}
+
+      {/* Confirm delete dialog */}
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDelete}
+        title={t('editorCore.deletePartTool', 'Delete part/tool?')}
+        message={t('editorCore.deletePartToolConfirm', 'This action cannot be undone.')}
+      />
 
       {/* Modal for cell editing */}
       {!readOnly && !isEditing && editingField && (

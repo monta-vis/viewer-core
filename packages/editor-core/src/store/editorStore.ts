@@ -24,6 +24,9 @@ import {
   type PartToolVideoFrameAreaRow,
   type DrawingRow,
   type InstructionData,
+  type VariantRow,
+  type VariantExclusionRow,
+  type VariantExclusionEntityType,
 } from '@monta-vis/viewer-core';
 import { v4 as uuidv4 } from 'uuid';
 import type { EventRecordCallback, StepLoadingState, StepChunkData } from '../types';
@@ -133,6 +136,8 @@ interface StoreState {
     partToolVideoFrameAreas: ChangeTracking;
     drawings: ChangeTracking;
     substepTutorials: ChangeTracking;
+    variants: ChangeTracking;
+    variantExclusions: ChangeTracking;
   };
 }
 
@@ -256,6 +261,16 @@ interface StoreActions {
   updateSubstepTutorial(id: string, updates: Partial<SubstepTutorialRow>): void;
   deleteSubstepTutorial(id: string): void;
 
+  // Variants
+  addVariant(variant: VariantRow): void;
+  updateVariant(id: string, updates: Partial<VariantRow>): void;
+  deleteVariant(id: string): void;
+
+  // VariantExclusions
+  addVariantExclusion(exclusion: VariantExclusionRow): void;
+  deleteVariantExclusion(id: string): void;
+  toggleVariantExclusion(variantId: string, entityType: VariantExclusionEntityType, entityId: string): void;
+
   // ViewportKeyframes (per-VideoSection with relative frames)
   addViewportKeyframe(keyframe: ViewportKeyframeRow): void;
   updateViewportKeyframe(id: string, updates: Partial<ViewportKeyframeRow>): void;
@@ -354,6 +369,8 @@ const initialChanges = () => ({
   partToolVideoFrameAreas: createEmptyTracking(),
   drawings: createEmptyTracking(),
   substepTutorials: createEmptyTracking(),
+  variants: createEmptyTracking(),
+  variantExclusions: createEmptyTracking(),
 });
 
 const initialState: StoreState = {
@@ -414,6 +431,7 @@ export const useEditorStore = create<StoreState & StoreActions>()(
           'viewportKeyframes', 'partTools', 'notes', 'substepImages', 'substepPartTools',
           'substepNotes', 'substepDescriptions', 'substepVideoSections',
           'partToolVideoFrameAreas', 'drawings', 'substepTutorials',
+          'variants', 'variantExclusions',
         ] as const;
 
         for (const key of entityKeys) {
@@ -1333,6 +1351,78 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       }
     },
 
+    // Variants
+    addVariant: (variant) => set((s) => {
+      if (!s.data) return;
+      s.data.variants[variant.id] = variant;
+      s.changes.variants.changed.add(variant.id);
+    }),
+
+    updateVariant: (id, updates) => set((s) => {
+      if (!s.data?.variants[id]) return;
+      Object.assign(s.data.variants[id], updates);
+      s.changes.variants.changed.add(id);
+    }),
+
+    deleteVariant: (id) => set((s) => {
+      if (!s.data?.variants[id]) return;
+
+      // Cascade-delete all exclusions belonging to this variant
+      for (const [exId, exclusion] of Object.entries(s.data.variantExclusions)) {
+        if (exclusion.variantId === id) {
+          delete s.data.variantExclusions[exId];
+          s.changes.variantExclusions.changed.delete(exId);
+          s.changes.variantExclusions.deleted.add(exId);
+        }
+      }
+
+      delete s.data.variants[id];
+      s.changes.variants.changed.delete(id);
+      s.changes.variants.deleted.add(id);
+    }),
+
+    // VariantExclusions
+    addVariantExclusion: (exclusion) => set((s) => {
+      if (!s.data) return;
+      s.data.variantExclusions[exclusion.id] = exclusion;
+      s.changes.variantExclusions.changed.add(exclusion.id);
+    }),
+
+    deleteVariantExclusion: (id) => set((s) => {
+      if (!s.data?.variantExclusions[id]) return;
+      delete s.data.variantExclusions[id];
+      s.changes.variantExclusions.changed.delete(id);
+      s.changes.variantExclusions.deleted.add(id);
+    }),
+
+    toggleVariantExclusion: (variantId, entityType, entityId) => set((s) => {
+      if (!s.data) return;
+
+      // Find existing exclusion for this combination
+      const existing = Object.values(s.data.variantExclusions).find(
+        (ex) => ex.variantId === variantId && ex.entityType === entityType && ex.entityId === entityId,
+      );
+
+      if (existing) {
+        // Remove it
+        delete s.data.variantExclusions[existing.id];
+        s.changes.variantExclusions.changed.delete(existing.id);
+        s.changes.variantExclusions.deleted.add(existing.id);
+      } else {
+        // Add it
+        const id = uuidv4();
+        const exclusion: VariantExclusionRow = {
+          id,
+          versionId: s.data.currentVersionId,
+          variantId,
+          entityType,
+          entityId,
+        };
+        s.data.variantExclusions[id] = exclusion;
+        s.changes.variantExclusions.changed.add(id);
+      }
+    }),
+
     // VideoSections
     addVideoSection: (section) => {
       set((s) => {
@@ -1825,6 +1915,8 @@ export const useEditorStore = create<StoreState & StoreActions>()(
       collect('partToolVideoFrameAreas', 'part_tool_video_frame_areas', data.partToolVideoFrameAreas, changes.partToolVideoFrameAreas);
       collect('drawings', 'drawings', data.drawings, changes.drawings);
       collect('substepTutorials', 'substep_tutorials', data.substepTutorials, changes.substepTutorials);
+      collect('variants', 'variants', data.variants, changes.variants);
+      collect('variantExclusions', 'variant_exclusions', data.variantExclusions, changes.variantExclusions);
 
       return { changed, deleted };
     },

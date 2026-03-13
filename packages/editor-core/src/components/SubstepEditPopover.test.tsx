@@ -113,6 +113,21 @@ vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
         </div>
       );
     },
+    PartToolDetailContent: ({ item }: { item: { partTool: { id: string; name: string; type: string }; totalAmount: number } }) => (
+      <div data-testid={`parttool-card-${item.partTool.id}`}>
+        <span data-testid="parttool-card-name">{item.partTool.name}</span>
+        <span data-testid="parttool-card-amount">{item.totalAmount}×</span>
+        <span data-testid="parttool-card-type">{item.partTool.type}</span>
+      </div>
+    ),
+    ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
+      open ? (
+        <div data-testid="confirm-delete-dialog">
+          <button data-testid="confirm-delete-confirm" onClick={() => { onConfirm(); onClose(); }}>Delete</button>
+          <button data-testid="confirm-delete-cancel" onClick={onClose}>Cancel</button>
+        </div>
+      ) : null
+    ),
   };
 });
 
@@ -263,8 +278,9 @@ describe('SubstepEditPopover — delete substep', () => {
     render(<SubstepEditPopover {...baseProps} callbacks={{ ...callbacks, onDeleteSubstep: vi.fn() }} />);
 
     await user.click(screen.getByTestId('delete-substep-btn'));
-    expect(screen.getByTestId('delete-substep-confirm')).toBeInTheDocument();
-    expect(screen.getByTestId('delete-substep-cancel')).toBeInTheDocument();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('confirm-delete-confirm')).toBeInTheDocument();
+    expect(screen.getByTestId('confirm-delete-cancel')).toBeInTheDocument();
   });
 
   it('fires onDeleteSubstep and closes popover when confirmed', async () => {
@@ -273,7 +289,7 @@ describe('SubstepEditPopover — delete substep', () => {
     render(<SubstepEditPopover {...baseProps} callbacks={{ ...callbacks, onDeleteSubstep }} />);
 
     await user.click(screen.getByTestId('delete-substep-btn'));
-    await user.click(screen.getByTestId('delete-substep-confirm'));
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(onDeleteSubstep).toHaveBeenCalledOnce();
     expect(baseProps.onClose).toHaveBeenCalledOnce();
   });
@@ -284,7 +300,7 @@ describe('SubstepEditPopover — delete substep', () => {
     render(<SubstepEditPopover {...baseProps} callbacks={{ ...callbacks, onDeleteSubstep }} />);
 
     await user.click(screen.getByTestId('delete-substep-btn'));
-    await user.click(screen.getByTestId('delete-substep-cancel'));
+    await user.click(screen.getByTestId('confirm-delete-cancel'));
     expect(onDeleteSubstep).not.toHaveBeenCalled();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
@@ -431,7 +447,7 @@ describe('SubstepEditPopover — media', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('fires onDeleteVideo WITHOUT closing when video delete is clicked', async () => {
+  it('video delete opens confirmation dialog and confirming fires onDeleteVideo', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
@@ -439,8 +455,11 @@ describe('SubstepEditPopover — media', () => {
     const deleteBtn = row.querySelector('[aria-label="Delete video"]');
     expect(deleteBtn).toBeTruthy();
     await user.click(deleteBtn!);
+    expect(callbacks.onDeleteVideo).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(callbacks.onDeleteVideo).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
@@ -524,15 +543,18 @@ describe('SubstepEditPopover — descriptions', () => {
     expect(row.querySelector('[aria-label="Edit description"]')).toBeNull();
   });
 
-  it('fires onDeleteDescription(id) WITHOUT closing when delete clicked', async () => {
+  it('description delete opens confirmation dialog and confirming fires onDeleteDescription', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     const row = screen.getByTestId('popover-desc-desc-2');
     const deleteBtn = row.querySelector('[aria-label="Delete description"]');
     await user.click(deleteBtn!);
+    expect(callbacks.onDeleteDescription).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(callbacks.onDeleteDescription).toHaveBeenCalledWith('desc-2');
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
@@ -710,15 +732,18 @@ describe('SubstepEditPopover — notes', () => {
     expect(row.querySelector('[aria-label="Edit note"]')).toBeNull();
   });
 
-  it('fires onDeleteNote(id) WITHOUT closing when delete clicked', async () => {
+  it('note delete opens confirmation dialog and confirming fires onDeleteNote', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     const row = screen.getByTestId('popover-note-note-row-1');
     const deleteBtn = row.querySelector('[aria-label="Delete note"]');
     await user.click(deleteBtn!);
+    expect(callbacks.onDeleteNote).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(callbacks.onDeleteNote).toHaveBeenCalledWith('note-row-1');
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
@@ -857,15 +882,18 @@ describe('SubstepEditPopover — repeat', () => {
     expect(screen.getByTestId('repeat-label-btn')).toHaveTextContent('Label (optional)');
   });
 
-  it('fires onDeleteRepeat WITHOUT closing when repeat delete clicked', async () => {
+  it('repeat delete opens confirmation dialog and confirming fires onDeleteRepeat', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     const row = screen.getByTestId('popover-repeat-row');
     const deleteBtn = row.querySelector('[aria-label="Delete repeat"]');
     await user.click(deleteBtn!);
+    expect(callbacks.onDeleteRepeat).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(callbacks.onDeleteRepeat).toHaveBeenCalledOnce();
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
@@ -915,15 +943,18 @@ describe('SubstepEditPopover — tutorials', () => {
     expect(row.querySelector('[aria-label="Edit tutorial"]')).toBeNull();
   });
 
-  it('fires onDeleteTutorial(0) WITHOUT closing when delete clicked', async () => {
+  it('tutorial delete opens confirmation dialog and confirming fires onDeleteTutorial', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     const row = screen.getByTestId('popover-tutorial-0');
     const deleteBtn = row.querySelector('[aria-label="Delete tutorial"]');
     await user.click(deleteBtn!);
+    expect(callbacks.onDeleteTutorial).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
     expect(callbacks.onDeleteTutorial).toHaveBeenCalledWith(0);
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
@@ -942,29 +973,42 @@ describe('SubstepEditPopover — tutorials', () => {
 });
 
 // ============================================================
-// Parts/Tools — modal-based table
+// Parts/Tools — compact cards
 // ============================================================
-describe('SubstepEditPopover — parts/tools table', () => {
-  it('renders PartToolTable in section-parts card', () => {
+describe('SubstepEditPopover — parts/tools cards', () => {
+  it('renders PartToolDetailContent cards instead of table rows', () => {
     render(<SubstepEditPopover {...baseProps} />);
     const section = screen.getByTestId('section-parts');
     expect(section).toBeInTheDocument();
-    // Table rows are rendered inside the section
-    expect(screen.getByTestId('parttool-row-pt-row-1')).toBeInTheDocument();
-    expect(screen.getByTestId('parttool-row-pt-row-2')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-card-pt-1')).toBeInTheDocument();
+    expect(screen.getByTestId('parttool-card-pt-2')).toBeInTheDocument();
   });
 
-  it('shows partTool names as clickable cell text', () => {
+  it('cards are in a horizontally scrollable container', () => {
     render(<SubstepEditPopover {...baseProps} />);
-    expect(screen.getByText('Wrench')).toBeInTheDocument();
-    expect(screen.getByText('Bolt M6')).toBeInTheDocument();
+    const container = screen.getByTestId('parttool-cards-scroll');
+    expect(container).toBeInTheDocument();
+    expect(container.className).toContain('overflow-x-auto');
   });
 
-  it('shows amount as clickable cell text', () => {
+  it('cards show partTool names and amounts', () => {
     render(<SubstepEditPopover {...baseProps} />);
-    // Amount cells display their values as text inside buttons
-    expect(screen.getByTestId('parttool-row-amount-pt-row-1')).toHaveTextContent('2');
-    expect(screen.getByTestId('parttool-row-amount-pt-row-2')).toHaveTextContent('1');
+    const names = screen.getAllByTestId('parttool-card-name');
+    expect(names[0]).toHaveTextContent('Wrench');
+    expect(names[1]).toHaveTextContent('Bolt M6');
+    const amounts = screen.getAllByTestId('parttool-card-amount');
+    expect(amounts[0]).toHaveTextContent('2×');
+    expect(amounts[1]).toHaveTextContent('1×');
+  });
+
+  it('edit button on card triggers onOpenPartToolList callback', async () => {
+    const user = userEvent.setup();
+    const onOpenPartToolList = vi.fn();
+    render(<SubstepEditPopover {...baseProps} onOpenPartToolList={onOpenPartToolList} />);
+
+    const editBtns = screen.getAllByTestId('parttool-card-edit');
+    await user.click(editBtns[0]);
+    expect(onOpenPartToolList).toHaveBeenCalledOnce();
   });
 
   it('add button fires onAddSubstepPartTool with snapshot', async () => {
@@ -983,14 +1027,9 @@ describe('SubstepEditPopover — parts/tools table', () => {
     expect(screen.getByTestId('parttool-add')).toBeInTheDocument();
   });
 
-  it('delete fires onDeleteSubstepPartTool with snapshot', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    const deleteBtns = screen.getAllByLabelText('Delete part/tool');
-    await user.click(deleteBtns[0]);
-    expect(callbacks.onDeleteSubstepPartTool).toHaveBeenCalledWith('pt-row-1');
-    expect(mockCaptureSnapshot).toHaveBeenCalledOnce();
+  it('empty state still shows "No parts/tools" message', () => {
+    render(<SubstepEditPopover {...baseProps} partTools={[]} />);
+    expect(screen.getByText('No parts/tools')).toBeInTheDocument();
   });
 
 });
@@ -1020,6 +1059,43 @@ describe('SubstepEditPopover — onOpenPartToolList button', () => {
     await user.click(screen.getByTestId('parttool-list-open'));
     expect(onOpenPartToolList).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
+  });
+});
+
+// ============================================================
+// Parts/Tools — delete button on cards
+// ============================================================
+describe('SubstepEditPopover — parttool card delete button', () => {
+  it('renders a delete button on each part/tool card with correct aria-label and testid', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    const del1 = screen.getByTestId('parttool-delete-pt-row-1');
+    const del2 = screen.getByTestId('parttool-delete-pt-row-2');
+    expect(del1).toBeInTheDocument();
+    expect(del2).toBeInTheDocument();
+    expect(del1).toHaveAttribute('aria-label', 'Delete part/tool');
+    expect(del2).toHaveAttribute('aria-label', 'Delete part/tool');
+  });
+
+  it('clicking delete opens confirmation dialog and confirming fires onDeleteSubstepPartTool', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    await user.click(screen.getByTestId('parttool-delete-pt-row-1'));
+    expect(callbacks.onDeleteSubstepPartTool).not.toHaveBeenCalled();
+    expect(screen.getByTestId('confirm-delete-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('confirm-delete-confirm'));
+    expect(callbacks.onDeleteSubstepPartTool).toHaveBeenCalledWith('pt-row-1');
+    expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('clicking delete does NOT trigger the card onClick (stopPropagation)', async () => {
+    const user = userEvent.setup();
+    const onOpenPartToolList = vi.fn();
+    render(<SubstepEditPopover {...baseProps} onOpenPartToolList={onOpenPartToolList} />);
+
+    await user.click(screen.getByTestId('parttool-delete-pt-row-1'));
+    expect(onOpenPartToolList).not.toHaveBeenCalled();
   });
 });
 

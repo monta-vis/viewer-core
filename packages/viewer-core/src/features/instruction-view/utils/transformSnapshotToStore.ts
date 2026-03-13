@@ -315,6 +315,26 @@ export function transformSnapshotToStore(snapshot: InstructionSnapshot): Instruc
         description: si.description,
       }])
     ),
+    variants: Object.fromEntries(
+      Object.values(snapshot.variants ?? {}).map(v => [v.id, {
+        id: v.id,
+        versionId: v.version_id ?? versionId,
+        instructionId: v.instruction_id,
+        title: v.title,
+        description: v.description ?? null,
+        order: v.order ?? 0,
+        videoFrameAreaId: v.video_frame_area_id ?? null,
+      }])
+    ),
+    variantExclusions: Object.fromEntries(
+      Object.values(snapshot.variantExclusions ?? {}).map(ve => [ve.id, {
+        id: ve.id,
+        versionId: ve.version_id ?? versionId,
+        variantId: ve.variant_id,
+        entityType: ve.entity_type,
+        entityId: ve.entity_id,
+      }])
+    ),
   };
 
   // Backfill previewImageId from junction table for old DBs

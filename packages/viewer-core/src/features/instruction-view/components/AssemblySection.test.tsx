@@ -28,6 +28,14 @@ vi.mock('@/components/ui', () => ({
   DialogShell: ({ open, children }: { open: boolean; children: ReactNode }) => (
     open ? <div data-testid="dialog-shell">{children}</div> : null
   ),
+  ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
+    open ? (
+      <div data-testid="confirm-delete-dialog">
+        <button data-testid="confirm-delete-confirm" onClick={() => { onConfirm(); onClose(); }}>Delete</button>
+        <button data-testid="confirm-delete-cancel" onClick={onClose}>Cancel</button>
+      </div>
+    ) : null
+  ),
 }));
 
 vi.mock('./StepOverviewCard', () => ({

@@ -245,6 +245,24 @@ export interface SnapshotSubstepTutorial {
 /** @deprecated Use SnapshotSubstepTutorial */
 export type SnapshotSubstepReference = SnapshotSubstepTutorial;
 
+export interface SnapshotVariant {
+  id: string;
+  version_id: string;
+  instruction_id: string;
+  title: string;
+  description: string | null;
+  order: number;
+  video_frame_area_id?: string | null;
+}
+
+export interface SnapshotVariantExclusion {
+  id: string;
+  version_id: string;
+  variant_id: string;
+  entity_type: 'assembly' | 'step' | 'substep';
+  entity_id: string;
+}
+
 export interface SnapshotPartToolVideoFrameArea {
   id: string;
   part_tool_id: string;
@@ -304,5 +322,7 @@ export interface InstructionSnapshot {
   assemblies?: Record<string, SnapshotAssembly>;
   substepTutorials?: Record<string, SnapshotSubstepTutorial>;
   safetyIcons?: Record<string, SnapshotSafetyIcon>;
+  variants?: Record<string, SnapshotVariant>;
+  variantExclusions?: Record<string, SnapshotVariantExclusion>;
   branding?: Array<{ id: string; primary_color?: string; secondary_color?: string; default_theme?: string }>;
 }

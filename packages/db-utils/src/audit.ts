@@ -24,6 +24,8 @@ export const AUDIT_TABLE_MAP = {
   branding: "branding_audit",
   substep_references: "substep_references_audit",
   substep_tutorials: "substep_tutorials_audit",
+  variants: "variants_audit",
+  variant_exclusions: "variant_exclusions_audit",
 } as const;
 
 export type AuditedTable = keyof typeof AUDIT_TABLE_MAP;

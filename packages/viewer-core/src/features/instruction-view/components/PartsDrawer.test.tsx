@@ -214,26 +214,20 @@ describe('PartsDrawer', () => {
     expect(screen.queryByTestId('detail-modal')).not.toBeInTheDocument();
   });
 
-  it('renders editor via renderPartToolEditor when edit icon is clicked', () => {
-    const renderEditor = vi.fn(({ item, onClose }: { item: AggregatedPartTool; onClose: () => void }) => (
-      <div data-testid="part-editor">{item.partTool.name} <button onClick={onClose}>close</button></div>
-    ));
+  it('calls onEditPartTool with partTool ID when edit icon is clicked', () => {
+    const onEditPartTool = vi.fn();
 
     render(
       <PartsDrawer
         {...defaultProps}
         editMode
-        renderPartToolEditor={renderEditor}
+        onEditPartTool={onEditPartTool}
       />,
     );
 
     // Click the edit pencil on the card
     fireEvent.click(screen.getByTestId('edit-parttool-pt-1'));
 
-    // Editor should be rendered
-    expect(screen.getByTestId('part-editor')).toBeInTheDocument();
-    expect(renderEditor).toHaveBeenCalledWith(
-      expect.objectContaining({ item: mockPart }),
-    );
+    expect(onEditPartTool).toHaveBeenCalledWith('pt-1');
   });
 });

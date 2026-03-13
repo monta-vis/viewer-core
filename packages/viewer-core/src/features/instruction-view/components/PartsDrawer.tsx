@@ -1,5 +1,4 @@
-import type { ReactNode } from 'react';
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, memo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pencil, Box, Ruler } from 'lucide-react';
 import { PartIcon, ToolIcon } from '@/lib/icons';
@@ -62,8 +61,8 @@ interface PartsDrawerProps {
   useRawVideo?: boolean;
   /** Show inline edit controls. Default: false */
   editMode?: boolean;
-  /** Render function for the part/tool editor (provided by editor-core via app shell). */
-  renderPartToolEditor?: (props: { item: AggregatedPartTool; onClose: () => void }) => ReactNode;
+  /** Called when edit icon is clicked on a PartToolCard. Opens the PartToolListPanel with this partTool pre-selected. */
+  onEditPartTool?: (partToolId: string) => void;
   /** Initial step count to show when drawer opens. Default: 1 */
   initialStepCount?: number | 'all' | 'assembly';
   /** Called when a PartToolCard is hovered (id) or unhovered (null). Desktop reverse-highlight. */
@@ -90,7 +89,7 @@ export function PartsDrawer({
   useBlurred,
   useRawVideo = false,
   editMode = false,
-  renderPartToolEditor,
+  onEditPartTool,
   initialStepCount,
   onPartToolHover,
 }: PartsDrawerProps) {
@@ -99,11 +98,6 @@ export function PartsDrawer({
 
   // Selected item for read-only detail modal
   const [selectedItem, setSelectedItem] = useState<AggregatedPartTool | null>(null);
-
-  // Editing item ID for editor render prop (separate from read-only detail).
-  // We store only the ID so that the rendered item always reflects the latest
-  // store data instead of a stale snapshot.
-  const [editingItemId, setEditingItemId] = useState<string | null>(null);
 
   // Whether the step-count filter modal is open
   const [filterModalOpen, setFilterModalOpen] = useState(false);
@@ -155,7 +149,6 @@ export function PartsDrawer({
   if (!isOpen && prevIsOpen) {
     setPrevIsOpen(false);
     setSelectedItem(null);
-    setEditingItemId(null);
   }
 
   // Compute assembly step range for the current step's assembly
@@ -250,7 +243,7 @@ export function PartsDrawer({
                   videoFrameAreas={data?.videoFrameAreas}
                   videos={data?.videos}
                   editMode={editMode}
-                  onEditClick={renderPartToolEditor ? () => setEditingItemId(item.partTool.id) : undefined}
+                  onEditClick={onEditPartTool ? () => onEditPartTool(item.partTool.id) : undefined}
                   onPartToolHover={onPartToolHover}
                 />
               ))}
@@ -276,16 +269,6 @@ export function PartsDrawer({
             : null
         }
       />
-
-      {/* Editor render prop (provided by app shell via editor-core) */}
-      {editingItemId && (() => {
-        const editingItem = allItems.find((i) => i.partTool.id === editingItemId);
-        if (!editingItem) return null;
-        return renderPartToolEditor?.({
-          item: editingItem,
-          onClose: () => setEditingItemId(null),
-        });
-      })()}
 
       {/* Step count filter modal */}
       {filterModalOpen && (
@@ -342,7 +325,7 @@ function PartToolDetail({ partTool }: { partTool: AggregatedPartTool['partTool']
  * - Colored left border (yellow for parts, orange for tools)
  * - Shows substep-specific amount when highlighted
  */
-export function PartToolCard({
+export const PartToolCard = memo(function PartToolCard({
   item,
   onClick,
   highlightedSubstepId,
@@ -506,4 +489,4 @@ export function PartToolCard({
       </div>
     </div>
   );
-}
+});

@@ -235,6 +235,27 @@ export interface PartToolVideoFrameAreaRow {
   isPreviewImage: boolean;
 }
 
+export interface VariantRow {
+  id: string;
+  versionId: string;
+  instructionId: string;
+  title: string;
+  description: string | null;
+  order: number;
+  /** Optional preview image — references a VideoFrameArea. */
+  videoFrameAreaId: string | null;
+}
+
+export type VariantExclusionEntityType = 'assembly' | 'step' | 'substep';
+
+export interface VariantExclusionRow {
+  id: string;
+  versionId: string;
+  variantId: string;
+  entityType: VariantExclusionEntityType;
+  entityId: string;
+}
+
 /**
  * Drawing on a substep image or video section.
  *

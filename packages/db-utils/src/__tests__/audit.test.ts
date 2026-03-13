@@ -25,10 +25,12 @@ describe("AUDIT_TABLE_MAP", () => {
     "branding",
     "substep_references",
     "substep_tutorials",
+    "variants",
+    "variant_exclusions",
   ];
 
-  it("covers all 20 audited tables", () => {
-    expect(Object.keys(AUDIT_TABLE_MAP)).toHaveLength(20);
+  it("covers all 22 audited tables", () => {
+    expect(Object.keys(AUDIT_TABLE_MAP)).toHaveLength(22);
     for (const table of EXPECTED_TABLES) {
       expect(AUDIT_TABLE_MAP).toHaveProperty(table);
     }
