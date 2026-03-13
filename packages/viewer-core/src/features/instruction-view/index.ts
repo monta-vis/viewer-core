@@ -63,6 +63,7 @@ export { applyTranslationsToStore, type TranslationRow } from './utils/applyTran
 export { flattenTranslations } from './utils/flattenTranslations';
 export { getImageDrawings, getVideoDrawings } from './utils/filterSubstepDrawings';
 export { resolvePartToolImageUrl } from './utils/resolvePartToolImageUrl';
+export { resolveAllPartToolImageUrls } from './utils/resolveAllPartToolImageUrls';
 
 // Hooks
 export { useVisibleStep } from './hooks/useVisibleStep';

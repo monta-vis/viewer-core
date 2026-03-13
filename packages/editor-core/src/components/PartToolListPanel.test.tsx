@@ -5,14 +5,6 @@ import { PartToolListPanel, type PartToolListPanelCallbacks, type PartToolListPa
 import type { PartToolIconItem } from './PartToolCatalogGrid';
 import type { PartToolRow } from '@monta-vis/viewer-core';
 
-// Mock react-image-crop
-vi.mock('react-image-crop', () => ({
-  default: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="react-crop">{children}</div>
-  ),
-}));
-vi.mock('react-image-crop/dist/ReactCrop.css', () => ({}));
-
 // Mock viewer-core — provide SearchInput + fuzzySearch for CatalogGrid + PartToolDetailContent
 vi.mock('@monta-vis/viewer-core', async () => {
   const actual = await vi.importActual<Record<string, unknown>>('@monta-vis/viewer-core');
@@ -27,8 +19,8 @@ vi.mock('@monta-vis/viewer-core', async () => {
         .filter((item: PartToolIconItem) => getTerms(item).some((term: string) => term.toLowerCase().includes(q)))
         .map((item: PartToolIconItem) => ({ item, score: 1 }));
     },
-    PartToolDetailContent: ({ item }: { item: { partTool: { name: string } } }) => (
-      <div data-testid="parttool-detail-content">{item.partTool.name}</div>
+    PartToolDetailContent: ({ item, imageUrls }: { item: { partTool: { name: string } }; imageUrls?: string[] }) => (
+      <div data-testid="parttool-detail-content" data-image-urls={imageUrls ? JSON.stringify(imageUrls) : undefined}>{item.partTool.name}</div>
     ),
     ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
       open ? (
@@ -461,6 +453,97 @@ describe('PartToolListPanel — initialEditPartToolId', () => {
 
     expectFieldValue('sidebar-form-name', '');
     expect(screen.queryByTestId('parttool-detail-content')).not.toBeInTheDocument();
+  });
+});
+
+
+describe('PartToolListPanel — sidebar image strip', () => {
+  it('shows image thumbnails in always-visible sidebar strip', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    const getPartToolImages = vi.fn().mockReturnValue([
+      { url: 'img1.png', areaId: 'a1', junctionId: 'j1', isPreview: true },
+      { url: 'img2.png', areaId: 'a2', junctionId: 'j2', isPreview: false },
+    ]);
+    renderPanel({ partTools, getPartToolImages });
+
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+
+    const strip = screen.getByTestId('sidebar-image-strip');
+    expect(strip).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-image-thumb-j1')).toBeInTheDocument();
+    expect(screen.getByTestId('sidebar-image-thumb-j2')).toBeInTheDocument();
+  });
+
+  it('shows empty strip with only "+" card when no images exist', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    const cbs = { ...makeCallbacks(), onUploadImage: vi.fn() };
+    const getPartToolImages = vi.fn().mockReturnValue([]);
+    renderPanel({ partTools, getPartToolImages, callbacks: cbs });
+
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+
+    const strip = screen.getByTestId('sidebar-image-strip');
+    expect(strip).toBeInTheDocument();
+    expect(strip.querySelectorAll('img')).toHaveLength(0);
+    expect(screen.getByTestId('sidebar-image-add')).toBeInTheDocument();
+  });
+
+  it('shows "+" card when onUploadImage callback is provided', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    const cbs = { ...makeCallbacks(), onUploadImage: vi.fn() };
+    const getPartToolImages = vi.fn().mockReturnValue([
+      { url: 'img1.png', areaId: 'a1', junctionId: 'j1', isPreview: true },
+    ]);
+    renderPanel({ partTools, getPartToolImages, callbacks: cbs });
+
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+    expect(screen.getByTestId('sidebar-image-add')).toBeInTheDocument();
+  });
+
+  it('hides "+" card when onUploadImage not provided', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    const getPartToolImages = vi.fn().mockReturnValue([
+      { url: 'img1.png', areaId: 'a1', junctionId: 'j1', isPreview: true },
+    ]);
+    renderPanel({ partTools, getPartToolImages });
+
+    await user.click(screen.getByTestId('parttool-list-row-edit-p1'));
+    expect(screen.queryByTestId('sidebar-image-add')).not.toBeInTheDocument();
+  });
+
+  it('passes imageUrls to detail dialog when multiple images', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    const getPartToolImages = vi.fn().mockReturnValue([
+      { url: 'img1.png', areaId: 'a1', junctionId: 'j1', isPreview: true },
+      { url: 'img2.png', areaId: 'a2', junctionId: 'j2', isPreview: false },
+    ]);
+    renderPanel({ partTools, getPartToolImages });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+
+    const dialog = screen.getByTestId('parttool-detail-dialog');
+    const detail = dialog.querySelector('[data-testid="parttool-detail-content"]');
+    expect(detail?.getAttribute('data-image-urls')).toBe(JSON.stringify(['img1.png', 'img2.png']));
+  });
+
+  it('does not pass imageUrls to detail dialog when ≤1 image', async () => {
+    const user = userEvent.setup();
+    const partTools = { p1: makePt('p1', 'Nut', 'Part') };
+    const getPartToolImages = vi.fn().mockReturnValue([
+      { url: 'img1.png', areaId: 'a1', junctionId: 'j1', isPreview: true },
+    ]);
+    renderPanel({ partTools, getPartToolImages });
+
+    await user.click(screen.getByTestId('parttool-list-row-p1'));
+
+    const dialog = screen.getByTestId('parttool-detail-dialog');
+    const detail = dialog.querySelector('[data-testid="parttool-detail-content"]');
+    expect(detail?.getAttribute('data-image-urls')).toBeNull();
   });
 });
 

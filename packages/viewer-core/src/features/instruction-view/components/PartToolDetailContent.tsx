@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Hash, FileText, Ruler, Box, Scale, Tag } from 'lucide-react';
+import { Hash, FileText, Ruler, Box, Scale, Tag, Images } from 'lucide-react';
 import { PartIcon, ToolIcon } from '@/lib/icons';
 
 import type { AggregatedPartTool } from '../hooks/useFilteredPartsTools';
@@ -31,6 +31,8 @@ interface PartToolDetailContentProps {
   compact?: boolean;
   /** When true, scale down badges and placeholder for smaller containers. */
   compactBadges?: boolean;
+  /** All resolved image URLs; enables thumbnail sidebar when length > 1 */
+  imageUrls?: string[];
 }
 
 /**
@@ -53,8 +55,17 @@ export function PartToolDetailContent({
   previewImageUrl: previewImageUrlProp,
   compact,
   compactBadges: compactBadgesProp,
+  imageUrls,
 }: PartToolDetailContentProps) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(0);
+
+  // Reset thumbnail state when switching between different partTools
+  useEffect(() => {
+    setSelectedIndex(0);
+    setExpanded(false);
+  }, [item.partTool.id]);
 
   const smallBadges = compact || compactBadgesProp;
   const isPart = item.partTool.type === 'Part';
@@ -64,15 +75,21 @@ export function PartToolDetailContent({
     ? t('instructionView.part', 'Part')
     : t('instructionView.tool', 'Tool');
 
-  const resolvedImageUrl = previewImageUrlProp !== undefined
-    ? previewImageUrlProp
-    : resolvePartToolImageUrl(
-        item.partTool.id,
-        folderName,
-        partToolVideoFrameAreas ?? EMPTY_JUNCTIONS,
-        useBlurred,
-        videoFrameAreas,
-      );
+  const hasMultipleImages = imageUrls && imageUrls.length > 1;
+
+  // Resolve hero image URL: multi-image gallery > explicit prop > internal resolution
+  function getResolvedImageUrl(): string | null {
+    if (hasMultipleImages) return imageUrls[selectedIndex];
+    if (previewImageUrlProp !== undefined) return previewImageUrlProp;
+    return resolvePartToolImageUrl(
+      item.partTool.id,
+      folderName,
+      partToolVideoFrameAreas ?? EMPTY_JUNCTIONS,
+      useBlurred,
+      videoFrameAreas,
+    );
+  }
+  const resolvedImageUrl = getResolvedImageUrl();
 
   return (
     <div data-testid="parttool-detail-content">
@@ -114,6 +131,33 @@ export function PartToolDetailContent({
           />
         )}
 
+        {/* Thumbnail strip overlay (left side) */}
+        {hasMultipleImages && (
+          <div
+            data-testid="parttool-image-strip"
+            className={`absolute top-0 left-0 bottom-0 ${smallBadges ? 'w-10' : 'w-14'} bg-black/70 backdrop-blur-sm flex flex-col gap-1.5 p-1.5 overflow-y-auto transition-all duration-200 ease-out ${
+              expanded
+                ? 'translate-x-0 opacity-100'
+                : '-translate-x-full opacity-0 pointer-events-none'
+            }`}
+          >
+            {imageUrls.map((url, index) => (
+              <img
+                key={url}
+                src={url}
+                alt={`${item.partTool.name} ${index + 1}`}
+                className={`aspect-square rounded object-contain cursor-pointer ${
+                  index === selectedIndex
+                    ? 'ring-2'
+                    : 'opacity-70 hover:opacity-100'
+                }`}
+                style={index === selectedIndex ? { '--tw-ring-color': accentColor } as React.CSSProperties : undefined}
+                onClick={() => setSelectedIndex(index)}
+              />
+            ))}
+          </div>
+        )}
+
         {/* Type badge - top left */}
         <div
           data-testid="parttool-detail-type-badge"
@@ -125,6 +169,23 @@ export function PartToolDetailContent({
           <Icon className={smallBadges ? 'w-3 h-3' : 'w-4 h-4'} />
           <span>{typeLabel}</span>
         </div>
+
+        {/* Image toggle badge - bottom left */}
+        {hasMultipleImages && (
+          <button
+            data-testid="parttool-image-toggle"
+            className={smallBadges
+              ? 'absolute bottom-1.5 left-1.5 px-2 py-1 rounded-lg bg-black/70 backdrop-blur-md text-white flex items-center gap-1 cursor-pointer text-xs'
+              : 'absolute bottom-3 left-3 px-3 py-1.5 rounded-lg bg-black/70 backdrop-blur-md text-white flex items-center gap-1.5 cursor-pointer text-sm'}
+            aria-label={expanded
+              ? t('instructionView.hideThumbnails', 'Hide thumbnails')
+              : t('instructionView.showImages', 'Show {{count}} images', { count: imageUrls.length })}
+            onClick={() => setExpanded((prev) => !prev)}
+          >
+            <Images className={smallBadges ? 'w-3 h-3' : 'w-4 h-4'} />
+            <span className="font-medium">{imageUrls.length}</span>
+          </button>
+        )}
 
         {/* Quantity badge - bottom right */}
         <div

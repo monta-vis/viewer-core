@@ -19,7 +19,7 @@ import {
   useTheme,
 } from "@monta-vis/viewer-core";
 import type { InstructionData, InstructionSnapshot, SafetyIconCategory, PartToolRow, DrawingRow, ViewportKeyframeRow } from "@monta-vis/viewer-core";
-import { buildMediaUrl, MediaPaths, DEFAULT_FPS } from "@monta-vis/viewer-core";
+import { buildMediaUrl, MediaPaths, DEFAULT_FPS, resolveFramePath } from "@monta-vis/viewer-core";
 import {
   useEditorStore,
   useAutoSave,
@@ -32,9 +32,9 @@ import {
   type PartToolIconCatalog,
   type PartToolIconItem,
   type NormalizedCrop,
-  type PartToolImageItem,
   type VideoEditorResult,
   type ImageSource,
+  type PartToolImageItem,
 } from "@monta-vis/editor-core";
 import { createElectronAdapter } from "../persistence/electronAdapter";
 
@@ -654,15 +654,30 @@ export function ViewPage() {
   const getPartToolImages = useCallback((partToolId: string): PartToolImageItem[] => {
     const store = useEditorStore.getState();
     const ptvfas = store.data?.partToolVideoFrameAreas ?? {};
-    return Object.values(ptvfas)
-      .filter((j) => j.partToolId === partToolId)
-      .sort((a, b) => a.order - b.order)
-      .map((j) => ({
-        junctionId: j.id,
-        areaId: j.videoFrameAreaId,
-        url: buildMediaUrl(decodedFolderName!, `media/frames/${j.videoFrameAreaId}/image`),
-        isPreview: j.isPreviewImage,
-      }));
+    const areas = Object.values(ptvfas).filter((a) => a.partToolId === partToolId);
+    if (areas.length === 0) return [];
+
+    const sorted = [...areas].sort((a, b) => {
+      if (a.isPreviewImage !== b.isPreviewImage) return a.isPreviewImage ? -1 : 1;
+      return a.order - b.order;
+    });
+
+    const items: PartToolImageItem[] = [];
+    for (const area of sorted) {
+      const areaId = area.videoFrameAreaId;
+      let url: string | null = null;
+      if (decodedFolderName) {
+        const vfaBlurred = store.data?.videoFrameAreas?.[areaId]?.useBlurred;
+        const mediaPath = resolveFramePath(areaId, false, vfaBlurred);
+        url = buildMediaUrl(decodedFolderName, mediaPath);
+      } else {
+        url = store.data?.videoFrameAreas?.[areaId]?.localPath ?? null;
+      }
+      if (url) {
+        items.push({ junctionId: area.id, areaId, url, isPreview: area.isPreviewImage });
+      }
+    }
+    return items;
   }, [decodedFolderName]);
 
   const onSetPreviewImage = useCallback((partToolId: string, junctionId: string, areaId: string) => {
@@ -749,13 +764,6 @@ export function ViewPage() {
     };
   }, [decodedFolderName, adapter, getVersionId]);
 
-  // Image callbacks for PartToolTable (shared by PartToolListPanel + SubstepEditPopover)
-  const imageCallbacks = useMemo(() => ({
-    onUploadImage: onUploadPartToolImage,
-    onDeleteImage: onDeletePartToolImage,
-    onSetPreviewImage,
-  }), [onUploadPartToolImage, onDeletePartToolImage, onSetPreviewImage]);
-
   const partToolListCallbacks = useMemo(() => ({
     onAddPartTool,
     onUpdatePartTool,
@@ -828,8 +836,6 @@ export function ViewPage() {
           folderName={decodedFolderName}
           catalogs={safetyIconCatalogs}
           getPreviewUrl={getPartToolPreviewUrl}
-          getPartToolImages={getPartToolImages}
-          imageCallbacks={imageCallbacks}
           onOpenPartToolList={onOpenPartToolList}
           videoFrameAreaId={videoFrameAreaId}
           versionId={state.data?.currentVersionId ?? ''}
@@ -843,7 +849,7 @@ export function ViewPage() {
         />
       );
     },
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, getPartToolImages, imageCallbacks, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
+    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
   );
 
 
@@ -949,12 +955,10 @@ export function ViewPage() {
                   callbacks={partToolListCallbacks}
                   getPreviewUrl={getPartToolPreviewUrl}
                   getPartToolImages={getPartToolImages}
+                  imageDataVersion={viewerData?.partToolVideoFrameAreas}
                   initialEditPartToolId={editPartToolId}
                   catalogItems={catalogItems.length > 0 ? catalogItems : undefined}
                   getCatalogIconUrl={catalogItems.length > 0 ? getCatalogIconUrl : undefined}
-                  folderName={decodedFolderName}
-                  partToolVideoFrameAreas={viewerData?.partToolVideoFrameAreas}
-                  videoFrameAreas={viewerData?.videoFrameAreas}
                 />
               )}
             </ViewerDataProvider>

@@ -21,10 +21,8 @@ import { useSessionHistory } from '../hooks/useSessionHistory';
 import { ImageCropDialog } from './ImageCropDialog';
 import { ImageEditDialog } from './ImageEditDialog';
 import type { NormalizedCrop } from '../persistence/types';
-import type { PartToolTableImageCallbacks } from './PartToolTable';
 import { PartToolDetailContent } from '@monta-vis/viewer-core';
 import type { AggregatedPartTool } from '@monta-vis/viewer-core';
-import type { PartToolImageItem } from './PartToolImagePicker';
 import { PreviewImageUploadButton } from './PreviewImageUploadButton';
 import { VideoTrimDialog } from './VideoTrimDialog';
 import { SectionCard } from './SectionCard';
@@ -72,10 +70,6 @@ export interface SubstepEditPopoverProps {
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
   /** Resolve a partTool ID to a thumbnail URL (or null). */
   getPreviewUrl?: (partToolId: string) => string | null;
-  /** Resolve all images for a partTool (for image picker gallery). */
-  getPartToolImages?: (partToolId: string) => PartToolImageItem[];
-  /** Image upload/delete/set-preview callbacks (enables thumbnail interaction). */
-  imageCallbacks?: PartToolTableImageCallbacks;
   /** Called when the user picks + crops a new substep image via the edit-image pencil. */
   onUploadSubstepImage?: (file: File, crop: NormalizedCrop) => void;
   /** Opens the instruction-wide PartTool list editor (PartToolListPanel). */
@@ -157,6 +151,77 @@ interface RepeatModalState {
 
 /* ── Class constants ── */
 const ROW_CLASS = 'flex items-center gap-3 px-3 py-2 text-lg text-[var(--color-text-base)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors';
+
+/** Shared inline form for editing or adding a note (icon picker + text + save/cancel). */
+function NoteInlineForm({
+  testId,
+  textBtnTestId,
+  pickerTestId,
+  editState,
+  icons,
+  getIconUrl,
+  folderName,
+  t,
+  onTextClick,
+  onIconSelect,
+  onCancel,
+  onSave,
+}: {
+  testId: string;
+  textBtnTestId: string;
+  pickerTestId: string;
+  editState: NoteEditState | NoteAddState;
+  icons: ReturnType<typeof buildIconList>;
+  getIconUrl: (icon: Parameters<typeof getIconUrlUtil>[0]) => string;
+  folderName?: string;
+  t: ReturnType<typeof useTranslation>['t'];
+  onTextClick: () => void;
+  onIconSelect: (icon: { id: string; category: string; catalogDirName?: string | null; filename: string }) => void;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const iconUrl = editState.selectedIconId
+    ? resolveNoteIconUrl(editState.selectedIconId, icons, getIconUrl, folderName)
+    : null;
+
+  return (
+    <div className="flex flex-col gap-2 px-2 py-1.5" data-testid={testId}>
+      <div className="flex items-center gap-2">
+        {iconUrl ? (
+          <img src={iconUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
+        ) : (
+          <StickyNote className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
+        )}
+        <button
+          type="button"
+          data-testid={textBtnTestId}
+          className="flex-1 min-w-0 text-left text-lg truncate cursor-pointer hover:bg-[var(--color-bg-hover)] rounded px-1 transition-colors"
+          onClick={onTextClick}
+        >
+          <span className={editState.text ? 'text-[var(--color-text-base)]' : 'text-[var(--color-text-muted)]'}>
+            {editState.text || t('editorCore.enterNote', 'Enter note...')}
+          </span>
+        </button>
+      </div>
+      <div data-testid={pickerTestId}>
+        <SafetyIconPicker
+          icons={icons}
+          getIconUrl={getIconUrl}
+          selectedIconId={editState.selectedIconId}
+          onSelect={onIconSelect}
+        />
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" size="sm" data-testid="note-cancel-btn" onClick={onCancel}>
+          {t('common.cancel', 'Cancel')}
+        </Button>
+        <Button variant="primary" size="sm" data-testid="note-save-btn" onClick={onSave}>
+          {t('common.save', 'Save')}
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 export function SubstepEditPopover({
   open,
@@ -780,49 +845,22 @@ export function SubstepEditPopover({
                       const isEditing = editState?.kind === 'edit-note' && editState.noteRowId === noteRow.id;
 
                       if (isEditing) {
-                        const editIconUrl = editState.selectedIconId
-                          ? resolveNoteIconUrl(editState.selectedIconId, icons, getIconUrl, folderName)
-                          : null;
                         return (
-                          <div
+                          <NoteInlineForm
                             key={noteRow.id}
-                            className="flex flex-col gap-2 px-2 py-1.5"
-                            data-testid={`popover-note-${noteRow.id}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              {editIconUrl ? (
-                                <img src={editIconUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
-                              ) : (
-                                <StickyNote className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-                              )}
-                              <button
-                                type="button"
-                                data-testid={`note-text-btn-${noteRow.id}`}
-                                className="flex-1 min-w-0 text-left text-lg truncate cursor-pointer hover:bg-[var(--color-bg-hover)] rounded px-1 transition-colors"
-                                onClick={openNoteTextModal}
-                              >
-                                <span className={editState.text ? 'text-[var(--color-text-base)]' : 'text-[var(--color-text-muted)]'}>
-                                  {editState.text || t('editorCore.enterNote', 'Enter note...')}
-                                </span>
-                              </button>
-                            </div>
-                            <div data-testid="inline-icon-picker">
-                              <SafetyIconPicker
-                                icons={icons}
-                                getIconUrl={getIconUrl}
-                                selectedIconId={editState.selectedIconId}
-                                onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
-                              />
-                            </div>
-                            <div className="flex justify-end gap-2">
-                              <Button variant="ghost" size="sm" data-testid="note-cancel-btn" onClick={() => setEditState(null)}>
-                                {t('common.cancel', 'Cancel')}
-                              </Button>
-                              <Button variant="primary" size="sm" data-testid="note-save-btn" onClick={saveNoteEdit}>
-                                {t('common.save', 'Save')}
-                              </Button>
-                            </div>
-                          </div>
+                            testId={`popover-note-${noteRow.id}`}
+                            textBtnTestId={`note-text-btn-${noteRow.id}`}
+                            pickerTestId="inline-icon-picker"
+                            editState={editState}
+                            icons={icons}
+                            getIconUrl={getIconUrl}
+                            folderName={folderName}
+                            t={t}
+                            onTextClick={openNoteTextModal}
+                            onIconSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
+                            onCancel={() => setEditState(null)}
+                            onSave={saveNoteEdit}
+                          />
                         );
                       }
 
@@ -854,51 +892,22 @@ export function SubstepEditPopover({
                     })}
 
                     {/* Inline add note */}
-                    {editState?.kind === 'add-note' && (() => {
-                      const addIconUrl = editState.selectedIconId
-                        ? resolveNoteIconUrl(editState.selectedIconId, icons, getIconUrl, folderName)
-                        : null;
-                      return (
-                        <div
-                          className="flex flex-col gap-2 px-2 py-1.5"
-                          data-testid="inline-add-note"
-                        >
-                          <div className="flex items-center gap-2">
-                            {addIconUrl ? (
-                              <img src={addIconUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
-                            ) : (
-                              <StickyNote className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-                            )}
-                            <button
-                              type="button"
-                              data-testid="note-text-btn-add"
-                              className="flex-1 min-w-0 text-left text-lg truncate cursor-pointer hover:bg-[var(--color-bg-hover)] rounded px-1 transition-colors"
-                              onClick={openNoteTextModal}
-                            >
-                              <span className={editState.text ? 'text-[var(--color-text-base)]' : 'text-[var(--color-text-muted)]'}>
-                                {editState.text || t('editorCore.enterNote', 'Enter note...')}
-                              </span>
-                            </button>
-                          </div>
-                          <div data-testid="inline-icon-picker-add">
-                            <SafetyIconPicker
-                              icons={icons}
-                              getIconUrl={getIconUrl}
-                              selectedIconId={editState.selectedIconId}
-                              onSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
-                            />
-                          </div>
-                          <div className="flex justify-end gap-2">
-                            <Button variant="ghost" size="sm" data-testid="note-cancel-btn" onClick={() => setEditState(null)}>
-                              {t('common.cancel', 'Cancel')}
-                            </Button>
-                            <Button variant="primary" size="sm" data-testid="note-save-btn" onClick={saveNoteEdit}>
-                              {t('common.save', 'Save')}
-                            </Button>
-                          </div>
-                        </div>
-                      );
-                    })()}
+                    {editState?.kind === 'add-note' && (
+                      <NoteInlineForm
+                        testId="inline-add-note"
+                        textBtnTestId="note-text-btn-add"
+                        pickerTestId="inline-icon-picker-add"
+                        editState={editState}
+                        icons={icons}
+                        getIconUrl={getIconUrl}
+                        folderName={folderName}
+                        t={t}
+                        onTextClick={openNoteTextModal}
+                        onIconSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
+                        onCancel={() => setEditState(null)}
+                        onSave={saveNoteEdit}
+                      />
+                    )}
                   </>
                 ) : undefined}
               </SectionCard>

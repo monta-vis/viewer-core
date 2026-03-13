@@ -1,44 +1,14 @@
-import React from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { PartToolTable, type PartToolTableCallbacks, type PartToolTableItem } from './PartToolTable';
 import type { PartToolRow } from '@monta-vis/viewer-core';
 
-// Mock react-image-crop
-vi.mock('react-image-crop', () => ({
-  default: ({ children }: { children: React.ReactNode }) => (
-    <div data-testid="react-crop">{children}</div>
-  ),
-}));
-vi.mock('react-image-crop/dist/ReactCrop.css', () => ({}));
-
-// Track TextInputModal instances for testing
-let textInputModalProps: {
-  label: string; value: string; inputType?: string;
-  onConfirm: (v: string) => void; onCancel: () => void;
-} | null = null;
-
-// Mock viewer-core useMenuClose (used by PartToolImagePicker) + TextInputModal
+// Mock viewer-core — only ConfirmDeleteDialog needed now
 vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
-    useMenuClose: vi.fn(),
-    TextInputModal: ({ label, value, inputType, onConfirm, onCancel }: {
-      label: string; value: string; inputType?: string;
-      onConfirm: (v: string) => void; onCancel: () => void;
-    }) => {
-      textInputModalProps = { label, value, inputType, onConfirm, onCancel };
-      return (
-        <div data-testid="text-input-modal">
-          <span data-testid="text-input-modal-label">{label}</span>
-          <span data-testid="text-input-modal-value">{value}</span>
-          <button data-testid="text-input-modal-confirm" onClick={() => onConfirm(value)}>Confirm</button>
-          <button data-testid="text-input-modal-cancel" onClick={() => onCancel()}>Cancel</button>
-        </div>
-      );
-    },
     ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
       open ? (
         <div data-testid="confirm-delete-dialog">
@@ -50,10 +20,7 @@ vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
   };
 });
 
-afterEach(() => {
-  cleanup();
-  textInputModalProps = null;
-});
+afterEach(cleanup);
 
 // Mock react-i18next
 vi.mock('react-i18next', () => ({
@@ -113,9 +80,15 @@ describe('PartToolTable', () => {
     expect(screen.getByTestId('parttool-row-spt-2')).toBeInTheDocument();
   });
 
-  it('shows cell buttons with partTool values', () => {
+  it('renders all cell values as read-only spans', () => {
     const rows = [makeRow('1', 'Wrench', 'Tool', 3, { partNumber: 'PN-99', material: 'Steel', dimension: '10mm', unit: 'pcs' })];
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
+
+    const fields = ['name', 'partNumber', 'amount', 'material', 'dimension', 'unit'] as const;
+    for (const field of fields) {
+      const el = screen.getByTestId(`parttool-row-${field}-spt-1`);
+      expect(el.tagName).toBe('SPAN');
+    }
 
     expect(screen.getByTestId('parttool-row-name-spt-1')).toHaveTextContent('Wrench');
     expect(screen.getByTestId('parttool-row-partNumber-spt-1')).toHaveTextContent('PN-99');
@@ -125,48 +98,12 @@ describe('PartToolTable', () => {
     expect(screen.getByTestId('parttool-row-unit-spt-1')).toHaveTextContent('pcs');
   });
 
-  it('type toggle fires onUpdatePartTool with toggled type', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
+  it('type column is always a read-only span with icon', () => {
     const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={cbs} />);
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
 
-    const toggle = screen.getByTestId('parttool-row-type-spt-1');
-    await user.click(toggle);
-    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { type: 'Part' });
-  });
-
-  it('name change via TextInputModal fires onUpdatePartTool on confirm', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={cbs} />);
-
-    // Click name cell to open modal
-    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
-    expect(textInputModalProps).not.toBeNull();
-    expect(textInputModalProps!.value).toBe('Wrench');
-
-    // Confirm with new value
-    textInputModalProps!.onConfirm('Hammer');
-    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { name: 'Hammer' });
-  });
-
-  it('amount change via TextInputModal fires onUpdateAmount on confirm', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 2)];
-    render(<PartToolTable rows={rows} callbacks={cbs} />);
-
-    // Click amount cell to open modal
-    await user.click(screen.getByTestId('parttool-row-amount-spt-1'));
-    expect(textInputModalProps).not.toBeNull();
-    expect(textInputModalProps!.value).toBe('2');
-    expect(textInputModalProps!.inputType).toBe('number');
-
-    // Confirm with new value
-    textInputModalProps!.onConfirm('5');
-    expect(cbs.onUpdateAmount).toHaveBeenCalledWith('spt-1', 5);
+    const typeCell = screen.getByTestId('parttool-row-type-spt-1');
+    expect(typeCell.tagName).toBe('SPAN');
   });
 
   it('delete button opens confirmation dialog', async () => {
@@ -202,35 +139,28 @@ describe('PartToolTable', () => {
     expect(cbs.onDelete).not.toHaveBeenCalled();
   });
 
+  it('delete click does not trigger row click', async () => {
+    const user = userEvent.setup();
+    const onRowClick = vi.fn();
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} onRowClick={onRowClick} />);
+
+    await user.click(screen.getByTestId('parttool-row-delete-spt-1'));
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
   it('shows red text on empty name', () => {
     const rows = [makeRow('1', '', 'Part', 1)];
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
 
-    const nameBtn = screen.getByTestId('parttool-row-name-spt-1');
-    expect(nameBtn.className).toContain('text-red');
+    const nameEl = screen.getByTestId('parttool-row-name-spt-1');
+    expect(nameEl.className).toContain('text-red');
   });
 
   it('renders empty table when no rows', () => {
     render(<PartToolTable rows={[]} callbacks={makeCallbacks()} />);
     expect(screen.getByTestId('parttool-table')).toBeInTheDocument();
-    expect(screen.queryAllByTestId(/^parttool-row-/)).toHaveLength(0);
-  });
-
-  it('description column renders and edits via TextInputModal', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1, { description: 'A wrench' })];
-    render(<PartToolTable rows={rows} callbacks={cbs} />);
-
-    const descBtn = screen.getByTestId('parttool-row-description-spt-1');
-    expect(descBtn).toHaveTextContent('A wrench');
-
-    await user.click(descBtn);
-    expect(textInputModalProps).not.toBeNull();
-    expect(textInputModalProps!.value).toBe('A wrench');
-
-    textInputModalProps!.onConfirm('Big wrench');
-    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { description: 'Big wrench' });
+    expect(screen.queryAllByTestId(/^parttool-row-spt-/)).toHaveLength(0);
   });
 
   it('used column renders computed amount', () => {
@@ -281,20 +211,7 @@ describe('PartToolTable', () => {
     expect(img).toHaveAttribute('src', 'http://example.com/img.jpg');
   });
 
-  it('shows upload button when getPreviewUrl returns null and imageCallbacks provided', () => {
-    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
-    render(
-      <PartToolTable
-        rows={rows}
-        callbacks={makeCallbacks()}
-        getPreviewUrl={() => null}
-        imageCallbacks={{ onUploadImage: vi.fn() }}
-      />,
-    );
-    expect(screen.getByTestId('parttool-row-upload-spt-1')).toBeInTheDocument();
-  });
-
-  it('shows fallback placeholder when getPreviewUrl returns null and no imageCallbacks', () => {
+  it('shows placeholder when getPreviewUrl returns null', () => {
     const rows = [makeRow('1', 'Bolt', 'Part', 1)];
     render(
       <PartToolTable
@@ -303,215 +220,13 @@ describe('PartToolTable', () => {
         getPreviewUrl={() => null}
       />,
     );
-    // No upload button, no thumbnail — just the placeholder div
     expect(screen.queryByTestId('parttool-row-thumbnail-spt-1')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('parttool-row-upload-spt-1')).not.toBeInTheDocument();
-  });
-
-  it('shows delete-image overlay when imageCallbacks.onDeleteImage provided', () => {
-    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
-    render(
-      <PartToolTable
-        rows={rows}
-        callbacks={makeCallbacks()}
-        getPreviewUrl={() => 'http://example.com/img.jpg'}
-        imageCallbacks={{ onUploadImage: vi.fn(), onDeleteImage: vi.fn() }}
-      />,
-    );
-    expect(screen.getByTestId('parttool-row-delete-image-spt-1')).toBeInTheDocument();
   });
 
   it('does not show thumbnail column when getPreviewUrl not provided', () => {
     const rows = [makeRow('1', 'Bolt', 'Part', 1)];
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
     expect(screen.queryByTestId('parttool-row-thumbnail-spt-1')).not.toBeInTheDocument();
-    expect(screen.queryByTestId('parttool-row-upload-spt-1')).not.toBeInTheDocument();
-  });
-
-  // ── Image Picker integration ──
-
-  it('thumbnail click opens image picker when getPartToolImages provided', async () => {
-    const user = userEvent.setup();
-    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
-    const getPartToolImages = vi.fn().mockReturnValue([
-      { junctionId: 'j-1', areaId: 'a-1', url: 'http://example.com/img.jpg', isPreview: true },
-    ]);
-    render(
-      <PartToolTable
-        rows={rows}
-        callbacks={makeCallbacks()}
-        getPreviewUrl={() => 'http://example.com/img.jpg'}
-        imageCallbacks={{ onUploadImage: vi.fn(), onSetPreviewImage: vi.fn() }}
-        getPartToolImages={getPartToolImages}
-      />,
-    );
-
-    // Picker not open yet
-    expect(screen.queryByTestId('picker-add-image')).not.toBeInTheDocument();
-
-    // Click thumbnail
-    const thumbnail = screen.getByTestId('parttool-row-thumbnail-spt-1');
-    await user.click(thumbnail);
-
-    // Picker is now open
-    expect(screen.getByTestId('picker-add-image')).toBeInTheDocument();
-  });
-
-  it('image picker select calls onSetPreviewImage and closes picker', async () => {
-    const user = userEvent.setup();
-    const onSetPreviewImage = vi.fn();
-    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
-    const getPartToolImages = vi.fn().mockReturnValue([
-      { junctionId: 'j-1', areaId: 'a-1', url: 'http://example.com/img1.jpg', isPreview: true },
-      { junctionId: 'j-2', areaId: 'a-2', url: 'http://example.com/img2.jpg', isPreview: false },
-    ]);
-    render(
-      <PartToolTable
-        rows={rows}
-        callbacks={makeCallbacks()}
-        getPreviewUrl={() => 'http://example.com/img1.jpg'}
-        imageCallbacks={{ onUploadImage: vi.fn(), onSetPreviewImage }}
-        getPartToolImages={getPartToolImages}
-      />,
-    );
-
-    // Open picker
-    await user.click(screen.getByTestId('parttool-row-thumbnail-spt-1'));
-
-    // Select second image
-    await user.click(screen.getByTestId('picker-image-j-2'));
-    expect(onSetPreviewImage).toHaveBeenCalledWith('pt-1', 'j-2', 'a-2');
-
-    // Picker should be closed
-    expect(screen.queryByTestId('picker-add-image')).not.toBeInTheDocument();
-  });
-
-  // ── onOpenPartToolList integration ──
-
-  it('clicking catalog field (name) calls onOpenPartToolList when provided', async () => {
-    const user = userEvent.setup();
-    const onOpenPartToolList = vi.fn();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} onOpenPartToolList={onOpenPartToolList} />);
-
-    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
-    expect(onOpenPartToolList).toHaveBeenCalledOnce();
-    expect(textInputModalProps).toBeNull(); // no modal opened
-  });
-
-  it('clicking catalog field (label) calls onOpenPartToolList when provided', async () => {
-    const user = userEvent.setup();
-    const onOpenPartToolList = vi.fn();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1, { label: 'W1' })];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} onOpenPartToolList={onOpenPartToolList} />);
-
-    await user.click(screen.getByTestId('parttool-row-label-spt-1'));
-    expect(onOpenPartToolList).toHaveBeenCalledOnce();
-  });
-
-  it('clicking catalog field (partNumber) calls onOpenPartToolList when provided', async () => {
-    const user = userEvent.setup();
-    const onOpenPartToolList = vi.fn();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1, { partNumber: 'PN-1' })];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} onOpenPartToolList={onOpenPartToolList} />);
-
-    await user.click(screen.getByTestId('parttool-row-partNumber-spt-1'));
-    expect(onOpenPartToolList).toHaveBeenCalledOnce();
-  });
-
-  it('clicking catalog field without onOpenPartToolList opens TextInputModal', async () => {
-    const user = userEvent.setup();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
-
-    await user.click(screen.getByTestId('parttool-row-name-spt-1'));
-    expect(textInputModalProps).not.toBeNull();
-    expect(textInputModalProps!.value).toBe('Wrench');
-  });
-
-  it('clicking non-catalog fields opens TextInputModal even with onOpenPartToolList', async () => {
-    const user = userEvent.setup();
-    const onOpenPartToolList = vi.fn();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1, { unit: 'pcs', material: 'Steel', dimension: '10mm', description: 'Desc' })];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} onOpenPartToolList={onOpenPartToolList} />);
-
-    for (const field of ['unit', 'material', 'dimension', 'description'] as const) {
-      await user.click(screen.getByTestId(`parttool-row-${field}-spt-1`));
-      expect(textInputModalProps).not.toBeNull();
-      expect(onOpenPartToolList).not.toHaveBeenCalled();
-      textInputModalProps!.onCancel();
-      textInputModalProps = null;
-    }
-  });
-
-  it('image picker add triggers file input flow', async () => {
-    const user = userEvent.setup();
-    const rows = [makeRow('1', 'Bolt', 'Part', 1)];
-    const getPartToolImages = vi.fn().mockReturnValue([]);
-    render(
-      <PartToolTable
-        rows={rows}
-        callbacks={makeCallbacks()}
-        getPreviewUrl={() => null}
-        imageCallbacks={{ onUploadImage: vi.fn() }}
-        getPartToolImages={getPartToolImages}
-      />,
-    );
-
-    // Open picker
-    await user.click(screen.getByTestId('parttool-row-thumbnail-spt-1'));
-
-    // Click add button
-    await user.click(screen.getByTestId('picker-add-image'));
-
-    // Picker should close (file input triggered)
-    expect(screen.queryByTestId('picker-add-image')).not.toBeInTheDocument();
-  });
-
-  // ── readOnly mode ──
-
-  it('readOnly: renders cells as plain text, not buttons', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 2, { partNumber: 'PN-99', unit: 'pcs' })];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} readOnly />);
-
-    // Name cell should be a span, not a button
-    const nameCell = screen.getByTestId('parttool-row-name-spt-1');
-    expect(nameCell.tagName).toBe('SPAN');
-    expect(nameCell).toHaveTextContent('Wrench');
-
-    // Amount cell should also be a span
-    const amountCell = screen.getByTestId('parttool-row-amount-spt-1');
-    expect(amountCell.tagName).toBe('SPAN');
-    expect(amountCell).toHaveTextContent('2');
-  });
-
-  it('readOnly: hides delete button', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} readOnly />);
-    expect(screen.queryByTestId('parttool-row-delete-spt-1')).not.toBeInTheDocument();
-  });
-
-  it('readOnly: hides delete column header', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    const { container, unmount } = render(<PartToolTable rows={rows} callbacks={makeCallbacks()} readOnly />);
-    const readOnlyHeaderCount = container.querySelectorAll('th').length;
-    unmount();
-
-    const { container: c2 } = render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
-    const normalHeaderCount = c2.querySelectorAll('th').length;
-    // readOnly should have one fewer header (the delete column)
-    expect(readOnlyHeaderCount).toBe(normalHeaderCount - 1);
-  });
-
-  it('readOnly: type toggle is disabled (not clickable)', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={cbs} readOnly />);
-
-    // Type should be a span, not a button
-    const typeCell = screen.getByTestId('parttool-row-type-spt-1');
-    expect(typeCell.tagName).toBe('SPAN');
   });
 
   // ── onRowClick ──
@@ -546,167 +261,48 @@ describe('PartToolTable', () => {
     const unselected = screen.getByTestId('parttool-row-spt-2');
     expect(unselected.className).not.toContain('bg-[var(--color-bg-selected)]');
   });
-
-  it('defaults unchanged: non-readOnly renders buttons and delete', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} />);
-
-    // Name should be a button
-    const nameCell = screen.getByTestId('parttool-row-name-spt-1');
-    expect(nameCell.tagName).toBe('BUTTON');
-
-    // Delete should exist
-    expect(screen.getByTestId('parttool-row-delete-spt-1')).toBeInTheDocument();
-  });
-
-  // ── editingRowId (inline editing) ──
-
-  it('editingRowId: matching row renders EditInput fields', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 2, { label: 'W1', partNumber: 'PN-1', unit: 'pcs', material: 'Steel', dimension: '10mm', description: 'Desc' })];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} editingRowId="spt-1" />);
-
-    // All editable fields should be input elements
-    for (const field of ['label', 'name', 'partNumber', 'amount', 'unit', 'material', 'dimension', 'description']) {
-      const el = screen.getByTestId(`parttool-row-${field}-spt-1`);
-      expect(el.tagName).toBe('INPUT');
-    }
-  });
-
-  it('editingRowId: non-matching rows render as read-only spans', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1), makeRow('2', 'Bolt', 'Part', 2)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} editingRowId="spt-1" />);
-
-    // Row 2 (non-editing) should have spans
-    const nameCell = screen.getByTestId('parttool-row-name-spt-2');
-    expect(nameCell.tagName).toBe('SPAN');
-  });
-
-  it('editingRowId: blur with changed value fires onUpdatePartTool', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={cbs} editingRowId="spt-1" />);
-
-    const nameInput = screen.getByTestId('parttool-row-name-spt-1');
-    await user.clear(nameInput);
-    await user.type(nameInput, 'Hammer');
-    await user.tab(); // blur
-
-    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { name: 'Hammer' });
-  });
-
-  it('editingRowId: blur with unchanged value does NOT fire callback', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={cbs} editingRowId="spt-1" />);
-
-    const nameInput = screen.getByTestId('parttool-row-name-spt-1');
-    // Focus and blur without changing
-    await user.click(nameInput);
-    await user.tab();
-
-    expect(cbs.onUpdatePartTool).not.toHaveBeenCalled();
-  });
-
-  it('editingRowId: amount blur fires onUpdateAmount with parsed number', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 2)];
-    render(<PartToolTable rows={rows} callbacks={cbs} editingRowId="spt-1" />);
-
-    const amountInput = screen.getByTestId('parttool-row-amount-spt-1') as HTMLInputElement;
-    // Focus, select all, replace
-    await user.click(amountInput);
-    await user.keyboard('{Control>}a{/Control}');
-    await user.keyboard('5');
-    await user.tab();
-
-    expect(cbs.onUpdateAmount).toHaveBeenCalledWith('spt-1', 5);
-  });
-
-  it('editingRowId: type toggle works in editing row', async () => {
-    const user = userEvent.setup();
-    const cbs = makeCallbacks();
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={cbs} editingRowId="spt-1" />);
-
-    const toggle = screen.getByTestId('parttool-row-type-spt-1');
-    await user.click(toggle);
-    expect(cbs.onUpdatePartTool).toHaveBeenCalledWith('pt-1', { type: 'Part' });
-  });
-
-  it('editingRowId: delete button visible on editing row', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} editingRowId="spt-1" />);
-    expect(screen.getByTestId('parttool-row-delete-spt-1')).toBeInTheDocument();
-  });
-
-  // ── addRow ──
-
-  it('addRow: renders empty editable row at top of tbody', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    const addRow = {
-      values: { type: 'Part' as const, label: '', name: '', partNumber: '', amount: 1, unit: '', material: '', dimension: '', description: '' },
-      onChange: vi.fn(),
-      onConfirm: vi.fn(),
-      canConfirm: false,
-    };
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} addRow={addRow} />);
-
-    const addRowEl = screen.getByTestId('parttool-add-row');
-    expect(addRowEl).toBeInTheDocument();
-    // Add row should be first in tbody (before the data rows)
-    const tbody = addRowEl.closest('tbody')!;
-    expect(tbody.children[0]).toBe(addRowEl);
-  });
-
-  it('addRow: confirm button calls onConfirm', async () => {
-    const user = userEvent.setup();
-    const onConfirm = vi.fn();
-    const addRow = {
-      values: { type: 'Part' as const, label: '', name: 'Bolt', partNumber: '', amount: 1, unit: '', material: '', dimension: '', description: '' },
-      onChange: vi.fn(),
-      onConfirm,
-      canConfirm: true,
-    };
-    render(<PartToolTable rows={[]} callbacks={makeCallbacks()} addRow={addRow} />);
-
-    await user.click(screen.getByTestId('parttool-add-confirm'));
-    expect(onConfirm).toHaveBeenCalledOnce();
-  });
-
-  it('addRow: confirm button disabled when canConfirm=false', () => {
-    const addRow = {
-      values: { type: 'Part' as const, label: '', name: '', partNumber: '', amount: 1, unit: '', material: '', dimension: '', description: '' },
-      onChange: vi.fn(),
-      onConfirm: vi.fn(),
-      canConfirm: false,
-    };
-    render(<PartToolTable rows={[]} callbacks={makeCallbacks()} addRow={addRow} />);
-
-    expect(screen.getByTestId('parttool-add-confirm')).toBeDisabled();
-  });
 });
 
 describe('PartToolTable — compact mode', () => {
-  it('compact mode renders only 5 column headers (thumbnail, type, name, part#, amount)', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 2, { label: 'W1', partNumber: 'PN-1' })];
+  it('compact mode renders 6 column headers with edit icon (thumbnail, type, name, part#, amount, action)', () => {
+    const rows = [makeRow('1', 'Wrench', 'Tool', 2)];
+    const { container } = render(
+      <PartToolTable rows={rows} callbacks={makeCallbacks()} compact getPreviewUrl={() => null} onEditClick={vi.fn()} />,
+    );
+    const headers = container.querySelectorAll('th');
+    // 6 columns: Img, Type, Name, Part#, Amt, Action (edit)
+    expect(headers).toHaveLength(6);
+  });
+
+  it('compact mode without onEditClick renders 5 headers (no action column)', () => {
+    const rows = [makeRow('1', 'Wrench', 'Tool', 2)];
     const { container } = render(
       <PartToolTable rows={rows} callbacks={makeCallbacks()} compact getPreviewUrl={() => null} />,
     );
     const headers = container.querySelectorAll('th');
-    // 5 columns: Img, Type, Name, Part#, Amt
     expect(headers).toHaveLength(5);
   });
 
-  it('compact mode does not render action column', () => {
+  it('compact mode shows edit icon instead of delete', () => {
     const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} compact />);
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} compact onEditClick={vi.fn()} />);
+    expect(screen.getByTestId('parttool-row-edit-spt-1')).toBeInTheDocument();
     expect(screen.queryByTestId('parttool-row-delete-spt-1')).not.toBeInTheDocument();
   });
 
-  it('compact mode rows are read-only (spans not buttons)', () => {
+  it('compact mode edit click fires onEditClick and does not trigger row click', async () => {
+    const user = userEvent.setup();
+    const onEditClick = vi.fn();
+    const onRowClick = vi.fn();
+    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
+    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} compact onEditClick={onEditClick} onRowClick={onRowClick} />);
+
+    await user.click(screen.getByTestId('parttool-row-edit-spt-1'));
+    expect(onEditClick).toHaveBeenCalledWith(rows[0]);
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it('compact mode renders cells as read-only spans', () => {
     const rows = [makeRow('1', 'Wrench', 'Tool', 2, { partNumber: 'PN-99' })];
     render(<PartToolTable rows={rows} callbacks={makeCallbacks()} compact />);
 
@@ -726,25 +322,5 @@ describe('PartToolTable — compact mode', () => {
     expect(screen.queryByTestId('parttool-row-material-spt-1')).not.toBeInTheDocument();
     expect(screen.queryByTestId('parttool-row-dimension-spt-1')).not.toBeInTheDocument();
     expect(screen.queryByTestId('parttool-row-description-spt-1')).not.toBeInTheDocument();
-  });
-
-  it('compact mode ignores editingRowId (all rows read-only)', () => {
-    const rows = [makeRow('1', 'Wrench', 'Tool', 1)];
-    render(<PartToolTable rows={rows} callbacks={makeCallbacks()} compact editingRowId="spt-1" />);
-
-    const nameCell = screen.getByTestId('parttool-row-name-spt-1');
-    expect(nameCell.tagName).toBe('SPAN');
-  });
-
-  it('compact mode ignores addRow', () => {
-    const addRow = {
-      values: { type: 'Part' as const, label: '', name: 'Bolt', partNumber: '', amount: 1, unit: '', material: '', dimension: '', description: '' },
-      onChange: vi.fn(),
-      onConfirm: vi.fn(),
-      canConfirm: true,
-    };
-    render(<PartToolTable rows={[]} callbacks={makeCallbacks()} compact addRow={addRow} />);
-
-    expect(screen.queryByTestId('parttool-add-row')).not.toBeInTheDocument();
   });
 });

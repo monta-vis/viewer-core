@@ -72,14 +72,12 @@ export { SafetyIconPicker, type SafetyIconPickerProps, type SafetyIconItem } fro
 // NoteEditDialog (note editing with safety icon picker)
 export { NoteEditDialog, type NoteEditDialogProps } from './components/NoteEditDialog';
 
-// PartToolTable (inline-editable table for partTools — shared by SubstepEditPopover + PartToolListPanel)
+// PartToolTable (read-only table for partTools — shared by SubstepEditPopover + PartToolListPanel)
 export {
   PartToolTable,
   type PartToolTableProps,
   type PartToolTableCallbacks,
   type PartToolTableItem,
-  type PartToolTableImageCallbacks,
-  type PartToolAddRowValues,
 } from './components/PartToolTable';
 
 // PartToolListPanel (instruction-level part/tool management panel)

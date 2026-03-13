@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { Plus, X, Download, Replace } from 'lucide-react';
+import { Plus, X, Download, Replace, ImagePlus } from 'lucide-react';
 import type { PartToolRow, SubstepPartToolRow, AggregatedPartTool } from '@monta-vis/viewer-core';
 import { PartIcon, PartToolDetailContent } from '@monta-vis/viewer-core';
 import { sortPartToolRows, isUnknownPartTool } from '../utils/partToolHelpers';
 import { ICON_BTN_CLASS } from './editButtonStyles';
-import { PartToolTable, type PartToolTableItem, type PartToolTableCallbacks, type PartToolTableImageCallbacks } from './PartToolTable';
+import { PartToolTable, type PartToolTableItem, type PartToolTableCallbacks } from './PartToolTable';
 import type { PartToolImageItem } from './PartToolImagePicker';
 import type { NormalizedCrop } from '../persistence/types';
+import { ImageCropDialog } from './ImageCropDialog';
 import { PartToolAddPopover } from './PartToolAddPopover';
 import type { PartToolIconItem } from './PartToolCatalogGrid';
 import { PartToolSidebarForm, EMPTY_SIDEBAR_FORM, type SidebarFormState } from './PartToolSidebarForm';
@@ -51,6 +52,8 @@ export interface PartToolListPanelProps {
   onSubstepReplace?: (newPartToolId: string) => void;
   /** Pre-select this partTool for editing when the panel opens. */
   initialEditPartToolId?: string | null;
+  /** Opaque dependency — pass a changing value (e.g. partToolVideoFrameAreas record) to trigger image list refresh. */
+  imageDataVersion?: unknown;
 }
 
 /** Convert a PartToolRow to SidebarFormState */
@@ -136,6 +139,7 @@ export function PartToolListPanel({
   highlightPartToolId,
   onSubstepReplace,
   initialEditPartToolId,
+  imageDataVersion,
 }: PartToolListPanelProps) {
   const { t } = useTranslation();
 
@@ -146,10 +150,21 @@ export function PartToolListPanel({
   const [sidebarForm, setSidebarForm] = useState<SidebarFormState>(EMPTY_SIDEBAR_FORM);
   const snapshotRef = useRef<SidebarFormState>(EMPTY_SIDEBAR_FORM);
 
+  // Sidebar image browsing state
+  const [sidebarSelectedImageIndex, setSidebarSelectedImageIndex] = useState(0);
+  const [sidebarCropSrc, setSidebarCropSrc] = useState<string | null>(null);
+  const sidebarPendingFileRef = useRef<File | null>(null);
+  const sidebarFileInputRef = useRef<HTMLInputElement>(null);
+
   // Detail dialog state (row click opens detail; optionally shows Replace button)
   const [detailTarget, setDetailTarget] = useState<PartToolTableItem | null>(null);
   // Discard unsaved changes dialog state
   const [discardTarget, setDiscardTarget] = useState<{ row: PartToolTableItem } | null>(null);
+
+  // Reset image browsing index when switching partTools
+  useEffect(() => {
+    setSidebarSelectedImageIndex(0);
+  }, [selectedPartToolId]);
 
   // Reset selection if item was deleted
   useEffect(() => {
@@ -303,6 +318,35 @@ export function PartToolListPanel({
     }
   }, [selectedPartToolId, callbacks]);
 
+  // ── Sidebar image upload (file → crop dialog → upload) ──
+  const handleSidebarUploadClick = useCallback(() => {
+    sidebarFileInputRef.current?.click();
+  }, []);
+
+  const handleSidebarFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    sidebarPendingFileRef.current = file;
+    setSidebarCropSrc(URL.createObjectURL(file));
+    e.target.value = '';
+  }, []);
+
+  const handleSidebarCropConfirm = useCallback((crop: NormalizedCrop) => {
+    const file = sidebarPendingFileRef.current;
+    if (file && selectedPartToolId && callbacks.onUploadImage) {
+      callbacks.onUploadImage(selectedPartToolId, file, crop);
+    }
+    if (sidebarCropSrc) URL.revokeObjectURL(sidebarCropSrc);
+    setSidebarCropSrc(null);
+    sidebarPendingFileRef.current = null;
+  }, [selectedPartToolId, callbacks, sidebarCropSrc]);
+
+  const handleSidebarCropCancel = useCallback(() => {
+    if (sidebarCropSrc) URL.revokeObjectURL(sidebarCropSrc);
+    setSidebarCropSrc(null);
+    sidebarPendingFileRef.current = null;
+  }, [sidebarCropSrc]);
+
   // ── Sorted + filtered table rows (split into named / unknown) ──
   const allTableRows: PartToolTableItem[] = useMemo(() => {
     const sorted = sortPartToolRows(partTools);
@@ -344,21 +388,30 @@ export function PartToolListPanel({
     onDelete: callbacks.onDeletePartTool,
   }), [callbacks.onUpdatePartTool, callbacks.onDeletePartTool]);
 
-  // ── Image callbacks (optional) ──
-  const imageCallbacks: PartToolTableImageCallbacks | undefined = useMemo(() => {
-    if (!callbacks.onUploadImage) return undefined;
-    return {
-      onUploadImage: callbacks.onUploadImage,
-      onDeleteImage: callbacks.onDeleteImage,
-      onSetPreviewImage: callbacks.onSetPreviewImage,
-    };
-  }, [callbacks.onUploadImage, callbacks.onDeleteImage, callbacks.onSetPreviewImage]);
+  // ── Image list for sidebar browsing ──
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- imageDataVersion triggers refresh after upload
+  const sidebarImages = useMemo(() => {
+    if (!selectedPartToolId || !getPartToolImages) return [];
+    return getPartToolImages(selectedPartToolId);
+  }, [selectedPartToolId, getPartToolImages, imageDataVersion]);
 
-  // ── Preview URL for sidebar ──
+  // ── Preview URL for sidebar (uses selected thumbnail or fallback) ──
   const sidebarPreviewUrl = useMemo(() => {
+    if (sidebarImages.length > 0 && sidebarSelectedImageIndex < sidebarImages.length) {
+      return sidebarImages[sidebarSelectedImageIndex].url;
+    }
     if (!selectedPartToolId || !getPreviewUrl) return null;
     return getPreviewUrl(selectedPartToolId);
-  }, [selectedPartToolId, getPreviewUrl]);
+  }, [sidebarImages, sidebarSelectedImageIndex, selectedPartToolId, getPreviewUrl]);
+
+  // ── Image URLs for detail dialog (reuse sidebarImages when same partTool) ──
+  const detailImageUrls = useMemo(() => {
+    if (!detailTarget || !getPartToolImages) return undefined;
+    const images = detailTarget.rowId === selectedPartToolId
+      ? sidebarImages
+      : getPartToolImages(detailTarget.rowId);
+    return images.length > 1 ? images.map((img) => img.url) : undefined;
+  }, [detailTarget, selectedPartToolId, sidebarImages, getPartToolImages]);
 
   // ── Aggregated item for PartToolDetailContent ──
   const selectedAggregated: AggregatedPartTool | null = useMemo(() => {
@@ -459,8 +512,6 @@ export function PartToolListPanel({
                 const sharedTableProps = {
                   callbacks: tableCallbacks,
                   getPreviewUrl,
-                  imageCallbacks,
-                  getPartToolImages,
                   testIdPrefix: 'parttool-list-row' as const,
                   compact: true,
                   selectedRowId: effectiveHighlightId,
@@ -496,7 +547,64 @@ export function PartToolListPanel({
                   item={selectedAggregated}
                   previewImageUrl={sidebarPreviewUrl}
                   compact
+                  compactBadges
                 />
+                {/* Always-visible image strip */}
+                <div
+                  data-testid="sidebar-image-strip"
+                  className="flex gap-1.5 px-2 py-2 bg-[var(--color-bg-base)] border-b border-[var(--color-border-base)] overflow-x-auto"
+                >
+                  {sidebarImages.map((img, index) => (
+                    <button
+                      key={img.junctionId}
+                      type="button"
+                      data-testid={`sidebar-image-thumb-${img.junctionId}`}
+                      aria-label={t('editorCore.selectImage', 'Select image')}
+                      className={`shrink-0 w-10 h-10 rounded overflow-hidden bg-black cursor-pointer transition-all border-2 ${
+                        index === sidebarSelectedImageIndex
+                          ? 'border-[var(--color-secondary)]'
+                          : 'border-transparent hover:border-[var(--color-text-muted)]'
+                      }`}
+                      onClick={() => {
+                        setSidebarSelectedImageIndex(index);
+                        if (selectedPartToolId && callbacks.onSetPreviewImage) {
+                          callbacks.onSetPreviewImage(selectedPartToolId, img.junctionId, img.areaId);
+                        }
+                      }}
+                    >
+                      <img src={img.url} alt="" className="w-full h-full object-contain" />
+                    </button>
+                  ))}
+                  {callbacks.onUploadImage && (
+                    <>
+                      <button
+                        type="button"
+                        data-testid="sidebar-image-add"
+                        aria-label={t('editorCore.addImage', 'Add image')}
+                        className="shrink-0 w-10 h-10 rounded border-2 border-dashed border-[var(--color-border)] text-[var(--color-text-muted)] hover:border-[var(--color-secondary)] hover:text-[var(--color-secondary)] flex items-center justify-center transition-colors cursor-pointer"
+                        onClick={handleSidebarUploadClick}
+                      >
+                        <ImagePlus className="h-4 w-4" />
+                      </button>
+                      <input
+                        ref={sidebarFileInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        data-testid="sidebar-image-file-input"
+                        onChange={handleSidebarFileSelect}
+                      />
+                    </>
+                  )}
+                </div>
+                {sidebarCropSrc && (
+                  <ImageCropDialog
+                    open
+                    imageSrc={sidebarCropSrc}
+                    onConfirm={handleSidebarCropConfirm}
+                    onCancel={handleSidebarCropCancel}
+                  />
+                )}
               </div>
             ) : (
               <div className="shrink-0" data-testid="sidebar-hero-placeholder">
@@ -543,6 +651,7 @@ export function PartToolListPanel({
             <PartToolDetailContent
               item={detailTargetAggregated}
               previewImageUrl={getPreviewUrl?.(detailTarget.rowId) ?? null}
+              imageUrls={detailImageUrls}
               compact
             />
             <div className="flex gap-2 p-4 border-t border-[var(--color-border-base)]">
