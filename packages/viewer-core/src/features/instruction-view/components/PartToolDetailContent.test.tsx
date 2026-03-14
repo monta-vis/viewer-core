@@ -253,6 +253,43 @@ describe('PartToolDetailContent', () => {
     expect(strip.className).toContain('-translate-x-full');
   });
 
+  it('onImageSelect fires with correct index when thumbnail is clicked', async () => {
+    const user = userEvent.setup();
+    const onImageSelect = vi.fn();
+    render(
+      <PartToolDetailContent
+        item={mockPart}
+        imageUrls={['url1', 'url2', 'url3']}
+        onImageSelect={onImageSelect}
+      />,
+    );
+
+    // Expand strip and click second thumbnail
+    await user.click(screen.getByTestId('parttool-image-toggle'));
+    const thumbs = screen.getByTestId('parttool-image-strip').querySelectorAll('img');
+    await user.click(thumbs[1]);
+
+    expect(onImageSelect).toHaveBeenCalledWith(1);
+  });
+
+  it('without onImageSelect, existing click-to-select behavior unchanged', async () => {
+    const user = userEvent.setup();
+    render(
+      <PartToolDetailContent
+        item={mockPart}
+        imageUrls={['url1', 'url2', 'url3']}
+      />,
+    );
+
+    // Expand strip and click second thumbnail — should still change hero
+    await user.click(screen.getByTestId('parttool-image-toggle'));
+    const thumbs = screen.getByTestId('parttool-image-strip').querySelectorAll('img');
+    await user.click(thumbs[1]);
+
+    const heroImg = screen.getByAltText('Steel Bolt') as HTMLImageElement;
+    expect(heroImg.src).toContain('url2');
+  });
+
   it('backward compatible: no imageUrls → existing behavior unchanged', () => {
     render(<PartToolDetailContent item={mockPart} previewImageUrl="hero.png" />);
 

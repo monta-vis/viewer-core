@@ -48,6 +48,11 @@ vi.mock('./StepAssignmentDialog', () => ({
   StepAssignmentDialog: () => null,
 }));
 
+vi.mock('./ResolvedImageView', () => ({
+  ResolvedImageView: ({ image, alt, className }: { image: { kind: string; url?: string } | null; alt?: string; className?: string }) =>
+    image?.kind === 'url' ? <img src={image.url} alt={alt} className={className} /> : null,
+}));
+
 afterEach(() => cleanup());
 
 const baseAssembly: Assembly = {
@@ -72,13 +77,13 @@ const baseSteps = [
 ];
 
 describe('AssemblySection — assembly image', () => {
-  it('renders image in view mode header when assemblyImageUrl is provided', () => {
+  it('renders image in view mode header when assemblyImage is provided', () => {
     render(
       <AssemblySection
         assembly={baseAssembly}
         steps={baseSteps}
         onStepSelect={() => {}}
-        assemblyImageUrl="https://example.com/assembly.png"
+        assemblyImage={{ kind: 'url', url: 'https://example.com/assembly.png' }}
       />,
     );
 
@@ -87,14 +92,14 @@ describe('AssemblySection — assembly image', () => {
     expect(img.getAttribute('src')).toBe('https://example.com/assembly.png');
   });
 
-  it('renders image in edit mode header when assemblyImageUrl is provided', () => {
+  it('renders image in edit mode header when assemblyImage is provided', () => {
     render(
       <AssemblySection
         assembly={baseAssembly}
         steps={baseSteps}
         onStepSelect={() => {}}
         editMode
-        assemblyImageUrl="https://example.com/assembly.png"
+        assemblyImage={{ kind: 'url', url: 'https://example.com/assembly.png' }}
       />,
     );
 
@@ -103,7 +108,7 @@ describe('AssemblySection — assembly image', () => {
     expect(img.getAttribute('src')).toBe('https://example.com/assembly.png');
   });
 
-  it('renders AssemblyIcon when assemblyImageUrl is not provided', () => {
+  it('renders AssemblyIcon when assemblyImage is not provided', () => {
     const { container } = render(
       <AssemblySection
         assembly={baseAssembly}
@@ -117,13 +122,13 @@ describe('AssemblySection — assembly image', () => {
     expect(screen.queryByRole('img')).toBeNull();
   });
 
-  it('renders AssemblyIcon when assemblyImageUrl is null', () => {
+  it('renders AssemblyIcon when assemblyImage is null', () => {
     const { container } = render(
       <AssemblySection
         assembly={baseAssembly}
         steps={baseSteps}
         onStepSelect={() => {}}
-        assemblyImageUrl={null}
+        assemblyImage={null}
       />,
     );
 

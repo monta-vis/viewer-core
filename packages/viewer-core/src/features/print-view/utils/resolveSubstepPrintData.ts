@@ -6,7 +6,7 @@ import type {
   SafetyIconCategory,
 } from '@/features/instruction';
 import { isImageDrawing, getCategoryPriority } from '@/features/instruction';
-import { buildMediaUrl, resolveFramePath } from '@/lib/media';
+import type { MediaResolver } from '@/lib/mediaResolver';
 import { byOrder } from '@/lib/sortedValues';
 
 export interface PrintNoteData {
@@ -38,7 +38,7 @@ export interface PrintSubstepData {
 export function resolveSubstepPrintData(
   data: InstructionData,
   substepId: string,
-  folderName: string,
+  resolver: MediaResolver,
 ): PrintSubstepData {
   const substep = data.substeps[substepId];
   if (!substep) {
@@ -48,10 +48,8 @@ export function resolveSubstepPrintData(
   // ── Image URL (first substep image) ──
   const firstImageRowId = substep.imageRowIds[0] ?? null;
   const firstImage = firstImageRowId ? data.substepImages[firstImageRowId] : null;
-  const vfa = firstImage ? data.videoFrameAreas[firstImage.videoFrameAreaId] : null;
-  const imageUrl = firstImage
-    ? buildMediaUrl(folderName, resolveFramePath(firstImage.videoFrameAreaId, data.useBlurred, vfa?.useBlurred))
-    : null;
+  const resolved = firstImage ? resolver.resolveImage(firstImage.videoFrameAreaId) : null;
+  const imageUrl = resolved?.kind === 'url' ? resolved.url : null;
 
   // ── Image drawings (keyed by videoFrameAreaId) ──
   const imageVfaId = firstImage?.videoFrameAreaId ?? null;

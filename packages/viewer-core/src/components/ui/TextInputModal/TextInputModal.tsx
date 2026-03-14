@@ -69,9 +69,17 @@ export function TextInputModal({ label, value, onConfirm, onCancel, inputType = 
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleConfirm();
+    if (e.key === 'Enter') {
+      if (inputType === 'textarea') {
+        // Textarea: Ctrl/Cmd+Enter confirms, bare Enter inserts newline
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          handleConfirm();
+        }
+      } else if (!e.shiftKey) {
+        e.preventDefault();
+        handleConfirm();
+      }
     }
     // Stop propagation for all keys so React's synthetic events
     // don't bubble through portals to parent components (e.g. Card role="button"

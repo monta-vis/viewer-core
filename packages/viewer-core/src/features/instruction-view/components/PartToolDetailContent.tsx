@@ -22,6 +22,12 @@ interface PartToolDetailContentProps {
   compactBadges?: boolean;
   /** All resolved image URLs; enables thumbnail sidebar when length > 1 */
   imageUrls?: string[];
+  /** Resolved images (raw mode); enables gallery with ResolvedImageView when length > 1 */
+  images?: ResolvedImage[];
+  /** Called when a thumbnail is clicked (in addition to internal selection) */
+  onImageSelect?: (index: number) => void;
+  /** When true, the thumbnail strip starts expanded instead of collapsed */
+  initialExpanded?: boolean;
 }
 
 /**
@@ -41,9 +47,12 @@ export function PartToolDetailContent({
   compact,
   compactBadges: compactBadgesProp,
   imageUrls,
+  images,
+  onImageSelect,
+  initialExpanded,
 }: PartToolDetailContentProps) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(initialExpanded ?? false);
   const [selectedIndex, setSelectedIndex] = useState(0);
 
   // Reset thumbnail state when switching between different partTools
@@ -60,29 +69,37 @@ export function PartToolDetailContent({
     ? t('instructionView.part', 'Part')
     : t('instructionView.tool', 'Tool');
 
-  const hasMultipleImages = imageUrls && imageUrls.length > 1;
+  const hasMultipleImages = (imageUrls && imageUrls.length > 1) || (images && images.length > 1);
+  const hasResolvedGallery = images && images.length > 1;
 
   // Image priority cascade:
-  // 1. Multi-image gallery (imageUrls with length > 1) — overrides everything
+  // 1. Multi-image gallery (images[] or imageUrls[] with length > 1) — overrides everything
   // 2. Explicit previewImageUrl prop — legacy callers that supply a pre-resolved URL
-  // 3. ResolvedImage (image prop) — standard path via MediaResolver
-  const useResolvedImage = image && !hasMultipleImages && previewImageUrlProp === undefined;
+  // 3. ResolvedImage (image prop or images[0]) — standard path via MediaResolver
+  const singleResolvedImage = images && images.length === 1 ? images[0] : image;
+  const useResolvedImage = singleResolvedImage && !hasMultipleImages && previewImageUrlProp === undefined;
 
   function getResolvedImageUrl(): string | null {
-    if (hasMultipleImages) return imageUrls[selectedIndex];
+    if (hasMultipleImages && !hasResolvedGallery && imageUrls) return imageUrls[selectedIndex];
     if (previewImageUrlProp !== undefined) return previewImageUrlProp;
     return null;
   }
-  const resolvedImageUrl = useResolvedImage ? null : getResolvedImageUrl();
-  const hasImage = useResolvedImage ? !!image : !!resolvedImageUrl;
+  const resolvedImageUrl = useResolvedImage ? null : (hasResolvedGallery ? null : getResolvedImageUrl());
+  const hasImage = useResolvedImage ? !!singleResolvedImage : hasResolvedGallery || !!resolvedImageUrl;
 
   return (
     <div data-testid="parttool-detail-content">
       {/* Image Section - Hero area */}
       <div className="relative bg-black overflow-hidden aspect-square">
-        {useResolvedImage ? (
+        {hasResolvedGallery ? (
           <ResolvedImageView
-            image={image}
+            image={images[selectedIndex]}
+            alt={item.partTool.name}
+            className="w-full h-full object-contain"
+          />
+        ) : useResolvedImage ? (
+          <ResolvedImageView
+            image={singleResolvedImage}
             alt={item.partTool.name}
             className="w-full h-full object-contain"
           />
@@ -122,20 +139,47 @@ export function PartToolDetailContent({
                 : '-translate-x-full opacity-0 pointer-events-none'
             }`}
           >
-            {imageUrls.map((url, index) => (
-              <img
-                key={url}
-                src={url}
-                alt={`${item.partTool.name} ${index + 1}`}
-                className={`aspect-square rounded object-contain cursor-pointer ${
-                  index === selectedIndex
-                    ? 'ring-2'
-                    : 'opacity-70 hover:opacity-100'
-                }`}
-                style={index === selectedIndex ? { '--tw-ring-color': accentColor } as React.CSSProperties : undefined}
-                onClick={() => setSelectedIndex(index)}
-              />
-            ))}
+            {hasResolvedGallery
+              ? images.map((img, index) => (
+                <button
+                  key={img.kind === 'url' ? img.url : `frame-${index}`}
+                  type="button"
+                  className={`aspect-square rounded overflow-hidden cursor-pointer ${
+                    index === selectedIndex
+                      ? 'ring-2'
+                      : 'opacity-70 hover:opacity-100'
+                  }`}
+                  style={index === selectedIndex ? { '--tw-ring-color': accentColor } as React.CSSProperties : undefined}
+                  onClick={() => {
+                    setSelectedIndex(index);
+                    onImageSelect?.(index);
+                  }}
+                >
+                  <ResolvedImageView
+                    image={img}
+                    alt={`${item.partTool.name} ${index + 1}`}
+                    className="w-full h-full object-contain"
+                  />
+                </button>
+              ))
+              : imageUrls?.map((url, index) => (
+                <img
+                  key={url}
+                  src={url}
+                  alt={`${item.partTool.name} ${index + 1}`}
+                  className={`aspect-square rounded object-contain cursor-pointer ${
+                    index === selectedIndex
+                      ? 'ring-2'
+                      : 'opacity-70 hover:opacity-100'
+                  }`}
+                  style={index === selectedIndex ? { '--tw-ring-color': accentColor } as React.CSSProperties : undefined}
+                  onClick={() => {
+                    setSelectedIndex(index);
+                    onImageSelect?.(index);
+                  }}
+                />
+              ))
+            }
           </div>
         )}
 
@@ -160,11 +204,11 @@ export function PartToolDetailContent({
               : 'absolute bottom-3 left-3 px-3 py-1.5 rounded-lg bg-black/70 backdrop-blur-md text-white flex items-center gap-1.5 cursor-pointer text-sm'}
             aria-label={expanded
               ? t('instructionView.hideThumbnails', 'Hide thumbnails')
-              : t('instructionView.showImages', 'Show {{count}} images', { count: imageUrls.length })}
+              : t('instructionView.showImages', 'Show {{count}} images', { count: (hasResolvedGallery ? images.length : imageUrls?.length) ?? 0 })}
             onClick={() => setExpanded((prev) => !prev)}
           >
             <Images className={smallBadges ? 'w-3 h-3' : 'w-4 h-4'} />
-            <span className="font-medium">{imageUrls.length}</span>
+            <span className="font-medium">{hasResolvedGallery ? images.length : imageUrls?.length}</span>
           </button>
         )}
 

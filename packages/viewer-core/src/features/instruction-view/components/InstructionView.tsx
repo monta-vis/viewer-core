@@ -8,7 +8,7 @@ import { Button, Drawer, TutorialClickIcon } from '@/components/ui';
 import { isImageDrawing, isVideoDrawing, formatTutorialDisplayRich, UNASSIGNED_STEP_ID } from '@/features/instruction';
 import { useViewerData } from '../context';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
-import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, PartToolRow, SubstepDescriptionRow, SubstepRow, RichTutorialDisplay, SafetyIconCategory } from '@/features/instruction';
+import type { DrawingRow, EnrichedSubstepNote, EnrichedSubstepPartTool, SubstepDescriptionRow, SubstepRow, RichTutorialDisplay } from '@/features/instruction';
 
 import { FeedbackButton, StarRating } from '@/features/feedback';
 import { useVideo } from '@/features/video-player';
@@ -22,6 +22,8 @@ import type { SubstepPreview } from './AssemblySection';
 import { PartsDrawer } from './PartsDrawer';
 import { SpeedDrawer } from './SpeedDrawer';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
+import { bindSubstepCallbacks } from '../utils/bindSubstepCallbacks';
+import type { ExtendedSubstepEditCallbacks } from '../utils/bindSubstepCallbacks';
 import { resolveTutorialTargets, type TutorialTargetResult } from '../utils/resolveTutorialTargets';
 import { computeTutorialToggle } from '../utils/tutorialToggle';
 import { progressPercent } from '../utils/progressPercent';
@@ -43,6 +45,7 @@ import { StepSeparator } from './StepSeparator';
 import { AssemblySeparator } from './AssemblySeparator';
 import { createProcessedResolver } from '@/lib/createProcessedResolver';
 import { createRawResolver } from '@/lib/createRawResolver';
+import { createLruFrameCache } from '@/lib/createLruFrameCache';
 import { MediaResolverProvider } from '@/lib/MediaResolverContext';
 import type { MediaResolver } from '@/lib/mediaResolver';
 
@@ -101,27 +104,7 @@ interface InstructionViewProps {
   /** Whether edit mode is active (controlled by parent). Default: false */
   editModeActive?: boolean;
   /** Edit callbacks per substep (substepId passed as first arg) */
-  editCallbacks?: {
-    onDeleteImage?: (substepId: string) => void;
-    onAnnotateVideo?: (substepId: string) => void;
-    onDeleteVideo?: (substepId: string) => void;
-    onSaveDescription?: (descriptionId: string, text: string, substepId: string) => void;
-    onDeleteDescription?: (descriptionId: string, substepId: string) => void;
-    onAddDescription?: (text: string, substepId: string) => void;
-    onSaveNote?: (noteRowId: string, text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string, sourceIconId?: string) => void;
-    onDeleteNote?: (noteRowId: string, substepId: string) => void;
-    onAddNote?: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, substepId: string, sourceIconId?: string) => void;
-    onSaveRepeat?: (count: number, label: string | null, substepId: string) => void;
-    onDeleteRepeat?: (substepId: string) => void;
-    onEditTutorial?: (tutorialIndex: number, substepId: string) => void;
-    onDeleteTutorial?: (tutorialIndex: number, substepId: string) => void;
-    onAddTutorial?: (substepId: string) => void;
-    onEditPartTools?: (substepId: string) => void;
-    onUpdatePartTool?: (partToolId: string, updates: Partial<PartToolRow>) => void;
-    onUpdateSubstepPartToolAmount?: (substepPartToolId: string, amount: number) => void;
-    onAddSubstepPartTool?: (substepId: string) => void;
-    onDeleteSubstepPartTool?: (substepPartToolId: string) => void;
-    onDeleteSubstep?: (substepId: string) => void;
+  editCallbacks?: ExtendedSubstepEditCallbacks & {
     onDeleteStep?: (stepId: string) => void;
     onAddSubstep?: (stepId: string) => void;
     onAddAssembly?: () => void;
@@ -206,6 +189,9 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
     return buildMediaUrl(folderName, videoPath);
   }, [useRawVideo, folderName]);
 
+  // Stable LRU frame cache for raw-mode (persists across re-renders)
+  const frameCacheRef = useRef(createLruFrameCache());
+
   // Create MediaResolver based on mode
   const resolver: MediaResolver | null = useMemo(() => {
     if (!data) return null;
@@ -214,6 +200,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
         folderName,
         data,
         resolveSourceVideoUrl,
+        frameCache: frameCacheRef.current,
       });
     }
     return createProcessedResolver({
@@ -416,28 +403,7 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
   const makeSubstepEditCallbacks = useCallback(
     (substepId: string): SubstepEditCallbacks | undefined => {
       if (!effectiveEditMode || !editCallbacks) return undefined;
-      return {
-        onDeleteImage: () => editCallbacks.onDeleteImage?.(substepId),
-        onAnnotateVideo: () => editCallbacks.onAnnotateVideo?.(substepId),
-        onDeleteVideo: () => editCallbacks.onDeleteVideo?.(substepId),
-        onSaveDescription: (descId, text) => editCallbacks.onSaveDescription?.(descId, text, substepId),
-        onDeleteDescription: (descId) => editCallbacks.onDeleteDescription?.(descId, substepId),
-        onAddDescription: (text) => editCallbacks.onAddDescription?.(text, substepId),
-        onSaveNote: (noteRowId, text, iconId, iconCat, sourceIconId) => editCallbacks.onSaveNote?.(noteRowId, text, iconId, iconCat, substepId, sourceIconId),
-        onDeleteNote: (noteRowId) => editCallbacks.onDeleteNote?.(noteRowId, substepId),
-        onAddNote: (text, iconId, iconCat, sourceIconId) => editCallbacks.onAddNote?.(text, iconId, iconCat, substepId, sourceIconId),
-        onSaveRepeat: (count, label) => editCallbacks.onSaveRepeat?.(count, label, substepId),
-        onDeleteRepeat: () => editCallbacks.onDeleteRepeat?.(substepId),
-        onEditTutorial: (refIdx) => editCallbacks.onEditTutorial?.(refIdx, substepId),
-        onDeleteTutorial: (refIdx) => editCallbacks.onDeleteTutorial?.(refIdx, substepId),
-        onAddTutorial: () => editCallbacks.onAddTutorial?.(substepId),
-        onEditPartTools: () => editCallbacks.onEditPartTools?.(substepId),
-        onUpdatePartTool: (ptId, updates) => editCallbacks.onUpdatePartTool?.(ptId, updates),
-        onUpdateSubstepPartToolAmount: (sptId, amount) => editCallbacks.onUpdateSubstepPartToolAmount?.(sptId, amount),
-        onAddSubstepPartTool: () => editCallbacks.onAddSubstepPartTool?.(substepId),
-        onDeleteSubstepPartTool: (sptId) => editCallbacks.onDeleteSubstepPartTool?.(sptId),
-        onDeleteSubstep: () => editCallbacks.onDeleteSubstep?.(substepId),
-      };
+      return bindSubstepCallbacks(editCallbacks, substepId);
     },
     [effectiveEditMode, editCallbacks],
   );
@@ -1012,7 +978,6 @@ export function InstructionView({ selectedStepId, instructionId, onBreak, breakV
                                 onPartToolClick={substepHandlersMap.get(substep.id)?.onPartToolClick}
                                 tutorialDisplay={substepTutorialDisplayMap.get(substep.id)}
                                 folderName={folderName}
-                                videoFrameAreas={data.videoFrameAreas}
                                 noteIconLabels={noteIconLabels}
                                 highlightedByPartTool={highlightedSubstepIdsFromPartTool.has(substep.id)}
                                 editMode={effectiveEditMode}

@@ -1,3 +1,5 @@
+import { shiftFreehandPoints } from './shiftFreehandPoints';
+
 /** Minimal coordinate shape for live preview updates */
 interface LiveCoords {
   x1: number;
@@ -16,6 +18,7 @@ interface ShapeWithCoords {
   x?: number | null;
   y?: number | null;
   radius?: number | null;
+  points?: string | null;
 }
 
 /**
@@ -51,6 +54,12 @@ export function applyLiveCoords<T extends ShapeWithCoords>(
         updated.x = groupCoords.x1;
         updated.y = groupCoords.y1;
       }
+      if (shape.type === 'freehand' && shape.points && shape.x1 !== null && shape.y1 !== null) {
+        const deltaX = groupCoords.x1 - shape.x1;
+        const deltaY = groupCoords.y1 - shape.y1;
+        const shifted = shiftFreehandPoints(shape.points, deltaX, deltaY);
+        if (shifted !== undefined) updated.points = shifted;
+      }
       return updated;
     });
   }
@@ -70,6 +79,12 @@ export function applyLiveCoords<T extends ShapeWithCoords>(
       if (shape.type === 'text') {
         updated.x = opts.liveCoords!.x1;
         updated.y = opts.liveCoords!.y1;
+      }
+      if (shape.type === 'freehand' && shape.points && shape.x1 !== null && shape.y1 !== null) {
+        const deltaX = opts.liveCoords!.x1 - shape.x1;
+        const deltaY = opts.liveCoords!.y1 - shape.y1;
+        const shifted = shiftFreehandPoints(shape.points, deltaX, deltaY);
+        if (shifted !== undefined) updated.points = shifted;
       }
       return updated;
     }

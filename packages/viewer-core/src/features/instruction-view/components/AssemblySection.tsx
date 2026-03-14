@@ -10,6 +10,7 @@ import type { Assembly } from '@/features/instruction';
 import { StepOverviewCard } from './StepOverviewCard';
 import { SubstepPreviewCard } from './SubstepPreviewCard';
 import type { ResolvedImage } from '@/lib/mediaResolver';
+import { ResolvedImageView } from './ResolvedImageView';
 
 export interface SubstepPreview {
   id: string;
@@ -117,8 +118,8 @@ interface AssemblySectionProps {
   renderPreviewUpload?: (stepId: string) => ReactNode;
   /** Render prop for assembly preview image upload button (injected by editor-core via app shell) */
   renderAssemblyPreviewUpload?: (assemblyId: string) => ReactNode;
-  /** Resolved assembly preview image URL (from videoFrameAreaId) */
-  assemblyImageUrl?: string | null;
+  /** Resolved assembly preview image (from videoFrameAreaId) */
+  assemblyImage?: ResolvedImage | null;
   /** Render prop for sortable step grid (injected by editor-core). When present, replaces raw steps.map(). */
   renderSortableStepGrid?: (
     containerId: string,
@@ -167,7 +168,7 @@ export function AssemblySection({
   onDeleteStep,
   renderPreviewUpload,
   renderAssemblyPreviewUpload,
-  assemblyImageUrl,
+  assemblyImage,
   renderSortableStepGrid,
   dragHandleProps,
   expandedStepIds,
@@ -294,14 +295,14 @@ export function AssemblySection({
               <GripVertical className="h-4 w-4" />
             </span>
           )}
-          {assemblyImageUrl ? (
+          {assemblyImage ? (
             <button
               type="button"
               onClick={() => setPreviewOpen(true)}
               aria-label={t('instructionView.openAssemblyImage', 'Open assembly image')}
               className="flex-shrink-0 cursor-pointer"
             >
-              <img src={assemblyImageUrl} alt={assembly.title ?? ''} className="h-6 w-6 rounded object-cover" />
+              <ResolvedImageView image={assemblyImage} alt={assembly.title ?? ''} className="h-6 w-6 rounded object-cover" />
             </button>
           ) : (
             <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
@@ -380,7 +381,7 @@ export function AssemblySection({
             isExpanded && 'shadow-sm'
           )}
         >
-          {assemblyImageUrl ? (
+          {assemblyImage ? (
             <span
               role="button"
               tabIndex={0}
@@ -389,7 +390,7 @@ export function AssemblySection({
               aria-label={t('instructionView.openAssemblyImage', 'Open assembly image')}
               className="flex-shrink-0 cursor-pointer"
             >
-              <img src={assemblyImageUrl} alt={assembly.title ?? ''} className="h-6 w-6 rounded object-cover" />
+              <ResolvedImageView image={assemblyImage} alt={assembly.title ?? ''} className="h-6 w-6 rounded object-cover" />
             </span>
           ) : (
             <AssemblyIcon className="h-4 w-4 text-[var(--color-text-muted)] flex-shrink-0" />
@@ -461,7 +462,7 @@ export function AssemblySection({
       />
 
       {/* Image preview popup */}
-      {assemblyImageUrl && (
+      {assemblyImage && (
         <DialogShell
           open={previewOpen}
           onClose={() => setPreviewOpen(false)}
@@ -477,8 +478,8 @@ export function AssemblySection({
             >
               <X className="w-5 h-5" />
             </button>
-            <img
-              src={assemblyImageUrl}
+            <ResolvedImageView
+              image={assemblyImage}
               alt={assembly.title ?? ''}
               className="w-full h-auto"
             />

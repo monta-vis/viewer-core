@@ -3,14 +3,95 @@ import { createRawResolver } from './createRawResolver';
 import type { InstructionData } from '@/features/instruction';
 import type { FrameCacheProvider } from './mediaResolver';
 
+vi.mock('@/features/instruction-view/utils/resolveRawFrameCapture', () => ({
+  resolveRawFrameCapture: (
+    area: { videoId?: string | null; frameNumber?: number | null; x?: number | null; y?: number | null; width?: number | null; height?: number | null } | null | undefined,
+    videos: Record<string, { id: string; videoPath?: string | null; fps: number }>,
+    folderName: string,
+  ) => {
+    if (!area?.videoId || area.frameNumber === null || area.frameNumber === undefined) return null;
+    const video = videos[area.videoId];
+    if (!video?.videoPath) return null;
+    return {
+      videoSrc: `mvis-media://${folderName}/${video.videoPath}`,
+      videoId: video.id,
+      fps: video.fps,
+      frameNumber: area.frameNumber,
+      cropArea: area.x !== null
+        ? { x: area.x, y: area.y, width: area.width, height: area.height }
+        : undefined,
+    };
+  },
+  resolvePartToolFrameCapture: (
+    partToolId: string,
+    partToolVideoFrameAreas: Record<string, { partToolId: string; videoFrameAreaId: string; isPreviewImage: boolean; order: number }>,
+    videoFrameAreas: Record<string, { videoId?: string | null; frameNumber?: number | null; x?: number | null; y?: number | null; width?: number | null; height?: number | null }>,
+    videos: Record<string, { id: string; videoPath?: string | null; fps: number }>,
+    folderName: string,
+  ) => {
+    const junctions = Object.values(partToolVideoFrameAreas).filter((j) => j.partToolId === partToolId);
+    if (junctions.length === 0) return null;
+    const sorted = [...junctions].sort((a, b) => {
+      if (a.isPreviewImage !== b.isPreviewImage) return a.isPreviewImage ? -1 : 1;
+      return a.order - b.order;
+    });
+    for (const junction of sorted) {
+      const area = videoFrameAreas[junction.videoFrameAreaId];
+      if (!area?.videoId || area.frameNumber === null || area.frameNumber === undefined) continue;
+      const video = videos[area.videoId];
+      if (!video?.videoPath) continue;
+      return {
+        videoSrc: `mvis-media://${folderName}/${video.videoPath}`,
+        videoId: video.id,
+        fps: video.fps,
+        frameNumber: area.frameNumber,
+        cropArea: area.x !== null ? { x: area.x, y: area.y, width: area.width, height: area.height } : undefined,
+      };
+    }
+    return null;
+  },
+}));
+
+vi.mock('@/features/instruction-view/utils/buildVideoEntry', () => ({
+  buildVideoEntry: vi.fn(
+    (substep: { id: string }, data: Record<string, unknown>, opts: { useRawVideo: boolean; folderName: string }) => {
+      // minimal stub that returns a plausible video entry for sub1
+      const videos = (data as { videos: Record<string, { fps: number; width: number; height: number }> }).videos;
+      const videoSections = (data as { videoSections: Record<string, { id: string; videoId: string; startFrame: number; endFrame: number; viewportKeyframeIds: string[] }> }).videoSections;
+      const viewportKeyframes = (data as { viewportKeyframes: Record<string, { frameNumber: number }> }).viewportKeyframes;
+      const substepVideoSections = (data as { substepVideoSections: Record<string, { substepId: string; videoSectionId: string }> }).substepVideoSections;
+
+      const svs = Object.values(substepVideoSections).find((s) => s.substepId === substep.id);
+      if (!svs) return null;
+      const section = videoSections[svs.videoSectionId];
+      if (!section) return null;
+      const video = videos[section.videoId];
+      if (!video) return null;
+
+      return {
+        startFrame: section.startFrame,
+        endFrame: section.endFrame,
+        fps: video.fps,
+        videoAspectRatio: video.width / video.height,
+        viewportKeyframes: section.viewportKeyframeIds.map((kfId: string) => ({
+          frameNumber: viewportKeyframes[kfId].frameNumber + section.startFrame,
+        })),
+      };
+    },
+  ),
+}));
+
 vi.mock('@/lib/media', () => ({
   buildMediaUrl: (folder: string, path: string) => `mvis-media://${folder}/${path}`,
   MediaPaths: {
     frame: (id: string) => `media/frames/${id}/image`,
+    frameBlurred: (id: string) => `media_blurred/frames/${id}/image`,
     substepVideo: (id: string) => `media/substeps/${id}/video`,
     substepVideoBlurred: (id: string) => `media_blurred/substeps/${id}/video`,
   },
   DEFAULT_FPS: 30,
+  resolveFramePath: (vfaId: string, masterBlurred: boolean, vfaUseBlurred: boolean | null | undefined) =>
+    masterBlurred && vfaUseBlurred ? `media_blurred/frames/${vfaId}/image` : `media/frames/${vfaId}/image`,
   resolveSubstepVideoPath: (id: string, master: boolean, substep: boolean | null | undefined) =>
     master && substep ? `media_blurred/substeps/${id}/video` : `media/substeps/${id}/video`,
 }));
@@ -62,6 +143,11 @@ function makeData(overrides: Partial<InstructionData> = {}): InstructionData {
         id: 'vfa_no_video', versionId: 'v1', videoId: null, frameNumber: 10,
         x: null, y: null, width: null, height: null,
         type: 'SubstepImage',
+      },
+      vfa_safety_icon: {
+        id: 'vfa_safety_icon', versionId: 'v1', videoId: null, frameNumber: 0,
+        x: null, y: null, width: null, height: null,
+        type: 'SafetyIcon',
       },
     },
     viewportKeyframes: {
@@ -162,13 +248,70 @@ describe('createRawResolver', () => {
       expect(result?.kind).toBe('frameCapture');
     });
 
-    it('returns null for area without videoId', () => {
+    it('returns { kind: "url" } for SafetyIcon VFA (videoId is null)', () => {
       const resolver = createRawResolver({
         folderName: 'proj',
         data: makeData(),
         resolveSourceVideoUrl: defaultResolveSourceVideoUrl,
       });
-      expect(resolver.resolveImage('vfa_no_video')).toBeNull();
+      const result = resolver.resolveImage('vfa_safety_icon');
+      expect(result).toEqual({
+        kind: 'url',
+        url: 'mvis-media://proj/media/frames/vfa_safety_icon/image',
+      });
+    });
+
+    it('returns { kind: "url" } for area without videoId (processed fallback)', () => {
+      const resolver = createRawResolver({
+        folderName: 'proj',
+        data: makeData(),
+        resolveSourceVideoUrl: defaultResolveSourceVideoUrl,
+      });
+      expect(resolver.resolveImage('vfa_no_video')).toEqual({
+        kind: 'url',
+        url: 'mvis-media://proj/media/frames/vfa_no_video/image',
+      });
+    });
+
+    it('uses blurred path for processed fallback', () => {
+      const resolver = createRawResolver({
+        folderName: 'proj',
+        data: makeData({
+          useBlurred: true,
+          videoFrameAreas: {
+            vfa_blurred: {
+              id: 'vfa_blurred', versionId: 'v1', videoId: null, frameNumber: 10,
+              x: null, y: null, width: null, height: null,
+              type: 'SubstepImage', useBlurred: true,
+            },
+          },
+        }),
+        resolveSourceVideoUrl: defaultResolveSourceVideoUrl,
+      });
+      expect(resolver.resolveImage('vfa_blurred')).toEqual({
+        kind: 'url',
+        url: 'mvis-media://proj/media_blurred/frames/vfa_blurred/image',
+      });
+    });
+
+    it('falls back to processed path when video record is missing', () => {
+      const resolver = createRawResolver({
+        folderName: 'proj',
+        data: makeData({
+          videoFrameAreas: {
+            vfa_missing_video: {
+              id: 'vfa_missing_video', versionId: 'v1', videoId: 'nonexistent', frameNumber: 10,
+              x: null, y: null, width: null, height: null,
+              type: 'SubstepImage', useBlurred: false,
+            },
+          },
+        }),
+        resolveSourceVideoUrl: defaultResolveSourceVideoUrl,
+      });
+      expect(resolver.resolveImage('vfa_missing_video')).toEqual({
+        kind: 'url',
+        url: 'mvis-media://proj/media/frames/vfa_missing_video/image',
+      });
     });
 
     it('returns null for nonexistent area', () => {

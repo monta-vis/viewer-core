@@ -34,6 +34,27 @@ function makeText(id: string, x1: number, y1: number): TestShape {
   return { id, type: 'text', x1, y1, x2: null, y2: null };
 }
 
+interface FreehandTestShape extends ResizableShape {
+  id: string;
+  type: string;
+  x1: number;
+  y1: number;
+  x2: number | null;
+  y2: number | null;
+  points: string;
+}
+
+function makeFreehand(
+  id: string,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  points: Array<{ x: number; y: number }>,
+): FreehandTestShape {
+  return { id, type: 'freehand', x1, y1, x2, y2, points: JSON.stringify(points) };
+}
+
 /**
  * Creates a mock container element and attaches it to the hook's containerRef.
  */
@@ -460,7 +481,7 @@ describe('useShapeResize - group resize', () => {
     }
   });
 
-  it('should reposition text shapes without changing x2/y2', () => {
+  it('should reposition text shapes without changing x2/y2 during group resize', () => {
     const { result } = renderHook(() =>
       useShapeResize<TestShape>({ onGroupMoveComplete }),
     );
@@ -499,5 +520,190 @@ describe('useShapeResize - group resize', () => {
       expect(textCoords!.x2).toBeNull();
       expect(textCoords!.y2).toBeNull();
     }
+  });
+});
+
+describe('useShapeResize - freehand single move', () => {
+  let onResizeComplete: ReturnType<typeof vi.fn>;
+
+  beforeEach(() => {
+    rafCallback = null;
+    onResizeComplete = vi.fn();
+  });
+
+  it('should update liveCoords during freehand move with bounds', () => {
+    const bounds = { x: 0, y: 0, width: 100, height: 100 };
+    const { result } = renderHook(() =>
+      useShapeResize<FreehandTestShape>({ onResizeComplete, bounds }),
+    );
+
+    act(() => {
+      setupContainer(result.current.containerRef);
+    });
+
+    const shape = makeFreehand('f1', 0.5, 0.5, 0.7, 0.7, [
+      { x: 0.5, y: 0.5 },
+      { x: 0.6, y: 0.6 },
+      { x: 0.7, y: 0.7 },
+    ]);
+
+    // Start move — mousedown at 500,500 → 50% of 1000px container
+    act(() => {
+      result.current.startResize(shape, 'move', createMouseEvent(500, 500));
+    });
+
+    expect(result.current.isResizing).toBe(true);
+    expect(result.current.activeHandle).toBe('move');
+
+    // Simulate mousemove to 600,600 → 60% → delta of +10 in container space
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 600, clientY: 600 }));
+    });
+    act(() => {
+      flushRaf();
+    });
+
+    // liveCoords should reflect the move (transformed back to local space)
+    // Original: localSpaceToContainer(0.5, 0, 100) = 50
+    // Delta: 60 - 50 = 10
+    // New container x1 = 50 + 10 = 60
+    // Back to local: containerToLocalSpace(60, 0, 100) = 0.6
+    expect(result.current.liveCoords).not.toBeNull();
+    expect(result.current.liveCoords!.x1).toBeCloseTo(0.6, 2);
+    expect(result.current.liveCoords!.y1).toBeCloseTo(0.6, 2);
+  });
+
+  it('should persist freehand move with shifted points on finish', () => {
+    const bounds = { x: 0, y: 0, width: 100, height: 100 };
+    const { result } = renderHook(() =>
+      useShapeResize<FreehandTestShape>({ onResizeComplete, bounds }),
+    );
+
+    act(() => {
+      setupContainer(result.current.containerRef);
+    });
+
+    const shape = makeFreehand('f1', 0.5, 0.5, 0.7, 0.7, [
+      { x: 0.5, y: 0.5 },
+      { x: 0.6, y: 0.6 },
+      { x: 0.7, y: 0.7 },
+    ]);
+
+    act(() => {
+      result.current.startResize(shape, 'move', createMouseEvent(500, 500));
+    });
+
+    // Move 10% right and down
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 600, clientY: 600 }));
+    });
+    act(() => {
+      flushRaf();
+    });
+
+    // Finish
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mouseup'));
+    });
+
+    expect(onResizeComplete).toHaveBeenCalledTimes(1);
+    const [shapeId, updates] = onResizeComplete.mock.calls[0];
+    expect(shapeId).toBe('f1');
+    // x1 should have moved from 0.5 to ~0.6
+    expect(updates.x1).toBeCloseTo(0.6, 2);
+    expect(updates.y1).toBeCloseTo(0.6, 2);
+    // Points should be shifted by the same delta
+    const points = JSON.parse(updates.points);
+    expect(points[0].x).toBeCloseTo(0.6, 2);
+    expect(points[0].y).toBeCloseTo(0.6, 2);
+    expect(points[2].x).toBeCloseTo(0.8, 2);
+    expect(points[2].y).toBeCloseTo(0.8, 2);
+  });
+
+  it('should move freehand correctly when container repositions between start and update', () => {
+    const bounds = { x: 0, y: 0, width: 100, height: 100 };
+    const { result } = renderHook(() =>
+      useShapeResize<FreehandTestShape>({ onResizeComplete, bounds }),
+    );
+
+    // Create a container whose getBoundingClientRect can change
+    const container = document.createElement('div');
+    let containerLeft = 0;
+    let containerTop = 0;
+    Object.defineProperty(container, 'getBoundingClientRect', {
+      value: () => ({
+        left: containerLeft, top: containerTop,
+        width: 1000, height: 1000,
+        right: containerLeft + 1000, bottom: containerTop + 1000,
+      }),
+    });
+    Object.defineProperty(container, 'clientWidth', { value: 1000, configurable: true });
+    Object.defineProperty(container, 'clientHeight', { value: 1000, configurable: true });
+
+    act(() => {
+      result.current.containerRef(container);
+    });
+
+    const shape = makeFreehand('f1', 0.5, 0.5, 0.7, 0.7, [
+      { x: 0.5, y: 0.5 },
+      { x: 0.7, y: 0.7 },
+    ]);
+
+    // Mousedown at clientX=500 — container at left=0
+    act(() => {
+      result.current.startResize(shape, 'move', createMouseEvent(500, 500));
+    });
+
+    // Simulate container shifting 50px right (e.g., due to React re-render)
+    containerLeft = 50;
+    containerTop = 50;
+
+    // Mouse moves 100px right to clientX=600
+    // With raw pixel delta: (600-500)/1000*100 = 10% → correct
+    // With old relative approach: getRelativePos = (600-50)/1000*100 = 55%, initial was (500-0)/1000*100 = 50%, delta=5% → WRONG
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 600, clientY: 600 }));
+    });
+    act(() => {
+      flushRaf();
+    });
+
+    expect(result.current.liveCoords).not.toBeNull();
+    // Should move by 10% (100px / 1000px container), not 5%
+    expect(result.current.liveCoords!.x1).toBeCloseTo(0.6, 2);
+    expect(result.current.liveCoords!.y1).toBeCloseTo(0.6, 2);
+  });
+
+  it('should update liveCoords during freehand move WITHOUT bounds', () => {
+    const { result } = renderHook(() =>
+      useShapeResize<FreehandTestShape>({ onResizeComplete }),
+    );
+
+    act(() => {
+      setupContainer(result.current.containerRef);
+    });
+
+    // No bounds = coords already in 0-100 container space
+    const shape = makeFreehand('f1', 50, 50, 70, 70, [
+      { x: 50, y: 50 },
+      { x: 60, y: 60 },
+      { x: 70, y: 70 },
+    ]);
+
+    act(() => {
+      result.current.startResize(shape, 'move', createMouseEvent(500, 500));
+    });
+
+    // Move 10% (100px on 1000px container)
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 600, clientY: 600 }));
+    });
+    act(() => {
+      flushRaf();
+    });
+
+    expect(result.current.liveCoords).not.toBeNull();
+    expect(result.current.liveCoords!.x1).toBeCloseTo(60, 0);
+    expect(result.current.liveCoords!.y1).toBeCloseTo(60, 0);
   });
 });

@@ -1,5 +1,6 @@
 import { useTranslation } from 'react-i18next';
-import { buildMediaUrl, MediaPaths, publicAsset } from '@/lib/media';
+import { publicAsset } from '@/lib/media';
+import { useMediaResolver } from '@/lib/MediaResolverContext';
 import { PrintPageFooter } from './PrintPageFooter';
 
 interface PrintCoverPageProps {
@@ -8,7 +9,6 @@ interface PrintCoverPageProps {
   coverImageAreaId: string | null;
   articleNumber: string | null;
   estimatedDuration: number | null;
-  folderName: string;
   onImageLoad?: () => void;
   onImageError?: () => void;
 }
@@ -23,15 +23,17 @@ export function PrintCoverPage({
   coverImageAreaId,
   articleNumber,
   estimatedDuration,
-  folderName,
   onImageLoad,
   onImageError,
 }: PrintCoverPageProps) {
   const { t } = useTranslation();
+  const resolver = useMediaResolver();
 
-  const coverImageUrl = coverImageAreaId
-    ? buildMediaUrl(folderName, MediaPaths.frame(coverImageAreaId))
-    : null;
+  const resolved = coverImageAreaId ? resolver.resolveImage(coverImageAreaId) : null;
+  if (resolved && resolved.kind !== 'url') {
+    console.warn('[PrintCoverPage] Unexpected resolver kind for cover image:', resolved.kind);
+  }
+  const coverImageUrl = resolved?.kind === 'url' ? resolved.url : null;
 
   const logoUrl = publicAsset('logo.svg');
 

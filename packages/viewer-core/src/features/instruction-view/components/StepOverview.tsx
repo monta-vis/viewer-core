@@ -9,7 +9,6 @@ import { StepOverviewCard } from './StepOverviewCard';
 import { AssemblySection, UnassignedSection, type StepWithPreview, type SubstepPreview } from './AssemblySection';
 import { useMediaResolverOptional } from '@/lib/MediaResolverContext';
 import type { ResolvedImage } from '@/lib/mediaResolver';
-import { buildMediaUrl, MediaPaths } from '@/lib/media';
 import { getUnassignedSubsteps } from '../utils/getUnassignedSubsteps';
 import { PartToolSearchBar } from './PartToolSearchBar';
 import { SubstepPreviewCard } from './SubstepPreviewCard';
@@ -306,14 +305,9 @@ export function StepOverview({ onStepSelect, editMode = false, editCallbacks, ac
     ? (hasAssemblies || stepsWithPreview.length === 0)
     : (hasAssemblies && hasAssignedSteps);
 
-  const resolveAssemblyImageUrl = useCallback((assembly: Assembly): string | null => {
+  const resolveAssemblyImage = useCallback((assembly: Assembly): ResolvedImage | null => {
     if (!data || !resolver || !assembly.videoFrameAreaId) return null;
-    const img = resolver.resolveImage(assembly.videoFrameAreaId);
-    if (img?.kind === 'url') return img.url;
-    if (img?.kind === 'frameCapture' && resolver.folderName) {
-      return buildMediaUrl(resolver.folderName, MediaPaths.frame(assembly.videoFrameAreaId));
-    }
-    return null;
+    return resolver.resolveImage(assembly.videoFrameAreaId);
   }, [data, resolver]);
 
   // Filter assemblies and their steps by partTool filter
@@ -415,7 +409,7 @@ export function StepOverview({ onStepSelect, editMode = false, editCallbacks, ac
         renderPreviewUpload={editCallbacks?.renderPreviewUpload}
         renderAssemblyPreviewUpload={editCallbacks?.renderAssemblyPreviewUpload}
         renderSortableStepGrid={editCallbacks?.renderSortableStepGrid}
-        assemblyImageUrl={resolveAssemblyImageUrl(assembly)}
+        assemblyImage={resolveAssemblyImage(assembly)}
         dragHandleProps={dragHandleProps}
         expandedStepIds={expandedStepIds}
         onExpandToggle={handleExpandToggle}
@@ -424,7 +418,7 @@ export function StepOverview({ onStepSelect, editMode = false, editCallbacks, ac
         onDeleteSubstep={editCallbacks?.onDeleteSubstep}
       />
     ),
-    [filteredAssemblyStepsMap, onStepSelect, editMode, stepsWithPreview, editCallbacks, resolveAssemblyImageUrl, expandedStepIds, handleExpandToggle],
+    [filteredAssemblyStepsMap, onStepSelect, editMode, stepsWithPreview, editCallbacks, resolveAssemblyImage, expandedStepIds, handleExpandToggle],
   );
 
   const renderAssemblySection = useCallback(

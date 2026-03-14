@@ -1,7 +1,8 @@
 import { clsx } from 'clsx';
 import { useTranslation } from 'react-i18next';
-import { getCategoryPriority, safetyIconUrl, NOTE_CATEGORY_STYLES, type SafetyIconCategory } from '@/features/instruction';
-import { buildMediaUrl, MediaPaths } from '@/lib/media';
+import { getCategoryPriority, NOTE_CATEGORY_STYLES, type SafetyIconCategory } from '@/features/instruction';
+import { useMediaResolverOptional } from '@/lib/MediaResolverContext';
+import { resolveNoteIconUrl } from '../utils/resolveNoteIconUrl';
 import { Tooltip } from '@/components/ui/Tooltip';
 
 /** Unified note card: fixed icon + show/hide text badge. */
@@ -11,30 +12,18 @@ interface NoteCardProps {
   safetyIconId: string;
   isExpanded: boolean;
   onToggle: () => void;
-  /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
-  folderName?: string;
-  /** VideoFrameArea records for localPath fallback (mweb context without folderName). */
-  videoFrameAreas?: Record<string, { localPath?: string | null }>;
   /** Optional icon label for hover tooltip. Falls back to translated category label. */
   iconLabel?: string;
 }
 
-export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, onToggle, folderName, videoFrameAreas, iconLabel }: NoteCardProps) {
+export function NoteCard({ safetyIconCategory, text, safetyIconId, isExpanded, onToggle, iconLabel }: NoteCardProps) {
   const { t } = useTranslation();
+  const resolver = useMediaResolverOptional();
   const styles = NOTE_CATEGORY_STYLES[safetyIconCategory] ?? NOTE_CATEGORY_STYLES.Warnzeichen;
   const categoryLabel = t(`editor.safetyCategory.${safetyIconCategory}`, safetyIconCategory);
   const hasText = text.trim().length > 0;
 
-  // Resolve safety icon URL: VFA UUID uses buildMediaUrl (Electron) or localPath (mweb)
-  const isLegacy = /\.(png|jpg|gif)$/i.test(safetyIconId);
-  let iconUrl: string | null;
-  if (isLegacy) {
-    iconUrl = safetyIconUrl(safetyIconId);
-  } else if (folderName) {
-    iconUrl = buildMediaUrl(folderName, MediaPaths.frame(safetyIconId));
-  } else {
-    iconUrl = videoFrameAreas?.[safetyIconId]?.localPath ?? null;
-  }
+  const iconUrl = resolveNoteIconUrl(safetyIconId, resolver);
 
   const ariaLabel = hasText ? `${categoryLabel}: ${text.slice(0, 50)}${text.length > 50 ? '...' : ''}` : categoryLabel;
 

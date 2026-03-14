@@ -294,12 +294,16 @@ function FreehandShape({
   containerHeight,
   commonProps,
   hitAreaProps,
+  isSelected,
+  onHandleMouseDown,
 }: {
   points: string | null | undefined;
   containerWidth: number;
   containerHeight: number;
   commonProps: Omit<React.SVGProps<SVGElement>, 'ref'>;
   hitAreaProps: Omit<React.SVGProps<SVGElement>, 'ref'>;
+  isSelected?: boolean;
+  onHandleMouseDown?: (handle: ShapeHandleType, e: React.MouseEvent) => void;
 }) {
   if (!points) return null;
 
@@ -320,9 +324,31 @@ function FreehandShape({
     })
     .join(' ');
 
+  // Compute bounding box center for the move handle
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const p of parsedPoints) {
+    const px = (p.x / 100) * containerWidth;
+    const py = (p.y / 100) * containerHeight;
+    if (px < minX) minX = px;
+    if (py < minY) minY = py;
+    if (px > maxX) maxX = px;
+    if (py > maxY) maxY = py;
+  }
+  const centerX = (minX + maxX) / 2;
+  const centerY = (minY + maxY) / 2;
+
   return (
     <g>
-      <path d={pathData} {...hitAreaProps} />
+      {/* Invisible bounding-box hit area for easier clicking/dragging */}
+      <rect
+        x={minX}
+        y={minY}
+        width={maxX - minX}
+        height={maxY - minY}
+        {...hitAreaProps}
+        fill="transparent"
+        stroke="none"
+      />
       <path
         d={pathData}
         {...commonProps}
@@ -330,6 +356,9 @@ function FreehandShape({
         strokeLinejoin="round"
         style={{ ...commonProps.style, pointerEvents: 'none' }}
       />
+      {isSelected && (
+        <SelectionHandle x={centerX} y={centerY} handleType="move" onMouseDown={onHandleMouseDown} />
+      )}
     </g>
   );
 }
@@ -523,7 +552,7 @@ export function ShapeRenderer<T extends ShapeData>({
                   color: textColor,
                   fontSize: `${fontSize}px`,
                   fontWeight: 'bold',
-                  whiteSpace: 'nowrap',
+                  whiteSpace: 'pre-wrap',
                   lineHeight: 1.2,
                   pointerEvents: 'none',
                 }}
@@ -544,6 +573,8 @@ export function ShapeRenderer<T extends ShapeData>({
           containerHeight={containerHeight}
           commonProps={commonProps}
           hitAreaProps={hitAreaProps}
+          isSelected={showHandles}
+          onHandleMouseDown={onHandleMouseDown}
         />
       );
 

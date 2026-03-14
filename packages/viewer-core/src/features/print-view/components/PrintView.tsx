@@ -1,7 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useViewerData } from '@/features/instruction-view';
 import type { InstructionData } from '@/features/instruction';
 import { sortedValues, byStepNumber } from '@/lib/sortedValues';
+import { createProcessedResolver } from '@/lib/createProcessedResolver';
+import { MediaResolverProvider } from '@/lib/MediaResolverContext';
 import { useImageLoadTracker } from '../hooks/useImageLoadTracker';
 import { resolveSubstepPrintData, type PrintSubstepData } from '../utils/resolveSubstepPrintData';
 import { renderImageWithDrawings } from '../utils/renderImageWithDrawings';
@@ -29,6 +31,12 @@ export function PrintView({ folderName }: PrintViewProps) {
   const [renderingComplete, setRenderingComplete] = useState(false);
   const [isReady, setIsReady] = useState(false);
 
+  // Create processed resolver for print context
+  const resolver = useMemo(
+    () => data ? createProcessedResolver({ data, folderName }) : null,
+    [data, folderName],
+  );
+
   // Count total images we expect to load in the DOM
   const totalImageCount = data ? countExpectedImages(data) : 0;
 
@@ -42,7 +50,7 @@ export function PrintView({ folderName }: PrintViewProps) {
   // completes, preventing a race where plain image URLs trigger the load tracker
   // before drawings are baked in.
   useEffect(() => {
-    if (!data) return;
+    if (!data || !resolver) return;
     let cancelled = false;
     setRenderingComplete(false);
 
@@ -50,7 +58,7 @@ export function PrintView({ folderName }: PrintViewProps) {
 
     // Collect all substep print data
     for (const substepId of Object.keys(data.substeps)) {
-      allSubstepData[substepId] = resolveSubstepPrintData(data, substepId, folderName);
+      allSubstepData[substepId] = resolveSubstepPrintData(data, substepId, resolver);
     }
 
     const withDrawings = Object.entries(allSubstepData).filter(
@@ -113,9 +121,9 @@ export function PrintView({ folderName }: PrintViewProps) {
     });
 
     return () => { cancelled = true; };
-  }, [data, folderName]);
+  }, [data, resolver]);
 
-  if (!data) return null;
+  if (!data || !resolver) return null;
 
   // Gate rendering until all images with drawings have been pre-rendered.
   // This prevents the load tracker from firing on plain image URLs before
@@ -133,45 +141,44 @@ export function PrintView({ folderName }: PrintViewProps) {
   const stepPageOffset = hasPartsToolsPage ? 3 : 2;
 
   return (
-    <div className="print-view" data-pdf-ready={isReady || undefined} data-testid="print-view">
-      {/* Page 1: Cover */}
-      <PrintCoverPage
-        instructionName={data.instructionName}
-        instructionDescription={data.instructionDescription}
-        coverImageAreaId={data.coverImageAreaId}
-        articleNumber={data.articleNumber}
-        estimatedDuration={data.estimatedDuration}
-        folderName={folderName}
-        onImageLoad={onImageLoad}
-        onImageError={onImageError}
-      />
-
-      {/* Page 2: Parts & Tools (conditional) */}
-      <PrintPartsToolsPage
-        data={data}
-        folderName={folderName}
-        instructionName={data.instructionName}
-        pageNumber={2}
-        onImageLoad={onImageLoad}
-        onImageError={onImageError}
-      />
-
-      {/* Step pages */}
-      {steps.map((step, index) => (
-        <PrintStepPage
-          key={step.id}
-          step={step}
-          substeps={data.substeps}
-          substepPrintData={substepPrintData}
-          renderedImages={renderedImages}
-          folderName={folderName}
+    <MediaResolverProvider resolver={resolver}>
+      <div className="print-view" data-pdf-ready={isReady || undefined} data-testid="print-view">
+        {/* Page 1: Cover */}
+        <PrintCoverPage
           instructionName={data.instructionName}
-          pageNumber={stepPageOffset + index}
+          instructionDescription={data.instructionDescription}
+          coverImageAreaId={data.coverImageAreaId}
+          articleNumber={data.articleNumber}
+          estimatedDuration={data.estimatedDuration}
           onImageLoad={onImageLoad}
           onImageError={onImageError}
         />
-      ))}
-    </div>
+
+        {/* Page 2: Parts & Tools (conditional) */}
+        <PrintPartsToolsPage
+          data={data}
+          instructionName={data.instructionName}
+          pageNumber={2}
+          onImageLoad={onImageLoad}
+          onImageError={onImageError}
+        />
+
+        {/* Step pages */}
+        {steps.map((step, index) => (
+          <PrintStepPage
+            key={step.id}
+            step={step}
+            substeps={data.substeps}
+            substepPrintData={substepPrintData}
+            renderedImages={renderedImages}
+            instructionName={data.instructionName}
+            pageNumber={stepPageOffset + index}
+            onImageLoad={onImageLoad}
+            onImageError={onImageError}
+          />
+        ))}
+      </div>
+    </MediaResolverProvider>
   );
 }
 

@@ -41,6 +41,8 @@ export interface MediaResolver {
   readonly mode: 'processed' | 'raw';
   /** Folder name used for media URL construction (when available) */
   readonly folderName?: string;
+  /** Optional frame cache for raw-mode frame persistence */
+  readonly frameCache?: FrameCacheProvider;
 
   /** Resolve a single VideoFrameArea to a displayable image */
   resolveImage(areaId: string): ResolvedImage | null;

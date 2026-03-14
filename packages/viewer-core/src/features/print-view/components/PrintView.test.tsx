@@ -67,7 +67,13 @@ function makeData(overrides: Partial<InstructionData> = {}): InstructionData {
     },
     videos: {},
     videoSections: {},
-    videoFrameAreas: {},
+    videoFrameAreas: {
+      'cover-vfa': {
+        id: 'cover-vfa', versionId: 'v1', videoId: 'v1',
+        frameNumber: 0, useBlurred: false, localPath: null,
+        cropX: null, cropY: null, cropWidth: null, cropHeight: null,
+      },
+    },
     viewportKeyframes: {},
     partTools: {},
     notes: {},
@@ -204,6 +210,13 @@ function makeDataWithDrawings(): InstructionData {
         videoFrameAreaId: 'vfa-1', videoSectionId: null,
       },
     } as Record<string, never>,
+    videoFrameAreas: {
+      'vfa-1': {
+        id: 'vfa-1', versionId: 'v1', videoId: 'v1',
+        frameNumber: 5, useBlurred: false, localPath: null,
+        cropX: null, cropY: null, cropWidth: null, cropHeight: null,
+      },
+    },
     coverImageAreaId: null, // No cover image to simplify test
   });
 }

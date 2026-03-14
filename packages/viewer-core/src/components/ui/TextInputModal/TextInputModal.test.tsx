@@ -109,29 +109,30 @@ describe('TextInputModal', () => {
     expect(el.tagName).toBe('TEXTAREA');
   });
 
-  it('fires onConfirm on Enter key in textarea mode', async () => {
+  it('inserts newline on bare Enter in textarea mode (does not confirm)', async () => {
     const onConfirm = vi.fn();
     const user = userEvent.setup();
     render(<TextInputModal {...defaultProps} onConfirm={onConfirm} inputType="textarea" />);
 
     const textarea = screen.getByRole('textbox');
     await user.clear(textarea);
-    await user.type(textarea, 'Some description{Enter}');
-
-    expect(onConfirm).toHaveBeenCalledWith('Some description');
-  });
-
-  it('inserts newline on Shift+Enter in textarea mode', async () => {
-    const onConfirm = vi.fn();
-    const user = userEvent.setup();
-    render(<TextInputModal {...defaultProps} onConfirm={onConfirm} inputType="textarea" />);
-
-    const textarea = screen.getByRole('textbox');
-    await user.clear(textarea);
-    await user.type(textarea, 'Line one{Shift>}{Enter}{/Shift}Line two');
+    await user.type(textarea, 'Line one{Enter}Line two');
 
     expect(onConfirm).not.toHaveBeenCalled();
     expect(textarea).toHaveValue('Line one\nLine two');
+  });
+
+  it('fires onConfirm on Ctrl+Enter in textarea mode', async () => {
+    const onConfirm = vi.fn();
+    const user = userEvent.setup();
+    render(<TextInputModal {...defaultProps} onConfirm={onConfirm} inputType="textarea" />);
+
+    const textarea = screen.getByRole('textbox');
+    await user.clear(textarea);
+    await user.type(textarea, 'Some description');
+    await user.keyboard('{Control>}{Enter}{/Control}');
+
+    expect(onConfirm).toHaveBeenCalledWith('Some description');
   });
 
   it('renders number input when inputType is number', () => {

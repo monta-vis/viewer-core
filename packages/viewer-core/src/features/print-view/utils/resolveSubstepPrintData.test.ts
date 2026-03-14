@@ -1,6 +1,26 @@
 import { describe, it, expect } from 'vitest';
 import { resolveSubstepPrintData } from './resolveSubstepPrintData';
 import type { InstructionData } from '@/features/instruction';
+import type { MediaResolver } from '@/lib/mediaResolver';
+
+/** Create a mock MediaResolver that builds mvis-media:// URLs. */
+function mockResolver(folderName: string, data: InstructionData): MediaResolver {
+  return {
+    mode: 'processed',
+    folderName,
+    resolveImage: (areaId: string) => {
+      const area = data.videoFrameAreas[areaId];
+      if (!area) {
+        // Still return a URL for VFAs referenced in substepImages even if not in videoFrameAreas
+        return { kind: 'url', url: `mvis-media://${folderName}/media/frames/${areaId}/image` };
+      }
+      return { kind: 'url', url: `mvis-media://${folderName}/media/frames/${areaId}/image` };
+    },
+    resolveAllPartToolImages: () => [],
+    resolvePartToolImage: () => null,
+    resolveVideo: () => null,
+  };
+}
 
 function makeData(overrides: Partial<InstructionData> = {}): InstructionData {
   return {
@@ -76,7 +96,8 @@ function makeData(overrides: Partial<InstructionData> = {}): InstructionData {
 describe('resolveSubstepPrintData', () => {
   it('resolves image URL from first substep image', () => {
     const data = makeData();
-    const result = resolveSubstepPrintData(data, 's1', 'my-folder');
+    const resolver = mockResolver('my-folder', data);
+    const result = resolveSubstepPrintData(data, 's1', resolver);
     expect(result.imageUrl).toBe('mvis-media://my-folder/media/frames/vfa-1/image');
   });
 
@@ -91,19 +112,22 @@ describe('resolveSubstepPrintData', () => {
         },
       },
     });
-    const result = resolveSubstepPrintData(data, 's1', 'folder');
+    const resolver = mockResolver('folder', data);
+    const result = resolveSubstepPrintData(data, 's1', resolver);
     expect(result.imageUrl).toBeNull();
   });
 
   it('sorts descriptions by order', () => {
     const data = makeData();
-    const result = resolveSubstepPrintData(data, 's1', 'folder');
+    const resolver = mockResolver('folder', data);
+    const result = resolveSubstepPrintData(data, 's1', resolver);
     expect(result.descriptions).toEqual(['First step', 'Second step']);
   });
 
   it('resolves notes with category and text', () => {
     const data = makeData();
-    const result = resolveSubstepPrintData(data, 's1', 'folder');
+    const resolver = mockResolver('folder', data);
+    const result = resolveSubstepPrintData(data, 's1', resolver);
     expect(result.notes).toHaveLength(1);
     expect(result.notes[0].text).toBe('Be careful');
     expect(result.notes[0].safetyIconCategory).toBe('Warnzeichen');
@@ -111,7 +135,8 @@ describe('resolveSubstepPrintData', () => {
 
   it('resolves part tools with amounts', () => {
     const data = makeData();
-    const result = resolveSubstepPrintData(data, 's1', 'folder');
+    const resolver = mockResolver('folder', data);
+    const result = resolveSubstepPrintData(data, 's1', resolver);
     expect(result.partTools).toHaveLength(1);
     expect(result.partTools[0].name).toBe('Screw');
     expect(result.partTools[0].amount).toBe(2);
@@ -119,7 +144,8 @@ describe('resolveSubstepPrintData', () => {
 
   it('resolves image drawings for the first substep image', () => {
     const data = makeData();
-    const result = resolveSubstepPrintData(data, 's1', 'folder');
+    const resolver = mockResolver('folder', data);
+    const result = resolveSubstepPrintData(data, 's1', resolver);
     expect(result.imageDrawings).toHaveLength(1);
     expect(result.imageDrawings[0].id).toBe('d-1');
   });

@@ -9,7 +9,6 @@ interface PrintStepPageProps {
   substeps: Record<string, Substep>;
   substepPrintData: Record<string, PrintSubstepData>;
   renderedImages: Record<string, string>;
-  folderName: string;
   instructionName: string;
   pageNumber: number;
   onImageLoad?: () => void;
@@ -25,7 +24,6 @@ export function PrintStepPage({
   substeps,
   substepPrintData,
   renderedImages,
-  folderName,
   instructionName,
   pageNumber,
   onImageLoad,
@@ -66,7 +64,6 @@ export function PrintStepPage({
               renderedImageUrl={renderedImages[substep.id] ?? printData.imageUrl}
               orderLabel={`${index + 1}/${totalSubsteps}`}
               repeatCount={substep.repeatCount}
-              folderName={folderName}
               onImageLoad={onImageLoad}
               onImageError={onImageError}
             />

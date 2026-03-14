@@ -99,8 +99,6 @@ interface SubstepCardProps {
   };
   /** When set, VFA-based icons are resolved via mvis-media:// protocol (Electron). */
   folderName?: string;
-  /** VideoFrameArea records for localPath fallback (mweb context). */
-  videoFrameAreas?: Record<string, { localPath?: string | null }>;
   /** Show edit pencil icon. Default: false */
   editMode?: boolean;
   /** Edit callbacks — only used when editMode=true */
@@ -162,7 +160,6 @@ export const SubstepCard = memo(function SubstepCard({
   repeatLabel,
   tutorialDisplay,
   folderName,
-  videoFrameAreas,
   noteIconLabels,
   highlightedByPartTool = false,
   editMode = false,
@@ -762,8 +759,6 @@ export const SubstepCard = memo(function SubstepCard({
                 safetyIconId={noteRow.note.safetyIconId}
                 isExpanded={expandedNoteIds.has(noteRow.id)}
                 onToggle={handleNoteToggle}
-                folderName={folderName}
-                videoFrameAreas={videoFrameAreas}
                 iconLabel={noteIconLabels?.[noteRow.note.safetyIconId]}
               />
             ))}

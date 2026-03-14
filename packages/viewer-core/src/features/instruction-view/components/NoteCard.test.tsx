@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { NoteCard } from './NoteCard';
+import { MediaResolverProvider } from '@/lib/MediaResolverContext';
+import type { MediaResolver } from '@/lib/mediaResolver';
 
 afterEach(() => cleanup());
 
@@ -19,6 +21,21 @@ vi.mock('@/lib/media', () => ({
     frame: (id: string) => `media/frames/${id}/image`,
   },
 }));
+
+/** Create a minimal MediaResolver mock that resolves specific area IDs to URLs. */
+function mockResolver(imageMap: Record<string, string>): MediaResolver {
+  return {
+    mode: 'raw',
+    folderName: 'test-project',
+    resolveImage: (areaId: string) => {
+      const url = imageMap[areaId];
+      return url ? { kind: 'url', url } : null;
+    },
+    resolveAllPartToolImages: () => [],
+    resolvePartToolImage: () => null,
+    resolveVideo: () => null,
+  };
+}
 
 describe('NoteCard icon stability', () => {
   const baseProps = {
@@ -96,31 +113,40 @@ describe('NoteCard safety icon resolution', () => {
     onToggle: vi.fn(),
   };
 
-  it('resolves safety icon via localPath when folderName is undefined (mweb context)', () => {
-    const vfas = {
-      'safety-uuid-1': { localPath: './media/frames/safety-uuid-1/image.png' },
-    };
+  it('resolves VFA icon via MediaResolver when provider is present', () => {
+    const resolver = mockResolver({
+      'safety-uuid-1': 'mvis-media://my-project/media/frames/safety-uuid-1/image',
+    });
     render(
-      <NoteCard
-        {...baseProps}
-        safetyIconId="safety-uuid-1"
-        videoFrameAreas={vfas}
-      />,
-    );
-    const img = screen.getByRole('img');
-    expect(img.getAttribute('src')).toBe('./media/frames/safety-uuid-1/image.png');
-  });
-
-  it('resolves safety icon via buildMediaUrl when folderName is set (Electron context)', () => {
-    render(
-      <NoteCard
-        {...baseProps}
-        safetyIconId="safety-uuid-1"
-        folderName="my-project"
-      />,
+      <MediaResolverProvider resolver={resolver}>
+        <NoteCard
+          {...baseProps}
+          safetyIconId="safety-uuid-1"
+        />
+      </MediaResolverProvider>,
     );
     const img = screen.getByRole('img');
     expect(img.getAttribute('src')).toBe('mvis-media://my-project/media/frames/safety-uuid-1/image');
+  });
+
+  it('renders fallback text when resolver returns null for VFA', () => {
+    const resolver = mockResolver({});
+    render(
+      <MediaResolverProvider resolver={resolver}>
+        <NoteCard
+          {...baseProps}
+          safetyIconId="unknown-vfa-uuid"
+        />
+      </MediaResolverProvider>,
+    );
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('War')).toBeInTheDocument();
+  });
+
+  it('renders fallback text when no MediaResolver is provided and icon is VFA', () => {
+    render(<NoteCard {...baseProps} safetyIconId="unknown-vfa-uuid" />);
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(screen.getByText('War')).toBeInTheDocument();
   });
 
   it('falls back to safetyIconUrl for legacy filename icons', () => {
@@ -133,13 +159,6 @@ describe('NoteCard safety icon resolution', () => {
     const img = screen.getByRole('img');
     // publicAsset('SafetyIcons/...') → '/SafetyIcons/W001-Allgemeines-Warnzeichen.png'
     expect(img.getAttribute('src')).toBe('/SafetyIcons/W001-Allgemeines-Warnzeichen.png');
-  });
-
-  it('renders fallback text when icon URL cannot be resolved (VFA without folderName or localPath)', () => {
-    render(<NoteCard {...baseProps} safetyIconId="unknown-vfa-uuid" />);
-    // No <img> tag — fallback category text abbreviation is rendered
-    expect(screen.queryByRole('img')).toBeNull();
-    expect(screen.getByText('War')).toBeInTheDocument(); // first 3 chars of 'Warnzeichen'
   });
 });
 
@@ -181,7 +200,6 @@ describe('NoteCard icon label tooltip', () => {
     const img = screen.getByRole('img');
     const wrapper = img.parentElement!;
     fireEvent.mouseEnter(wrapper);
-    // categoryLabel = t('editor.safetyCategory.Warnzeichen', 'Warnzeichen') → 'Warnzeichen'
     expect(screen.getByRole('tooltip')).toHaveTextContent('Warnzeichen');
   });
 });
@@ -211,3 +229,4 @@ describe('NoteCard click behavior', () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
 });
+

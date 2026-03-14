@@ -124,7 +124,7 @@ export interface VideoFrameAreaRow {
   y: number | null;
   width: number | null;
   height: number | null;
-  type: 'SubstepImage' | 'PreviewImage' | 'PartToolScan' | 'TextScan' | 'CodeScan' | 'Viewport';
+  type: 'SubstepImage' | 'PreviewImage' | 'PartToolScan' | 'TextScan' | 'CodeScan' | 'Viewport' | 'SafetyIcon';
   /** JSON array of normalized contour points [{x, y}] from SAM segmentation (0-1) */
   segmentationPoints?: string | null;
   /** Pre-exported image URL (for standalone/snapshot mode) */

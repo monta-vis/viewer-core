@@ -1,11 +1,11 @@
 import { useTranslation } from 'react-i18next';
 import type { InstructionData, PartToolRow } from '@/features/instruction';
-import { buildMediaUrl, MediaPaths } from '@/lib/media';
+import { useMediaResolver } from '@/lib/MediaResolverContext';
+import type { MediaResolver } from '@/lib/mediaResolver';
 import { PrintPageFooter } from './PrintPageFooter';
 
 interface PrintPartsToolsPageProps {
   data: InstructionData;
-  folderName: string;
   instructionName: string;
   pageNumber: number;
   onImageLoad?: () => void;
@@ -18,13 +18,13 @@ interface PrintPartsToolsPageProps {
  */
 export function PrintPartsToolsPage({
   data,
-  folderName,
   instructionName,
   pageNumber,
   onImageLoad,
   onImageError,
 }: PrintPartsToolsPageProps) {
   const { t } = useTranslation();
+  const resolver = useMediaResolver();
 
   const allPartTools = Object.values(data.partTools);
   const parts = allPartTools.filter((pt) => pt.type === 'Part');
@@ -47,7 +47,7 @@ export function PrintPartsToolsPage({
               <PartToolCard
                 key={pt.id}
                 partTool={pt}
-                folderName={folderName}
+                resolver={resolver}
                 onImageLoad={onImageLoad}
                 onImageError={onImageError}
               />
@@ -65,7 +65,7 @@ export function PrintPartsToolsPage({
               <PartToolCard
                 key={pt.id}
                 partTool={pt}
-                folderName={folderName}
+                resolver={resolver}
                 onImageLoad={onImageLoad}
                 onImageError={onImageError}
               />
@@ -84,18 +84,20 @@ export function PrintPartsToolsPage({
 
 function PartToolCard({
   partTool,
-  folderName,
+  resolver,
   onImageLoad,
   onImageError,
 }: {
   partTool: PartToolRow;
-  folderName: string;
+  resolver: MediaResolver;
   onImageLoad?: () => void;
   onImageError?: () => void;
 }) {
-  const imageUrl = partTool.previewImageId
-    ? buildMediaUrl(folderName, MediaPaths.frame(partTool.previewImageId))
-    : null;
+  const resolved = partTool.previewImageId ? resolver.resolveImage(partTool.previewImageId) : null;
+  if (resolved && resolved.kind !== 'url') {
+    console.warn('[PrintPartsToolsPage] Unexpected resolver kind for part/tool image:', resolved.kind);
+  }
+  const imageUrl = resolved?.kind === 'url' ? resolved.url : null;
 
   return (
     <div className="print-part-card">

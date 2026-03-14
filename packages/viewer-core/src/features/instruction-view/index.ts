@@ -44,6 +44,8 @@ export { PartToolDetailContent } from './components/PartToolDetailContent';
 export { NoteCard } from './components/NoteCard';
 
 // Utils
+export { bindSubstepCallbacks, type ExtendedSubstepEditCallbacks } from './utils/bindSubstepCallbacks';
+export { resolveNoteIconUrl } from './utils/resolveNoteIconUrl';
 export { type SubstepVideoEntry } from './utils/buildVideoEntry';
 export { sqliteToSnapshot } from './utils/sqliteToSnapshot';
 export { transformSnapshotToStore } from './utils/transformSnapshotToStore';

@@ -47,6 +47,7 @@ export type { MediaResolver, ResolvedImage, FrameCacheProvider, FrameCacheKey } 
 export { sortPartToolJunctions } from './lib/mediaResolver';
 export { createProcessedResolver, type ProcessedResolverConfig } from './lib/createProcessedResolver';
 export { createRawResolver, type RawResolverConfig } from './lib/createRawResolver';
+export { createLruFrameCache, type LruFrameCache } from './lib/createLruFrameCache';
 export { MediaResolverProvider, useMediaResolver, useMediaResolverOptional } from './lib/MediaResolverContext';
 
 // Default translations for viewer-core components

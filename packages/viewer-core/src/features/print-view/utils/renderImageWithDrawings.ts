@@ -219,19 +219,26 @@ function renderDrawingToCanvas(
       const ty = (d.y ?? d.y1 ?? 0) * h;
       // fontSize is stored as percentage of container width (3=S, 5=M, 8=L)
       const fontSize = w * ((d.fontSize ?? 5) / 100);
+      const lineHeight = fontSize * 1.2;
       const padding = fontSize * 0.4;
       const textContent = d.content ?? '';
 
-      // Measure text width for background card
+      // Split by newlines for multiline support
+      const lines = textContent.split('\n');
+
+      // Measure widest line for background card
       ctx.font = `700 ${fontSize}px Inter, system-ui, sans-serif`;
-      const metrics = ctx.measureText(textContent);
-      const textWidth = metrics.width;
+      let maxLineWidth = 0;
+      for (const line of lines) {
+        const lineWidth = ctx.measureText(line).width;
+        if (lineWidth > maxLineWidth) maxLineWidth = lineWidth;
+      }
 
       // Background card dimensions
       const cardX = tx;
       const cardY = ty - fontSize - padding;
-      const cardW = textWidth + padding * 2;
-      const cardH = fontSize * 1.2 + padding;
+      const cardW = maxLineWidth + padding * 2;
+      const cardH = lineHeight * lines.length + padding;
       const radius = padding;
 
       // Color logic matching ShapeRenderer
@@ -264,10 +271,12 @@ function renderDrawingToCanvas(
         ctx.stroke();
       }
 
-      // Draw text
+      // Draw each line of text
       ctx.fillStyle = textColor;
       ctx.textBaseline = 'top';
-      ctx.fillText(textContent, cardX + padding, cardY + padding * 0.5);
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i], cardX + padding, cardY + padding * 0.5 + i * lineHeight);
+      }
       ctx.textBaseline = 'alphabetic'; // reset
       break;
     }

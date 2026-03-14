@@ -10,7 +10,6 @@ interface PrintSubstepBlockProps {
   /** e.g. "1/5" */
   orderLabel: string;
   repeatCount: number;
-  folderName: string;
   onImageLoad?: () => void;
   onImageError?: () => void;
 }
@@ -24,7 +23,6 @@ export function PrintSubstepBlock({
   renderedImageUrl,
   orderLabel,
   repeatCount,
-  folderName,
   onImageLoad,
   onImageError,
 }: PrintSubstepBlockProps) {
@@ -76,7 +74,7 @@ export function PrintSubstepBlock({
 
         {/* Notes */}
         {substepData.notes.map((note, i) => (
-          <PrintNoteBlock key={i} note={note} folderName={folderName} />
+          <PrintNoteBlock key={i} note={note} />
         ))}
 
         {/* Part/tool callouts */}
