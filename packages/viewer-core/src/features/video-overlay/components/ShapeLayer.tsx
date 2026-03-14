@@ -1,4 +1,4 @@
-import { memo, useCallback } from 'react';
+import { memo, useCallback, useMemo } from 'react';
 import type { ShapeHandleType, Rectangle } from '../types';
 import { ShapeRenderer, type ShapeData } from './ShapeRenderer';
 import { useShiftKey } from '../hooks/useShiftKey';
@@ -158,7 +158,7 @@ export function ShapeLayer<T extends ShapeData>({
   isDrawModeActive = false,
   onDoubleClick,
 }: ShapeLayerProps<T>) {
-  const isShiftPressed = useShiftKey();
+  const isFreeMode = !useShiftKey();
 
   // Derive effective selection check
   const isShapeSelected = (id: string) => selectedIds ? selectedIds.has(id) : selectedId === id;
@@ -175,9 +175,10 @@ export function ShapeLayer<T extends ShapeData>({
   };
 
   // Transform shapes to container space if bounds provided
-  const transformedShapes = bounds
-    ? shapes.map((shape) => transformShapeToContainerSpace(shape, bounds))
-    : shapes;
+  const transformedShapes = useMemo(
+    () => bounds ? shapes.map((shape) => transformShapeToContainerSpace(shape, bounds)) : shapes,
+    [shapes, bounds],
+  );
 
   // Bounds pixel width for text fontSize scaling
   const boundsWidthPx = bounds ? (bounds.width / 100) * containerWidth : undefined;
@@ -201,7 +202,7 @@ export function ShapeLayer<T extends ShapeData>({
           containerWidth={containerWidth}
           containerHeight={containerHeight}
           isSelected={isShapeSelected(shape.id)}
-          showEdgeHandles={isShiftPressed}
+          showEdgeHandles={isFreeMode}
           isDrawModeActive={isDrawModeActive}
           textScaleWidth={boundsWidthPx}
           shapePointerEvents={shapePointerEvents}

@@ -997,6 +997,7 @@ describe('SubstepEditPopover — parts/tools cards', () => {
     expect(card).toBeTruthy();
     await user.click(card!);
     expect(onOpenPartToolList).toHaveBeenCalledOnce();
+    expect(onOpenPartToolList).toHaveBeenCalledWith('pt-1');
   });
 
   it('add button fires onAddSubstepPartTool with snapshot', async () => {
@@ -1046,6 +1047,7 @@ describe('SubstepEditPopover — onOpenPartToolList button', () => {
 
     await user.click(screen.getByTestId('parttool-list-open'));
     expect(onOpenPartToolList).toHaveBeenCalledOnce();
+    expect(onOpenPartToolList).toHaveBeenCalledWith();
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 });

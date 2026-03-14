@@ -185,6 +185,37 @@ describe('createProcessedResolver', () => {
       expect(result[0]).toEqual({ kind: 'url', url: 'mvis-media://proj/media/frames/vfa1/image' });
       expect(result[1]).toEqual({ kind: 'url', url: 'mvis-media://proj/media/frames/vfa2/image' });
     });
+
+    it('in mweb mode returns only VFAs with localPath and warns for missing ones', () => {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const data = makeData({
+        videoFrameAreas: {
+          vfa1: {
+            id: 'vfa1', versionId: 'v1', videoId: 'vid1', frameNumber: 42,
+            x: null, y: null, width: null, height: null,
+            type: 'SubstepImage', localPath: './images/frame1.png',
+          },
+          vfa2: {
+            id: 'vfa2', versionId: 'v1', videoId: 'vid1', frameNumber: 50,
+            x: null, y: null, width: null, height: null,
+            type: 'SubstepImage', localPath: null,
+          },
+        },
+      } as Partial<InstructionData>);
+
+      // No folderName = mweb/cloud mode
+      const resolver = createProcessedResolver({ data });
+      const result = resolver.resolveAllPartToolImages('pt1');
+
+      expect(result).toHaveLength(1);
+      expect(result[0]).toEqual({ kind: 'url', url: './images/frame1.png' });
+      expect(warnSpy).toHaveBeenCalledWith(
+        '[resolveAllPartToolImageUrls] VFA missing localPath in cloud mode:',
+        'vfa2',
+      );
+
+      warnSpy.mockRestore();
+    });
   });
 
   describe('resolveVideo', () => {

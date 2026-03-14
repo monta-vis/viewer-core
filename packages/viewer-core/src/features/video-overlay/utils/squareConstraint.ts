@@ -2,8 +2,8 @@
  * Utility functions for applying square (1:1 aspect ratio) constraints
  * to rectangle drawing operations.
  *
- * Default behavior: Square (1:1 in true pixels)
- * With Shift key: Free drawing (any aspect ratio)
+ * Default behavior: Free drawing (any aspect ratio)
+ * With Shift key: Square (1:1 in true pixels)
  */
 
 export interface SquareConstraintOptions {

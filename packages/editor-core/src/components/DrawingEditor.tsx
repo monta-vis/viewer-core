@@ -47,7 +47,7 @@ interface DrawingEditorProps {
 
   // Multi-select (optional, backward compatible)
   selectedDrawingIds?: ReadonlySet<string>;
-  onDrawingMultiSelect?: (id: string, modifier: 'ctrl' | 'shift' | null) => void;
+  onDrawingMultiSelect?: (id: string, modifier: 'ctrl' | 'shift' | null, orderedIds?: string[]) => void;
 
   // Font size for text drawings
   selectedDrawingFontSize?: number | null;
@@ -261,6 +261,9 @@ export function DrawingEditor({
   // Active drawings list based on mode
   const activeDrawings = drawingMode === 'image' ? imageDrawings : videoDrawings;
 
+  // Ordered IDs for the active drawing list (used for shift+click range selection)
+  const orderedIds = useMemo(() => activeDrawings.map((d) => d.id), [activeDrawings]);
+
   // Local state for timeline dragging
   const [isDragging, setIsDragging] = useState<'start' | 'end' | null>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -348,14 +351,14 @@ export function DrawingEditor({
     onDrawingSectionChange?.(drawing.type);
     if (selectMode && onDrawingMultiSelect) {
       // In select mode, always toggle (ctrl modifier) without needing modifier keys
-      onDrawingMultiSelect(drawing.id, 'ctrl');
+      onDrawingMultiSelect(drawing.id, 'ctrl', orderedIds);
     } else if (onDrawingMultiSelect) {
       const modifier = (e.ctrlKey || e.metaKey) ? 'ctrl' : e.shiftKey ? 'shift' : null;
-      onDrawingMultiSelect(drawing.id, modifier);
+      onDrawingMultiSelect(drawing.id, modifier, orderedIds);
     } else {
       onDrawingSelect?.(drawing.id);
     }
-  }, [selectMode, onDrawingSectionChange, onDrawingMultiSelect, onDrawingSelect]);
+  }, [selectMode, onDrawingSectionChange, onDrawingMultiSelect, onDrawingSelect, orderedIds]);
 
   // Format time from percent
   const formatTime = useCallback((percent: number): string => {

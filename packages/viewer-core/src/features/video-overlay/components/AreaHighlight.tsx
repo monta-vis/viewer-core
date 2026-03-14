@@ -54,7 +54,7 @@ export function AreaHighlight({
   onResizeStart,
   onContextMenu,
 }: AreaHighlightProps) {
-  const isShiftPressed = useShiftKey();
+  const isFreeMode = !useShiftKey();
   // Use color override if set, otherwise use type-based color
   const color = area.color ?? AREA_COLORS[area.type || 'SubstepImage'] ?? AREA_COLORS.SubstepImage;
 
@@ -238,8 +238,8 @@ export function AreaHighlight({
           {renderHandle('bottomLeft', '-bottom-1 -left-1')}
           {renderHandle('bottomRight', '-bottom-1 -right-1')}
 
-          {/* Edge midpoints - only shown when Shift is pressed (for free resize mode) */}
-          {isShiftPressed && (
+          {/* Edge midpoints - shown in free mode (default), hidden when Shift constrains to 1:1 */}
+          {isFreeMode && (
             <>
               {renderHandle('top', '-top-1 left-1/2 -translate-x-1/2')}
               {renderHandle('bottom', '-bottom-1 left-1/2 -translate-x-1/2')}

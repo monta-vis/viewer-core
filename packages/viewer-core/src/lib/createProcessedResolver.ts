@@ -7,7 +7,7 @@
 
 import type { InstructionData } from '@/features/instruction';
 import { buildMediaUrl, resolveFramePath } from '@/lib/media';
-import { resolveAllPartToolImageUrls } from '@/features/instruction-view/utils/resolveAllPartToolImageUrls';
+import { resolveAllPartToolImageUrls } from '@/lib/resolveAllPartToolImageUrls';
 import { buildVideoEntry } from '@/features/instruction-view/utils/buildVideoEntry';
 import type { MediaResolver, ResolvedImage } from './mediaResolver';
 

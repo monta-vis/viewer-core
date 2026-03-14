@@ -44,6 +44,23 @@ interface MediaResolver {
 - `{ kind: 'url'; url: string }` — pre-processed image file (processed mode)
 - `{ kind: 'frameCapture'; data: FrameCaptureData }` — live video frame extraction (raw mode)
 
+### Media Source Map
+
+#### Images — 3 sources
+
+| # | Source | On disk? | Resolution |
+|---|--------|----------|------------|
+| 1 | **Live frame capture** (editor) | No — extracted at runtime from source video via canvas | Raw resolver → `{ kind: 'frameCapture' }` |
+| 2 | **Processed file** (uploaded/exported) | `media/frames/{vfaId}/image` | Both resolvers → `{ kind: 'url' }` via `buildMediaUrl` or `localPath` |
+| 3 | **Catalog icon** (external) | `Catalogs/{type}/{catalog}/{file}` — copied to `media/frames/{entryId}/image.{ext}` on assignment | Outside MediaResolver — `resolveNoteIconUrl()` / `getIconUrl()`. After copy, becomes case 2. |
+
+#### Videos — 2 sources
+
+| # | Source | Resolution |
+|---|--------|------------|
+| 1 | **Source video sections** (raw/editor) | Absolute path via `resolveSourceVideoUrl` |
+| 2 | **Merged substep video** (processed/viewer) | `media/substeps/{substepId}/video.mp4` |
+
 ### Raw mode — `createRawResolver()`
 
 Factory: `viewer-core/src/lib/createRawResolver.ts`
@@ -57,6 +74,13 @@ Used in the **creator editor** for live preview. Extracts frames on-demand from 
 Factory: `viewer-core/src/lib/createProcessedResolver.ts`
 
 Used in the **viewer-app** and **creator preview**. Serves pre-extracted images and merged videos — no runtime frame extraction. Supports blurred variants via master + per-VFA blur flags. Resolves paths through `MediaPaths` constants and builds `mvis-media://` URLs (or falls back to `localPath` for mweb/snapshot exports without a `folderName`).
+
+### mweb / cloud mode
+
+When `folderName` is `undefined`, the processed resolver operates in cloud mode:
+- **Images:** uses `localPath` from the DB record (relative `./` paths). Returns `null` if `localPath` is missing.
+- **Videos:** uses relative `./` paths from DB video section records.
+- **Part/tool images:** `resolveAllPartToolImageUrls` skips VFAs without `localPath` and logs a `console.warn`.
 
 ## Resolution Matrix
 
@@ -181,7 +205,7 @@ export const MediaPaths = {
 | `src/features/instruction-view/components/VideoFrameCapture.tsx` | Canvas-based frame extraction from `<video>` |
 | `src/features/instruction-view/utils/buildVideoEntry.ts` | Builds `SubstepVideoEntry` from DB data |
 | `src/features/instruction-view/utils/resolveRawFrameCapture.ts` | Raw frame capture data resolution |
-| `src/features/instruction-view/utils/resolveAllPartToolImageUrls.ts` | Part/tool URL resolution |
+| `src/lib/resolveAllPartToolImageUrls.ts` | Part/tool URL resolution |
 
 ### editor-core (published package)
 

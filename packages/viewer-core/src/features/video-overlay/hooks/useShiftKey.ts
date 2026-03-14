@@ -1,40 +1,67 @@
-import { useState, useEffect } from 'react';
+import { useSyncExternalStore } from 'react';
 
 /**
- * Hook to track whether the Shift key is currently pressed.
- * Useful for conditional UI rendering based on modifier keys.
+ * Shared singleton that tracks the Shift key state with a single set of
+ * global event listeners, no matter how many components call useShiftKey().
  */
-export function useShiftKey(): boolean {
-  const [isShiftPressed, setIsShiftPressed] = useState(false);
+let shiftPressed = false;
+const listeners = new Set<() => void>();
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        setIsShiftPressed(true);
-      }
-    };
+function subscribe(cb: () => void): () => void {
+  listeners.add(cb);
 
-    const handleKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'Shift') {
-        setIsShiftPressed(false);
-      }
-    };
-
-    // Also reset on blur (user switches window)
-    const handleBlur = () => {
-      setIsShiftPressed(false);
-    };
-
+  // Register global listeners lazily on first subscriber
+  if (listeners.size === 1) {
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     window.addEventListener('blur', handleBlur);
+  }
 
-    return () => {
+  return () => {
+    listeners.delete(cb);
+    // Tear down global listeners when no subscribers remain
+    if (listeners.size === 0) {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', handleBlur);
-    };
-  }, []);
+    }
+  };
+}
 
-  return isShiftPressed;
+function getSnapshot(): boolean {
+  return shiftPressed;
+}
+
+function notify() {
+  for (const cb of listeners) cb();
+}
+
+function handleKeyDown(e: KeyboardEvent) {
+  if (e.key === 'Shift' && !shiftPressed) {
+    shiftPressed = true;
+    notify();
+  }
+}
+
+function handleKeyUp(e: KeyboardEvent) {
+  if (e.key === 'Shift' && shiftPressed) {
+    shiftPressed = false;
+    notify();
+  }
+}
+
+function handleBlur() {
+  if (shiftPressed) {
+    shiftPressed = false;
+    notify();
+  }
+}
+
+/**
+ * Hook to track whether the Shift key is currently pressed.
+ * Uses a shared singleton — only one set of global listeners regardless of
+ * how many components consume this hook.
+ */
+export function useShiftKey(): boolean {
+  return useSyncExternalStore(subscribe, getSnapshot);
 }

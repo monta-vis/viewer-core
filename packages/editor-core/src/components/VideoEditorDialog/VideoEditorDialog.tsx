@@ -844,6 +844,7 @@ function VideoEditorViewMode({
                         currentPoint={annotationDrawingHook.currentPoint}
                         containerWidth={containerSize.width}
                         containerHeight={containerSize.height}
+                        freehandPoints={annotationDrawingHook.freehandPoints}
                       />
                     </svg>
                   )}

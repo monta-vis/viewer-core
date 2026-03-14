@@ -34,6 +34,8 @@ export function resolveAllPartToolImageUrls(
       const localPath = videoFrameAreas?.[areaId]?.localPath;
       if (localPath) {
         urls.push(localPath);
+      } else {
+        console.warn('[resolveAllPartToolImageUrls] VFA missing localPath in cloud mode:', areaId);
       }
     }
   }

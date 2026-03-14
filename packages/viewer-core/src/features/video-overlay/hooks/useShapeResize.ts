@@ -403,10 +403,10 @@ export function useShapeResize<T extends ResizableShape>({
           if (scalesX) scaleX = Math.max(MIN_GROUP_SCALE, scaleX);
           if (scalesY) scaleY = Math.max(MIN_GROUP_SCALE, scaleY);
 
-          // Default = uniform scaling (fixed aspect ratio) for corner handles
-          // Shift key = free resizing (independent X/Y scaling)
+          // Default = free resizing (independent X/Y scaling) for corner handles
+          // Shift key = uniform scaling (fixed aspect ratio)
           const isCornerHandle = handle === 'nw' || handle === 'ne' || handle === 'se' || handle === 'sw';
-          if (!e.shiftKey && isCornerHandle) {
+          if (e.shiftKey && isCornerHandle) {
             const uniformScale = Math.max(scaleX, scaleY);
             scaleX = uniformScale;
             scaleY = uniformScale;
@@ -590,9 +590,9 @@ export function useShapeResize<T extends ResizableShape>({
                 break;
             }
 
-            // Default = TRUE PIXEL SQUARE (account for container aspect ratio)
-            // Shift key = free resizing (any aspect ratio)
-            if (!shiftKey && isCornerHandle) {
+            // Default = free resizing (any aspect ratio)
+            // Shift key = TRUE PIXEL SQUARE (account for container aspect ratio)
+            if (shiftKey && isCornerHandle) {
               const x1 = newCoords.x1 ?? 0;
               const y1 = newCoords.y1 ?? 0;
               const x2 = newCoords.x2 ?? x1;

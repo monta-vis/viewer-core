@@ -160,68 +160,61 @@ export function useAnnotationDrawing({
         return;
       }
 
-      // Apply square constraint for circle and rectangle (default = square, Shift = free)
-      if (tool === 'circle' || tool === 'rectangle') {
+      // Apply square constraint for circle and rectangle (default = free, Shift = square)
+      if ((tool === 'circle' || tool === 'rectangle') && e.shiftKey) {
+        // Square mode - maintain 1:1 pixel aspect ratio
         const aspectRatio = containerAspectRef.current;
-        const freeMode = e.shiftKey;
+        const width = Math.abs(point.x - state.startPoint.x);
+        const height = Math.abs(point.y - state.startPoint.y);
 
-        if (freeMode) {
-          // Free mode - just use clamped point as-is
-          // Point is already clamped to bounds
-        } else {
-          // Square mode - maintain 1:1 pixel aspect ratio
-          const width = Math.abs(point.x - state.startPoint.x);
-          const height = Math.abs(point.y - state.startPoint.y);
+        const constrained = applySquareConstraint({
+          width,
+          height,
+          aspectRatio,
+          freeMode: false,
+        });
 
-          const constrained = applySquareConstraint({
-            width,
-            height,
-            aspectRatio,
-            freeMode: false,
-          });
+        // Calculate direction of drag
+        const dirX = point.x >= state.startPoint.x ? 1 : -1;
+        const dirY = point.y >= state.startPoint.y ? 1 : -1;
 
-          // Calculate direction of drag
-          const dirX = point.x >= state.startPoint.x ? 1 : -1;
-          const dirY = point.y >= state.startPoint.y ? 1 : -1;
+        // Calculate unclamped endpoint
+        let endX = state.startPoint.x + constrained.width * dirX;
+        let endY = state.startPoint.y + constrained.height * dirY;
 
-          // Calculate unclamped endpoint
-          let endX = state.startPoint.x + constrained.width * dirX;
-          let endY = state.startPoint.y + constrained.height * dirY;
+        // Calculate bounds limits
+        const minX = bounds?.x ?? 0;
+        const minY = bounds?.y ?? 0;
+        const maxX = bounds ? bounds.x + bounds.width : 100;
+        const maxY = bounds ? bounds.y + bounds.height : 100;
 
-          // Calculate bounds limits
-          const minX = bounds?.x ?? 0;
-          const minY = bounds?.y ?? 0;
-          const maxX = bounds ? bounds.x + bounds.width : 100;
-          const maxY = bounds ? bounds.y + bounds.height : 100;
+        // Check if endpoint exceeds bounds and scale proportionally
+        let scaledWidth = constrained.width;
+        let scaledHeight = constrained.height;
 
-          // Check if endpoint exceeds bounds and scale proportionally
-          let scaledWidth = constrained.width;
-          let scaledHeight = constrained.height;
+        // Calculate maximum allowed size based on direction
+        const maxWidthAvailable = dirX > 0 ? maxX - state.startPoint.x : state.startPoint.x - minX;
+        const maxHeightAvailable = dirY > 0 ? maxY - state.startPoint.y : state.startPoint.y - minY;
 
-          // Calculate maximum allowed size based on direction
-          const maxWidthAvailable = dirX > 0 ? maxX - state.startPoint.x : state.startPoint.x - minX;
-          const maxHeightAvailable = dirY > 0 ? maxY - state.startPoint.y : state.startPoint.y - minY;
+        // Find limiting factor while maintaining aspect ratio
+        const maxWidthPixel = maxWidthAvailable;
+        const maxHeightPixel = maxHeightAvailable / aspectRatio;
 
-          // Find limiting factor while maintaining aspect ratio
-          const maxWidthPixel = maxWidthAvailable;
-          const maxHeightPixel = maxHeightAvailable / aspectRatio;
-
-          if (scaledWidth > maxWidthAvailable || scaledHeight > maxHeightAvailable) {
-            // Need to scale down - use the more restrictive constraint
-            if (maxWidthPixel < maxHeightPixel) {
-              scaledWidth = maxWidthAvailable;
-              scaledHeight = maxWidthAvailable * aspectRatio;
-            } else {
-              scaledHeight = maxHeightAvailable;
-              scaledWidth = maxHeightAvailable / aspectRatio;
-            }
+        if (scaledWidth > maxWidthAvailable || scaledHeight > maxHeightAvailable) {
+          // Need to scale down - use the more restrictive constraint
+          if (maxWidthPixel < maxHeightPixel) {
+            scaledWidth = maxWidthAvailable;
+            scaledHeight = maxWidthAvailable * aspectRatio;
+          } else {
+            scaledHeight = maxHeightAvailable;
+            scaledWidth = maxHeightAvailable / aspectRatio;
           }
-
-          endX = state.startPoint.x + scaledWidth * dirX;
-          endY = state.startPoint.y + scaledHeight * dirY;
-
-          point = { x: endX, y: endY };
         }
+
+        endX = state.startPoint.x + scaledWidth * dirX;
+        endY = state.startPoint.y + scaledHeight * dirY;
+
+        point = { x: endX, y: endY };
       }
 
       setState((prev) => ({

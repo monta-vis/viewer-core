@@ -109,11 +109,11 @@ export function useAreaSelection({
       let width = Math.abs(pos.x - state.startPoint.x);
       let height = Math.abs(pos.y - state.startPoint.y);
 
-      // Default = TRUE PIXEL SQUARE (account for container aspect ratio)
-      // Shift key = free drawing (any aspect ratio)
+      // Default = free drawing (any aspect ratio)
+      // Shift key = TRUE PIXEL SQUARE (account for container aspect ratio)
       // For a 16:9 container, 10% width ≠ 10% height in pixels
       // To get same pixels: heightPct = widthPct * aspectRatio
-      if (!e.shiftKey) {
+      if (e.shiftKey) {
         const aspectRatio = containerAspectRef.current;
 
         // Determine which dimension to use as the base
@@ -143,7 +143,7 @@ export function useAreaSelection({
       // Clamp rectangle to stay within 0-100% bounds
       // For constrained aspect ratio (no shift), scale both dimensions proportionally
       const aspectRatio = containerAspectRef.current;
-      const maintainAspectRatio = !e.shiftKey;
+      const maintainAspectRatio = e.shiftKey;
 
       if (maintainAspectRatio) {
         // Calculate maximum allowed size based on available space

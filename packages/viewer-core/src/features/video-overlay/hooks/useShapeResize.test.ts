@@ -357,7 +357,7 @@ describe('useShapeResize - group resize', () => {
     expect(moves[1].updates.x1).toBeDefined();
   });
 
-  it('should enforce uniform scaling on corner handles by default (no Shift)', () => {
+  it('should allow free resize on corner handles by default (no Shift)', () => {
     const { result } = renderHook(() =>
       useShapeResize<TestShape>({ onGroupMoveComplete }),
     );
@@ -377,10 +377,56 @@ describe('useShapeResize - group resize', () => {
     });
 
     // Drag SE corner asymmetrically: X to 90% but Y only to 70%
-    // Without uniform: scaleX = (90-10)/(50-10) = 2.0, scaleY = (70-10)/(50-10) = 1.5
-    // With uniform (max): both should be 2.0
+    // Free resize (default): scaleX = (90-10)/(50-10) = 2.0, scaleY = (70-10)/(50-10) = 1.5
+    // Both applied independently
     act(() => {
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 900, clientY: 700 }));
+    });
+    act(() => {
+      flushRaf();
+    });
+
+    expect(result.current.liveGroupCoords).not.toBeNull();
+    if (result.current.liveGroupCoords) {
+      const coordsA = result.current.liveGroupCoords.get('a');
+      // Free resize: scaleX=2.0, scaleY=1.5 from anchor (10,10)
+      // Shape A: x1=10, y1=10, x2=10+(30-10)*2=50, y2=10+(30-10)*1.5=40
+      expect(coordsA!.x1).toBeCloseTo(10, 0);
+      expect(coordsA!.y1).toBeCloseTo(10, 0);
+      expect(coordsA!.x2).toBeCloseTo(50, 0);
+      expect(coordsA!.y2).toBeCloseTo(40, 0);
+
+      const coordsB = result.current.liveGroupCoords.get('b');
+      // Shape B: x1=10+(30-10)*2=50, y1=10+(30-10)*1.5=40, x2=10+(50-10)*2=90, y2=10+(50-10)*1.5=70
+      expect(coordsB!.x1).toBeCloseTo(50, 0);
+      expect(coordsB!.y1).toBeCloseTo(40, 0);
+      expect(coordsB!.x2).toBeCloseTo(90, 0);
+      expect(coordsB!.y2).toBeCloseTo(70, 0);
+    }
+  });
+
+  it('should enforce uniform scaling on corner handles when Shift is held', () => {
+    const { result } = renderHook(() =>
+      useShapeResize<TestShape>({ onGroupMoveComplete }),
+    );
+
+    act(() => {
+      setupContainer(result.current.containerRef);
+    });
+
+    const shapes: TestShape[] = [
+      makeRect('a', 10, 10, 30, 30),
+      makeRect('b', 30, 30, 50, 50),
+    ];
+
+    act(() => {
+      result.current.startGroupResize(shapes, 'b', 'se', createMouseEvent(500, 500));
+    });
+
+    // Drag SE corner asymmetrically WITH Shift: X to 90%, Y to 70%
+    // Uniform scaling (Shift): max(scaleX, scaleY) = max(2.0, 1.5) = 2.0
+    act(() => {
+      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 900, clientY: 700, shiftKey: true }));
     });
     act(() => {
       flushRaf();
@@ -402,45 +448,6 @@ describe('useShapeResize - group resize', () => {
       expect(coordsB!.y1).toBeCloseTo(50, 0);
       expect(coordsB!.x2).toBeCloseTo(90, 0);
       expect(coordsB!.y2).toBeCloseTo(90, 0);
-    }
-  });
-
-  it('should allow free resize on corner handles when Shift is held', () => {
-    const { result } = renderHook(() =>
-      useShapeResize<TestShape>({ onGroupMoveComplete }),
-    );
-
-    act(() => {
-      setupContainer(result.current.containerRef);
-    });
-
-    const shapes: TestShape[] = [
-      makeRect('a', 10, 10, 30, 30),
-      makeRect('b', 30, 30, 50, 50),
-    ];
-
-    act(() => {
-      result.current.startGroupResize(shapes, 'b', 'se', createMouseEvent(500, 500));
-    });
-
-    // Drag SE corner asymmetrically WITH Shift: X to 90%, Y to 70%
-    // scaleX = 2.0, scaleY = 1.5 — both applied independently
-    act(() => {
-      window.dispatchEvent(new MouseEvent('mousemove', { clientX: 900, clientY: 700, shiftKey: true }));
-    });
-    act(() => {
-      flushRaf();
-    });
-
-    expect(result.current.liveGroupCoords).not.toBeNull();
-    if (result.current.liveGroupCoords) {
-      const coordsA = result.current.liveGroupCoords.get('a');
-      // Free resize: scaleX=2.0, scaleY=1.5 from anchor (10,10)
-      // Shape A: x1=10, y1=10, x2=10+(30-10)*2=50, y2=10+(30-10)*1.5=40
-      expect(coordsA!.x1).toBeCloseTo(10, 0);
-      expect(coordsA!.y1).toBeCloseTo(10, 0);
-      expect(coordsA!.x2).toBeCloseTo(50, 0);
-      expect(coordsA!.y2).toBeCloseTo(40, 0);
     }
   });
 

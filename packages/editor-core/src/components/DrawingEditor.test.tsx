@@ -210,7 +210,7 @@ describe('DrawingEditor', () => {
 
   // --- Multi-select tests ---
 
-  it('Ctrl+click calls onDrawingMultiSelect with ctrl', () => {
+  it('Ctrl+click calls onDrawingMultiSelect with ctrl and orderedIds', () => {
     const onDrawingMultiSelect = vi.fn();
     const drawings: DrawingCardData[] = [
       { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
@@ -224,13 +224,14 @@ describe('DrawingEditor', () => {
     );
     const minicard = screen.getAllByLabelText('editorCore.selectDrawing')[0];
     fireEvent.click(minicard, { ctrlKey: true });
-    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d1', 'ctrl');
+    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d1', 'ctrl', ['d1']);
   });
 
-  it('Shift+click calls onDrawingMultiSelect with shift', () => {
+  it('plain click calls onDrawingMultiSelect with null and orderedIds', () => {
     const onDrawingMultiSelect = vi.fn();
     const drawings: DrawingCardData[] = [
       { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+      { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
     ];
     render(
       <DrawingEditor
@@ -240,8 +241,27 @@ describe('DrawingEditor', () => {
       />
     );
     const minicard = screen.getAllByLabelText('editorCore.selectDrawing')[0];
-    fireEvent.click(minicard, { shiftKey: true });
-    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d1', 'shift');
+    fireEvent.click(minicard);
+    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d1', null, ['d1', 'd2']);
+  });
+
+  it('Shift+click calls onDrawingMultiSelect with shift and orderedIds', () => {
+    const onDrawingMultiSelect = vi.fn();
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+      { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
+      { id: 'd3', type: 'image', shapeType: 'rectangle', color: 'blue' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        onDrawingMultiSelect={onDrawingMultiSelect}
+      />
+    );
+    const minicards = screen.getAllByLabelText('editorCore.selectDrawing');
+    fireEvent.click(minicards[1], { shiftKey: true });
+    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d2', 'shift', ['d1', 'd2', 'd3']);
   });
 
   it('without onDrawingMultiSelect, falls back to onDrawingSelect', () => {
@@ -315,10 +335,10 @@ describe('DrawingEditor', () => {
     );
     // Enter select mode
     fireEvent.click(screen.getByTestId('select-mode-toggle'));
-    // Click a row — should send ctrl modifier (toggle behavior)
+    // Click a row — should send ctrl modifier (toggle behavior) with orderedIds
     const minicards = screen.getAllByLabelText('editorCore.selectDrawing');
     fireEvent.click(minicards[0]);
-    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d1', 'ctrl');
+    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d1', 'ctrl', ['d1', 'd2']);
   });
 
   it('delete button visible when ≥1 drawing selected (regardless of select mode)', () => {

@@ -553,7 +553,8 @@ export function ViewPage() {
   // ── PartToolListPanel state & callbacks ──
   const [partToolListOpen, setPartToolListOpen] = useState(false);
 
-  const onOpenPartToolList = useCallback(() => {
+  const onOpenPartToolList = useCallback((partToolId?: string) => {
+    if (partToolId) setEditPartToolId(partToolId);
     setPartToolListOpen(true);
   }, []);
 
@@ -854,7 +855,7 @@ export function ViewPage() {
         />
       );
     },
-    [decodedFolderName, safetyIconCatalogs, getPartToolPreviewUrl, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
+    [decodedFolderName, safetyIconCatalogs, onOpenPartToolList, createUploadSubstepImage, createUploadSubstepVideo],
   );
 
 

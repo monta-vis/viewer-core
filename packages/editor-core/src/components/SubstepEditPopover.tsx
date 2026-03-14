@@ -75,7 +75,7 @@ export interface SubstepEditPopoverProps {
   /** Called when the user picks + crops a new substep image via the edit-image pencil. */
   onUploadSubstepImage?: (file: File, crop: NormalizedCrop) => void;
   /** Opens the instruction-wide PartTool list editor (PartToolListPanel). */
-  onOpenPartToolList?: () => void;
+  onOpenPartToolList?: (partToolId?: string) => void;
   /** VideoFrameArea ID for drawing annotations */
   videoFrameAreaId?: string | null;
   /** Version ID for drawing annotations */
@@ -869,7 +869,7 @@ export function SubstepEditPopover({
             addButton={
               <>
                 {onOpenPartToolList && (
-                  <button type="button" data-testid="parttool-list-open" aria-label={t('editorCore.editPartToolList', 'Edit part/tool list')} className={EDIT_BTN_CLASS} onClick={onOpenPartToolList}>
+                  <button type="button" data-testid="parttool-list-open" aria-label={t('editorCore.editPartToolList', 'Edit part/tool list')} className={EDIT_BTN_CLASS} onClick={() => onOpenPartToolList()}>
                     <Pencil className="h-3.5 w-3.5" />
                   </button>
                 )}
@@ -889,8 +889,8 @@ export function SubstepEditPopover({
                     role={onOpenPartToolList ? 'button' : undefined}
                     tabIndex={onOpenPartToolList ? 0 : undefined}
                     aria-label={onOpenPartToolList ? t('editorCore.editPartTool', 'Edit part/tool') : undefined}
-                    onClick={onOpenPartToolList}
-                    onKeyDown={onOpenPartToolList ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenPartToolList(); } } : undefined}
+                    onClick={onOpenPartToolList ? () => onOpenPartToolList(item.partTool.id) : undefined}
+                    onKeyDown={onOpenPartToolList ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpenPartToolList(item.partTool.id); } } : undefined}
                   >
                     <PartToolDetailContent
                       item={item}
