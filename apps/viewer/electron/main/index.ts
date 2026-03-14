@@ -14,6 +14,7 @@ import type { ExportType } from "./export.js";
 import type { VideoUploadArgs } from "./video.js";
 import { initElectronPaths } from "./electronPaths.js";
 import { DbWorker } from "./dbWorker.js";
+import windowStateKeeper from "electron-window-state";
 
 log.initialize();
 log.info('[main] electron-log initialized. Log file:', log.transports.file.getFile().path);
@@ -497,9 +498,19 @@ function getIconPath(): string {
 }
 
 function createWindow() {
+  const windowState = windowStateKeeper({
+    defaultWidth: 1280,
+    defaultHeight: 800,
+  });
+
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    x: windowState.x,
+    y: windowState.y,
+    width: windowState.width,
+    height: windowState.height,
+    minWidth: 800,
+    minHeight: 600,
+    show: false,
     icon: getIconPath(),
     autoHideMenuBar: true,
     webPreferences: {
@@ -510,7 +521,12 @@ function createWindow() {
     },
   });
 
+  windowState.manage(win);
   mainWindow = win;
+
+  win.once("ready-to-show", () => {
+    win.show();
+  });
 
   win.on("closed", () => {
     mainWindow = null;

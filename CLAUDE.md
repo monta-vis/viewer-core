@@ -60,6 +60,22 @@ npm run typecheck    # Typecheck all packages
 - Clean code and using best practices
 - All user-facing text through i18n
 
+### MediaResolver = Single Source of Truth for Media
+
+Always use the `MediaResolver` from `viewer-core` for resolving media URLs (images, frames, videos). Never manually call `buildMediaUrl` in components — use `useMediaResolver()` from the `MediaResolverProvider` context instead. The resolver has two modes:
+
+- **Raw** (`createRawResolver`) — editor: live frame captures, source videos
+- **Processed** (`createProcessedResolver`) — viewer: pre-rendered images, merged videos
+
+```typescript
+// GOOD — use the resolver
+const resolver = useMediaResolver();
+const image = resolver.resolveImage(areaId);
+
+// BAD — manual URL construction in components
+buildMediaUrl(folderName, MediaPaths.frame(areaId));
+```
+
 ## MCP Tools
 
 - **Context7** — library docs ("use context7")

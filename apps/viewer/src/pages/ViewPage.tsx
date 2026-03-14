@@ -841,7 +841,6 @@ export function ViewPage() {
           {...props}
           folderName={decodedFolderName}
           catalogs={safetyIconCatalogs}
-          getPreviewUrl={getPartToolPreviewUrl}
           onOpenPartToolList={onOpenPartToolList}
           videoFrameAreaId={videoFrameAreaId}
           versionId={state.data?.currentVersionId ?? ''}
