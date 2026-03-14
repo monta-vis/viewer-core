@@ -763,6 +763,12 @@ function VideoEditorViewMode({
           onDrawingFrameUpdate={videoDrawing.handleDrawingFrameUpdate}
           onSeekPercent={handleSeekPercent}
           duration={effectiveDuration}
+          onDrawingDelete={(ids) => {
+            for (const id of ids) {
+              videoDrawing.handleDrawingDelete(id);
+            }
+          }}
+          onDeselectAll={videoDrawing.deselectDrawing}
           drawingMode="video"
           isInVideoSection
           onClose={onClose}
@@ -852,6 +858,7 @@ function VideoEditorViewMode({
           <TextInputModal
             label={t('editorCore.editText', 'Edit text')}
             value={videoDrawing.textInputState.initialText ?? ''}
+            inputType="textarea"
             onConfirm={(text: string) => videoDrawing.handleTextSubmit(text, videoDrawing.textInputState.initialFontSize ?? 5)}
             onCancel={videoDrawing.handleTextCancel}
           />

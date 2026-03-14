@@ -29,32 +29,8 @@ describe('DrawingEditor', () => {
     expect(radiogroups.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('mode toggle disabled when hasImageArea=false', () => {
-    const { container } = render(<DrawingEditor {...defaultProps} hasImageArea={false} />);
-    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
-    expect(checkbox).toBeDisabled();
-  });
-
-  it('mode toggle enabled when hasImageArea=true', () => {
-    const { container } = render(<DrawingEditor {...defaultProps} hasImageArea={true} />);
-    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
-    expect(checkbox).not.toBeDisabled();
-  });
-
-  it('toggles drawing mode via checkbox', () => {
-    const onDrawingModeChange = vi.fn();
-    const { container } = render(
-      <DrawingEditor
-        {...defaultProps}
-        hasImageArea={true}
-        drawingMode="image"
-        onDrawingModeChange={onDrawingModeChange}
-      />
-    );
-    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement;
-    fireEvent.click(checkbox);
-    expect(onDrawingModeChange).toHaveBeenCalledWith('video');
-  });
+  // NOTE: hasImageArea and onDrawingModeChange props were removed from DrawingEditor.
+  // Mode toggling is now handled by the parent dialogs.
 
   it('shows timeline only in video mode', () => {
     const { rerender } = render(
@@ -67,10 +43,10 @@ describe('DrawingEditor', () => {
     expect(screen.getByText('10.5s')).toBeInTheDocument();
   });
 
-  it('renders minicard for each drawing', () => {
+  it('renders minicard for each drawing in active mode', () => {
     const drawings: DrawingCardData[] = [
       { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
-      { id: 'd2', type: 'video', shapeType: 'circle', color: 'red', startFrame: 10, endFrame: 50 },
+      { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
     ];
     render(
       <DrawingEditor
@@ -159,24 +135,21 @@ describe('DrawingEditor', () => {
 
   // --- Section rendering tests ---
 
-  it('renders both Video and Image sections when both types present', () => {
+  it('renders drawings section matching the active drawingMode', () => {
     const drawings: DrawingCardData[] = [
       { id: 'd1', type: 'video', shapeType: 'arrow', color: 'black', startFrame: 0, endFrame: 50 },
       { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
     ];
-    render(
-      <DrawingEditor {...defaultProps} drawings={drawings} onDrawingSelect={vi.fn()} />
+    // Image mode → shows image-drawings-section only
+    const { rerender } = render(
+      <DrawingEditor {...defaultProps} drawings={drawings} onDrawingSelect={vi.fn()} drawingMode="image" />
     );
-    expect(screen.getByTestId('video-drawings-section')).toBeInTheDocument();
     expect(screen.getByTestId('image-drawings-section')).toBeInTheDocument();
-  });
+    expect(screen.queryByTestId('video-drawings-section')).not.toBeInTheDocument();
 
-  it('only renders Video section when no image drawings exist', () => {
-    const drawings: DrawingCardData[] = [
-      { id: 'd1', type: 'video', shapeType: 'arrow', color: 'black', startFrame: 0, endFrame: 50 },
-    ];
-    render(
-      <DrawingEditor {...defaultProps} drawings={drawings} onDrawingSelect={vi.fn()} />
+    // Video mode → shows video-drawings-section only
+    rerender(
+      <DrawingEditor {...defaultProps} drawings={drawings} onDrawingSelect={vi.fn()} drawingMode="video" />
     );
     expect(screen.getByTestId('video-drawings-section')).toBeInTheDocument();
     expect(screen.queryByTestId('image-drawings-section')).not.toBeInTheDocument();
@@ -219,12 +192,12 @@ describe('DrawingEditor', () => {
     const onDrawingSectionChange = vi.fn();
     const drawings: DrawingCardData[] = [
       { id: 'd1', type: 'video', shapeType: 'arrow', color: 'black', startFrame: 0, endFrame: 50 },
-      { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
     ];
     render(
       <DrawingEditor
         {...defaultProps}
         drawings={drawings}
+        drawingMode="video"
         onDrawingSelect={vi.fn()}
         onDrawingSectionChange={onDrawingSectionChange}
       />
@@ -288,7 +261,7 @@ describe('DrawingEditor', () => {
     expect(onDrawingSelect).toHaveBeenCalledWith('d1');
   });
 
-  it('primary selected shows ring-2 ring-white, secondary shows ring-1 ring-white/60', () => {
+  it('selected drawings show selected background style', () => {
     const drawings: DrawingCardData[] = [
       { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
       { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
@@ -302,10 +275,148 @@ describe('DrawingEditor', () => {
       />
     );
     const minicards = screen.getAllByLabelText('editorCore.selectDrawing');
-    // Both selected cards get the same ring-2 ring-white style
-    expect(minicards[0].className).toContain('ring-2');
-    expect(minicards[0].className).toContain('ring-white');
-    expect(minicards[1].className).toContain('ring-2');
-    expect(minicards[1].className).toContain('ring-white');
+    // Both selected cards get the selected background
+    expect(minicards[0].className).toContain('bg-[var(--item-bg-selected)]');
+    expect(minicards[1].className).toContain('bg-[var(--item-bg-selected)]');
+  });
+
+  // --- Select mode & batch delete tests ---
+
+  it('clicking select-mode toggle enters select mode', () => {
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        onDrawingMultiSelect={vi.fn()}
+      />
+    );
+    const toggle = screen.getByTestId('select-mode-toggle');
+    expect(toggle).toBeInTheDocument();
+    fireEvent.click(toggle);
+    // In select mode, checkboxes should appear on rows
+    expect(screen.getByTestId('drawing-checkbox-d1')).toBeInTheDocument();
+  });
+
+  it('select mode row click toggles selection without modifier keys', () => {
+    const onDrawingMultiSelect = vi.fn();
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+      { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        onDrawingMultiSelect={onDrawingMultiSelect}
+      />
+    );
+    // Enter select mode
+    fireEvent.click(screen.getByTestId('select-mode-toggle'));
+    // Click a row — should send ctrl modifier (toggle behavior)
+    const minicards = screen.getAllByLabelText('editorCore.selectDrawing');
+    fireEvent.click(minicards[0]);
+    expect(onDrawingMultiSelect).toHaveBeenCalledWith('d1', 'ctrl');
+  });
+
+  it('delete button visible when ≥1 drawing selected (regardless of select mode)', () => {
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+      { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        selectedDrawingIds={new Set(['d1'])}
+        selectedDrawingId="d1"
+        onDrawingDelete={vi.fn()}
+      />
+    );
+    // Delete button should be visible even without select mode toggled
+    expect(screen.getByTestId('delete-selected-btn')).toBeInTheDocument();
+  });
+
+  it('delete button hidden when no drawings selected', () => {
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        selectedDrawingIds={new Set()}
+        onDrawingDelete={vi.fn()}
+      />
+    );
+    expect(screen.queryByTestId('delete-selected-btn')).not.toBeInTheDocument();
+  });
+
+  it('clicking delete opens ConfirmDeleteDialog', () => {
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        selectedDrawingIds={new Set(['d1'])}
+        selectedDrawingId="d1"
+        onDrawingDelete={vi.fn()}
+      />
+    );
+    fireEvent.click(screen.getByTestId('delete-selected-btn'));
+    // ConfirmDeleteDialog should show up (rendered in portal)
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+
+  it('confirming delete calls onDrawingDelete with selected IDs', () => {
+    const onDrawingDelete = vi.fn();
+    const selectedIds = new Set(['d1', 'd2']);
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+      { id: 'd2', type: 'image', shapeType: 'circle', color: 'red' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        selectedDrawingIds={selectedIds}
+        selectedDrawingId="d1"
+        onDrawingDelete={onDrawingDelete}
+      />
+    );
+    fireEvent.click(screen.getByTestId('delete-selected-btn'));
+    // Find the delete button in the confirm dialog (second button, after Cancel)
+    const dialog = screen.getByRole('dialog');
+    const buttons = dialog.querySelectorAll('button');
+    const deleteBtn = buttons[buttons.length - 1] as HTMLElement;
+    fireEvent.click(deleteBtn);
+    expect(onDrawingDelete).toHaveBeenCalledWith(selectedIds);
+  });
+
+  it('exiting select mode clears selection', () => {
+    const onDrawingMultiSelect = vi.fn();
+    const drawings: DrawingCardData[] = [
+      { id: 'd1', type: 'image', shapeType: 'arrow', color: 'black' },
+    ];
+    render(
+      <DrawingEditor
+        {...defaultProps}
+        drawings={drawings}
+        selectedDrawingIds={new Set(['d1'])}
+        selectedDrawingId="d1"
+        onDrawingMultiSelect={onDrawingMultiSelect}
+        onDeselectAll={vi.fn()}
+      />
+    );
+    // Enter select mode
+    fireEvent.click(screen.getByTestId('select-mode-toggle'));
+    // Exit select mode
+    fireEvent.click(screen.getByTestId('select-mode-toggle'));
+    // Should have called onDeselectAll
+    expect(defaultProps.onClose).not.toHaveBeenCalled(); // make sure we're not closing
   });
 });

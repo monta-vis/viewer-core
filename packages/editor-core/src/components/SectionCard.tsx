@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Children, type ReactNode } from 'react';
 
 const CARD_CLASS = 'rounded-xl border border-[var(--color-border-base)] bg-[var(--color-bg-surface)] flex flex-col';
 const CARD_HEADER_CLASS = 'flex items-center gap-3 px-5 py-3.5 border-b border-[var(--color-border-base)]';
@@ -16,7 +16,7 @@ export interface SectionCardProps {
 }
 
 export function SectionCard({ 'data-testid': testId, icon, title, addButton, emptyText, children }: SectionCardProps) {
-  const hasChildren = children !== undefined && children !== null && children !== false;
+  const hasChildren = Children.count(children) > 0;
 
   return (
     <div className={CARD_CLASS} data-testid={testId}>

@@ -1,11 +1,12 @@
 import { useEffect, useCallback, useRef, useState, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { X, ArrowUpRight, Minus, Circle, Square, Type, Pencil } from 'lucide-react';
+import { X, ArrowUpRight, Minus, Circle, Square, Type, Pencil, CheckSquare, Trash2 } from 'lucide-react';
 import { clsx } from 'clsx';
 
 import {
   DrawingToolbar,
   ColorPalette,
+  ConfirmDeleteDialog,
   TEXT_SIZES,
   STROKE_WIDTHS,
   getShapeColorValue,
@@ -67,6 +68,12 @@ interface DrawingEditorProps {
 
   /** Called when a drawing row click changes the active section type */
   onDrawingSectionChange?: (section: 'image' | 'video') => void;
+
+  /** Batch-delete selected drawings (receives the set of IDs to remove) */
+  onDrawingDelete?: (ids: ReadonlySet<string>) => void;
+
+  /** Called when exiting select mode to deselect all */
+  onDeselectAll?: () => void;
 
   // Actions
   onClose: () => void;
@@ -199,9 +206,15 @@ export function DrawingEditor({
   isInVideoSection = false,
   drawingMode,
   onDrawingSectionChange,
+  onDrawingDelete,
+  onDeselectAll,
   onClose,
 }: DrawingEditorProps) {
   const { t } = useTranslation();
+
+  // Select mode state
+  const [selectMode, setSelectMode] = useState(false);
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
   // Tools disabled when in video mode and playhead is outside a VideoSection
   const isToolsDisabled = drawingMode === 'video' && !isInVideoSection;
@@ -313,16 +326,36 @@ export function DrawingEditor({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // Toggle select mode — clear selection when exiting
+  const handleToggleSelectMode = useCallback(() => {
+    setSelectMode((prev) => {
+      if (prev) {
+        onDeselectAll?.();
+      }
+      return !prev;
+    });
+  }, [onDeselectAll]);
+
+  // Handle delete selected drawings
+  const handleDeleteSelected = useCallback(() => {
+    onDrawingDelete?.(effectiveSelectedIds);
+    setSelectMode(false);
+    setConfirmDeleteOpen(false);
+  }, [onDrawingDelete, effectiveSelectedIds]);
+
   // Handle drawing list row click
   const handleDrawingRowClick = useCallback((drawing: DrawingCardData, e: React.MouseEvent) => {
     onDrawingSectionChange?.(drawing.type);
-    if (onDrawingMultiSelect) {
+    if (selectMode && onDrawingMultiSelect) {
+      // In select mode, always toggle (ctrl modifier) without needing modifier keys
+      onDrawingMultiSelect(drawing.id, 'ctrl');
+    } else if (onDrawingMultiSelect) {
       const modifier = (e.ctrlKey || e.metaKey) ? 'ctrl' : e.shiftKey ? 'shift' : null;
       onDrawingMultiSelect(drawing.id, modifier);
     } else {
       onDrawingSelect?.(drawing.id);
     }
-  }, [onDrawingSectionChange, onDrawingMultiSelect, onDrawingSelect]);
+  }, [selectMode, onDrawingSectionChange, onDrawingMultiSelect, onDrawingSelect]);
 
   // Format time from percent
   const formatTime = useCallback((percent: number): string => {
@@ -405,12 +438,45 @@ export function DrawingEditor({
         <>
           <div className="h-px bg-[var(--color-border-base)]" />
           <div>
-            <SectionLabel>
-              {t('editorCore.sectionDrawings', 'Drawings')}
-              <span className="ml-1 text-[var(--color-text-subtle)]">
-                {activeDrawings.length}
-              </span>
-            </SectionLabel>
+            <div className="flex items-center justify-between">
+              <SectionLabel>
+                {t('editorCore.sectionDrawings', 'Drawings')}
+                <span className="ml-1 text-[var(--color-text-subtle)]">
+                  {activeDrawings.length}
+                </span>
+              </SectionLabel>
+              <div className="flex items-center gap-1">
+                {onDrawingMultiSelect && (
+                  <button
+                    type="button"
+                    data-testid="select-mode-toggle"
+                    onClick={handleToggleSelectMode}
+                    aria-label={t('editorCore.selectMode', 'Select mode')}
+                    aria-pressed={selectMode}
+                    className={clsx(
+                      'p-1 rounded-md transition-colors',
+                      selectMode
+                        ? 'bg-[var(--color-primary)] text-white'
+                        : 'text-[var(--color-text-muted)] hover:bg-[var(--item-bg-hover)]'
+                    )}
+                  >
+                    <CheckSquare className="h-3.5 w-3.5" />
+                  </button>
+                )}
+                {effectiveSelectedIds.size > 0 && onDrawingDelete && (
+                  <button
+                    type="button"
+                    data-testid="delete-selected-btn"
+                    onClick={() => setConfirmDeleteOpen(true)}
+                    aria-label={t('editorCore.deleteSelected', 'Delete selected')}
+                    className="p-1 rounded-md text-[var(--color-danger)] hover:bg-[var(--color-danger)]/10 transition-colors flex items-center gap-0.5"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span className="text-[0.625rem] font-semibold">{effectiveSelectedIds.size}</span>
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="flex flex-col gap-0.5" data-testid={`${drawingMode}-drawings-section`}>
               {activeDrawings.map((drawing) => {
                 const Icon = getShapeIcon(drawing.shapeType);
@@ -433,6 +499,15 @@ export function DrawingEditor({
                     aria-label={t('editorCore.selectDrawing')}
                     aria-pressed={isSelected}
                   >
+                    {selectMode && (
+                      <span data-testid={`drawing-checkbox-${drawing.id}`}>
+                        {isSelected ? (
+                          <CheckSquare className="h-3.5 w-3.5 shrink-0 text-[var(--color-primary)]" />
+                        ) : (
+                          <Square className="h-3.5 w-3.5 shrink-0 text-[var(--color-text-muted)]" />
+                        )}
+                      </span>
+                    )}
                     <Icon
                       className="h-3.5 w-3.5 shrink-0"
                       style={{ color: colorValue }}
@@ -520,6 +595,18 @@ export function DrawingEditor({
           {t('editorCore.moveToVideoSection', 'Move playhead inside a video section to draw')}
         </p>
       )}
+
+      {/* ── Confirm batch delete dialog ── */}
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onClose={() => setConfirmDeleteOpen(false)}
+        onConfirm={handleDeleteSelected}
+        title={t('editorCore.deleteDrawingsTitle', 'Delete Drawings')}
+        message={t('editorCore.deleteDrawingsConfirm', {
+          count: effectiveSelectedIds.size,
+          defaultValue: 'Delete {{count}} selected drawing(s)?',
+        })}
+      />
     </div>
   );
 }

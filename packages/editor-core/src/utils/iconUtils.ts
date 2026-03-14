@@ -91,8 +91,8 @@ export function resolveNoteIconUrl(
 ): string | null {
   if (!safetyIconId) return null;
 
-  // 1. Try built-in icon match only (skip catalog icons to prevent catalog path leakage)
-  const builtinMatch = icons.find((ic) => ic.id === safetyIconId && !ic.catalogDirName);
+  // 1. Try icon match by ID (catalog or built-in)
+  const builtinMatch = icons.find((ic) => ic.id === safetyIconId);
   if (builtinMatch) return getIconUrlFn(builtinMatch);
 
   // 2. Not a legacy filename → treat as VFA UUID

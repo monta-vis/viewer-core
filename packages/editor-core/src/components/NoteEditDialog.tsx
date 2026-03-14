@@ -17,7 +17,9 @@ export interface NoteEditDialogProps {
   initialSafetyIconCategory: string | null;
   folderName?: string;
   catalogs?: SafetyIconCatalog[];
-  onSave: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory) => void;
+  /** Custom icon URL resolver. Overrides the default buildMediaUrl-based resolution. */
+  getIconUrl?: (icon: SafetyIconItem) => string;
+  onSave: (text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, sourceIconId?: string) => void;
   onClose: () => void;
 }
 
@@ -28,6 +30,7 @@ export function NoteEditDialog({
   initialSafetyIconCategory,
   folderName,
   catalogs = [],
+  getIconUrl: getIconUrlProp,
   onSave,
   onClose,
 }: NoteEditDialogProps) {
@@ -35,6 +38,8 @@ export function NoteEditDialog({
   const [text, setText] = useState(initialText);
   const [selectedIconId, setSelectedIconId] = useState<string | null>(initialSafetyIconId);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(initialSafetyIconCategory);
+  const [selectedCatalogDirName, setSelectedCatalogDirName] = useState<string | null>(null);
+  const [selectedFilename, setSelectedFilename] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -42,6 +47,8 @@ export function NoteEditDialog({
     setText(initialText);
     setSelectedIconId(initialSafetyIconId);
     setSelectedCategory(initialSafetyIconCategory);
+    setSelectedCatalogDirName(null);
+    setSelectedFilename(null);
     const timer = setTimeout(() => inputRef.current?.focus(), 50);
     return () => clearTimeout(timer);
   }, [open, initialText, initialSafetyIconId, initialSafetyIconCategory]);
@@ -50,14 +57,18 @@ export function NoteEditDialog({
 
   const assetsDirMap = useMemo(() => buildAssetsDirMap(catalogs), [catalogs]);
 
-  const getIconUrl = useCallback(
+  const internalGetIconUrl = useCallback(
     (icon: Parameters<typeof getIconUrlUtil>[0]) => getIconUrlUtil(icon, assetsDirMap, folderName),
     [assetsDirMap, folderName],
   );
 
+  const getIconUrl = getIconUrlProp ?? internalGetIconUrl;
+
   const handleSelect = useCallback((icon: SafetyIconItem) => {
     setSelectedIconId(icon.id);
     setSelectedCategory(icon.category);
+    setSelectedCatalogDirName(icon.catalogDirName ?? null);
+    setSelectedFilename(icon.filename);
   }, []);
 
   const canSave = !!selectedIconId && !!selectedCategory;
@@ -66,9 +77,12 @@ export function NoteEditDialog({
     const trimmed = text.trim();
     if (!canSave) return;
 
-    onSave(trimmed, selectedIconId!, selectedCategory as SafetyIconCategory);
+    const sourceIconId = selectedCatalogDirName && selectedFilename
+      ? `${selectedCatalogDirName}/${selectedFilename}`
+      : undefined;
+    onSave(trimmed, selectedIconId!, selectedCategory as SafetyIconCategory, sourceIconId);
     onClose();
-  }, [text, selectedIconId, selectedCategory, canSave, onSave, onClose]);
+  }, [text, selectedIconId, selectedCategory, selectedCatalogDirName, selectedFilename, canSave, onSave, onClose]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {

@@ -16,7 +16,7 @@ import type {
   DrawingRow,
   ResolvedImage,
 } from '@monta-vis/viewer-core';
-import { TextInputModal, Button, SubstepCard, Tooltip, PartIcon, ConfirmDeleteDialog } from '@monta-vis/viewer-core';
+import { TextInputModal, SubstepCard, Tooltip, PartIcon, ConfirmDeleteDialog, useMediaResolverOptional } from '@monta-vis/viewer-core';
 import { useSessionHistory } from '../hooks/useSessionHistory';
 import { ImageCropDialog } from './ImageCropDialog';
 import { ImageEditDialog } from './ImageEditDialog';
@@ -26,7 +26,8 @@ import type { AggregatedPartTool } from '@monta-vis/viewer-core';
 import { PreviewImageUploadButton } from './PreviewImageUploadButton';
 import { VideoTrimDialog } from './VideoTrimDialog';
 import { SectionCard } from './SectionCard';
-import { SafetyIconPicker } from './SafetyIconPicker';
+import { NoteEditDialog } from './NoteEditDialog';
+import type { SafetyIconItem } from './SafetyIconPicker';
 import {
   ICON_BTN_CLASS,
   EDIT_BTN_CLASS,
@@ -64,6 +65,9 @@ export interface SubstepEditPopoverProps {
   folderName?: string;
   /** Safety icon catalogs loaded from disk. */
   catalogs?: SafetyIconCatalog[];
+  /** Custom icon URL resolver. Overrides the default buildMediaUrl-based resolution.
+   *  When provided, used for both the SafetyIconPicker grid and note icon display. */
+  getIconUrl?: (icon: SafetyIconItem) => string;
   /** All substepPartTools across the instruction (for computing "Used" amounts in the table). */
   allSubstepPartTools?: Record<string, { partToolId: string; amount: number }>;
   /** Resolve a partTool ID to a thumbnail URL (or null). */
@@ -90,34 +94,18 @@ export interface SubstepEditPopoverProps {
   substepId?: string;
   /** Called when the user uploads a repeat preview image */
   onUploadRepeatImage?: (file: File, crop: NormalizedCrop) => void;
+  /** Pre-resolved image URL string (used when image is frameCapture and URL is computed externally). */
+  imageUrl?: string | null;
 }
 
-/* ── Inline edit state types ── */
-
-interface NoteEditState {
-  kind: 'edit-note';
-  noteRowId: string;
+/* ── NoteEditDialog state ── */
+interface NoteDialogState {
+  /** null = add note, string = edit note with this noteRowId */
+  noteRowId: string | null;
   text: string;
-  selectedIconId: string | null;
-  selectedCategory: string | null;
-  /** Set when user picks a new icon from catalog; null when keeping existing VFA icon. */
-  selectedCatalogDirName: string | null;
-  /** Original filename of the selected catalog icon (for sourceIconId path resolution). */
-  selectedFilename: string | null;
+  iconId: string | null;
+  iconCategory: string | null;
 }
-
-interface NoteAddState {
-  kind: 'add-note';
-  text: string;
-  selectedIconId: string | null;
-  selectedCategory: string | null;
-  /** Set when user picks an icon from catalog. */
-  selectedCatalogDirName: string | null;
-  /** Original filename of the selected catalog icon (for sourceIconId path resolution). */
-  selectedFilename: string | null;
-}
-
-type InlineEditState = NoteEditState | NoteAddState | null;
 
 /* ── TextInputModal state for descriptions ── */
 interface TextModalEditDesc {
@@ -135,12 +123,6 @@ interface TextModalAddDesc {
 
 type TextModalState = TextModalEditDesc | TextModalAddDesc;
 
-/* ── TextInputModal state for note text ── */
-interface NoteTextModalState {
-  label: string;
-  value: string;
-}
-
 /* ── TextInputModal state for repeat fields ── */
 interface RepeatModalState {
   field: 'count' | 'label';
@@ -149,77 +131,6 @@ interface RepeatModalState {
 
 /* ── Class constants ── */
 const ROW_CLASS = 'flex items-center gap-3 px-3 py-2 text-lg text-[var(--color-text-base)] rounded-lg hover:bg-[var(--color-bg-hover)] transition-colors';
-
-/** Shared inline form for editing or adding a note (icon picker + text + save/cancel). */
-function NoteInlineForm({
-  testId,
-  textBtnTestId,
-  pickerTestId,
-  editState,
-  icons,
-  getIconUrl,
-  folderName,
-  t,
-  onTextClick,
-  onIconSelect,
-  onCancel,
-  onSave,
-}: {
-  testId: string;
-  textBtnTestId: string;
-  pickerTestId: string;
-  editState: NoteEditState | NoteAddState;
-  icons: ReturnType<typeof buildIconList>;
-  getIconUrl: (icon: Parameters<typeof getIconUrlUtil>[0]) => string;
-  folderName?: string;
-  t: ReturnType<typeof useTranslation>['t'];
-  onTextClick: () => void;
-  onIconSelect: (icon: { id: string; category: string; catalogDirName?: string | null; filename: string }) => void;
-  onCancel: () => void;
-  onSave: () => void;
-}) {
-  const iconUrl = editState.selectedIconId
-    ? resolveNoteIconUrl(editState.selectedIconId, icons, getIconUrl, folderName)
-    : null;
-
-  return (
-    <div className="flex flex-col gap-2 px-2 py-1.5" data-testid={testId}>
-      <div className="flex items-center gap-2">
-        {iconUrl ? (
-          <img src={iconUrl} alt="" className="h-5 w-5 shrink-0 object-contain" />
-        ) : (
-          <StickyNote className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
-        )}
-        <button
-          type="button"
-          data-testid={textBtnTestId}
-          className="flex-1 min-w-0 text-left text-lg truncate cursor-pointer hover:bg-[var(--color-bg-hover)] rounded px-1 transition-colors"
-          onClick={onTextClick}
-        >
-          <span className={editState.text ? 'text-[var(--color-text-base)]' : 'text-[var(--color-text-muted)]'}>
-            {editState.text || t('editorCore.enterNote', 'Enter note...')}
-          </span>
-        </button>
-      </div>
-      <div data-testid={pickerTestId}>
-        <SafetyIconPicker
-          icons={icons}
-          getIconUrl={getIconUrl}
-          selectedIconId={editState.selectedIconId}
-          onSelect={onIconSelect}
-        />
-      </div>
-      <div className="flex justify-end gap-2">
-        <Button variant="ghost" size="sm" data-testid="note-cancel-btn" onClick={onCancel}>
-          {t('common.cancel', 'Cancel')}
-        </Button>
-        <Button variant="primary" size="sm" data-testid="note-save-btn" onClick={onSave}>
-          {t('common.save', 'Save')}
-        </Button>
-      </div>
-    </div>
-  );
-}
 
 export function SubstepEditPopover({
   open,
@@ -241,6 +152,7 @@ export function SubstepEditPopover({
   noteIconLabels,
   folderName,
   catalogs = [],
+  getIconUrl: getIconUrlProp,
   getPreviewUrl,
   onUploadSubstepImage,
   onOpenPartToolList,
@@ -252,15 +164,14 @@ export function SubstepEditPopover({
   onDeleteDrawing,
   onUploadSubstepVideo,
   onUploadRepeatImage,
+  imageUrl,
 }: SubstepEditPopoverProps) {
   const { t, i18n } = useTranslation();
+  const resolver = useMediaResolverOptional();
   const { canUndo, canRedo, captureSnapshot, undo, redo, reset } = useSessionHistory();
 
-  // Inline edit state — only one row editable at a time (notes only)
-  const [editState, setEditState] = useState<InlineEditState>(null);
-
-  // ── TextInputModal state for note text ──
-  const [noteTextModal, setNoteTextModal] = useState<NoteTextModalState | null>(null);
+  // ── NoteEditDialog state ──
+  const [noteDialog, setNoteDialog] = useState<NoteDialogState | null>(null);
 
   // ── TextInputModal state for descriptions ──
   const [textModal, setTextModal] = useState<TextModalState | null>(null);
@@ -361,10 +272,12 @@ export function SubstepEditPopover({
 
   const assetsDirMap = useMemo(() => buildAssetsDirMap(catalogs), [catalogs]);
 
-  const getIconUrl = useCallback(
+  const internalGetIconUrl = useCallback(
     (icon: Parameters<typeof getIconUrlUtil>[0]) => getIconUrlUtil(icon, assetsDirMap, folderName),
     [assetsDirMap, folderName],
   );
+
+  const getIconUrl = getIconUrlProp ?? internalGetIconUrl;
 
   // Memoized icon lookup map for O(1) access per note row
   const iconLabelMap = useMemo(() => {
@@ -378,8 +291,7 @@ export function SubstepEditPopover({
   // Reset edit state when popover closes
   useEffect(() => {
     if (!open) {
-      setEditState(null);
-      setNoteTextModal(null);
+      setNoteDialog(null);
       setTextModal(null);
       setRepeatModal(null);
       setImageEditDialogOpen(false);
@@ -389,10 +301,8 @@ export function SubstepEditPopover({
 
   // Keep refs so the Escape listener doesn't re-register on every keystroke
   // (inline assignment — no useEffect needed)
-  const editStateRef = useRef<InlineEditState>(null);
-  editStateRef.current = editState;
-  const noteTextModalRef = useRef<NoteTextModalState | null>(null);
-  noteTextModalRef.current = noteTextModal;
+  const noteDialogRef = useRef<NoteDialogState | null>(null);
+  noteDialogRef.current = noteDialog;
   const textModalRef = useRef<TextModalState | null>(null);
   textModalRef.current = textModal;
   const repeatModalRef = useRef<RepeatModalState | null>(null);
@@ -400,23 +310,17 @@ export function SubstepEditPopover({
   const imageEditDialogOpenRef = useRef(false);
   imageEditDialogOpenRef.current = imageEditDialogOpen;
 
-  // Escape handling: if a TextInputModal is open, let it handle Escape;
-  // if ImageEditDialog is open, let it handle Escape;
-  // if note editing, cancel edit; otherwise close popover
+  // Escape handling: if a TextInputModal or dialog is open, let it handle Escape;
+  // otherwise close popover
   useEffect(() => {
     if (!open) return;
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         // Let TextInputModal handle its own Escape
-        if (textModalRef.current || repeatModalRef.current || noteTextModalRef.current) return;
-        // Let ImageEditDialog handle its own Escape
-        if (imageEditDialogOpenRef.current) return;
-        if (editStateRef.current) {
-          e.stopPropagation();
-          setEditState(null);
-        } else {
-          onClose();
-        }
+        if (textModalRef.current || repeatModalRef.current) return;
+        // Let ImageEditDialog / NoteEditDialog handle its own Escape
+        if (imageEditDialogOpenRef.current || noteDialogRef.current) return;
+        onClose();
       }
     };
     document.addEventListener('keydown', handleEscape);
@@ -483,41 +387,30 @@ export function SubstepEditPopover({
     setTextModal(null);
   }, []);
 
-  // ── Inline note editing ──
+  // ── NoteEditDialog handlers ──
 
-  const startEditNote = useCallback((noteRowId: string, currentText: string, iconId: string | null, iconCategory: string | null) => {
-    setEditState({ kind: 'edit-note', noteRowId, text: currentText, selectedIconId: iconId, selectedCategory: iconCategory, selectedCatalogDirName: null, selectedFilename: null });
+  const openNoteDialog = useCallback((noteRowId: string, text: string, iconId: string | null, iconCategory: string | null) => {
+    setNoteDialog({ noteRowId, text, iconId, iconCategory });
   }, []);
 
-  const startAddNote = useCallback(() => {
-    setEditState({ kind: 'add-note', text: '', selectedIconId: null, selectedCategory: null, selectedCatalogDirName: null, selectedFilename: null });
+  const openAddNoteDialog = useCallback(() => {
+    setNoteDialog({ noteRowId: null, text: '', iconId: null, iconCategory: null });
   }, []);
 
-  const saveNoteEdit = useCallback(() => {
-    if (!editState) return;
-    if (editState.kind !== 'edit-note' && editState.kind !== 'add-note') return;
-
-    const { selectedIconId, selectedCategory } = editState;
-    if (!selectedIconId || !selectedCategory) {
-      setEditState(null);
-      return;
-    }
-
-    const trimmed = editState.text.trim();
-    const category = selectedCategory as SafetyIconCategory;
-    // Build sourceIconId only when a new icon was picked from catalog
-    const sourceIconId = editState.selectedCatalogDirName && editState.selectedFilename
-      ? `${editState.selectedCatalogDirName}/${editState.selectedFilename}`
-      : undefined;
-
-    if (editState.kind === 'edit-note') {
-      callbacks.onSaveNote?.(editState.noteRowId, trimmed, selectedIconId, category, sourceIconId);
+  const handleNoteDialogSave = useCallback((text: string, safetyIconId: string, safetyIconCategory: SafetyIconCategory, sourceIconId?: string) => {
+    if (!noteDialog) return;
+    if (noteDialog.noteRowId) {
+      callbacks.onSaveNote?.(noteDialog.noteRowId, text, safetyIconId, safetyIconCategory, sourceIconId);
     } else {
-      callbacks.onAddNote?.(trimmed, selectedIconId, category, sourceIconId);
+      callbacks.onAddNote?.(text, safetyIconId, safetyIconCategory, sourceIconId);
     }
     captureSnapshot();
-    setEditState(null);
-  }, [editState, callbacks, captureSnapshot]);
+    setNoteDialog(null);
+  }, [noteDialog, callbacks, captureSnapshot]);
+
+  const handleNoteDialogClose = useCallback(() => {
+    setNoteDialog(null);
+  }, []);
 
   // ── Repeat editing via TextInputModal ──
 
@@ -544,26 +437,6 @@ export function SubstepEditPopover({
 
   const handleRepeatModalCancel = useCallback(() => {
     setRepeatModal(null);
-  }, []);
-
-  // ── Note text editing via TextInputModal ──
-
-  const openNoteTextModal = useCallback(() => {
-    if (!editState) return;
-    const label = editState.kind === 'edit-note'
-      ? t('editorCore.editNote', 'Edit note')
-      : t('editorCore.addNote', 'Add note');
-    setNoteTextModal({ label, value: editState.text });
-  }, [editState, t]);
-
-  const handleNoteTextModalConfirm = useCallback((newValue: string) => {
-    if (!editState) return;
-    setEditState({ ...editState, text: newValue });
-    setNoteTextModal(null);
-  }, [editState]);
-
-  const handleNoteTextModalCancel = useCallback(() => {
-    setNoteTextModal(null);
   }, []);
 
   if (!open) return null;
@@ -672,7 +545,7 @@ export function SubstepEditPopover({
                       <div className={ROW_CLASS} data-testid="media-image-row">
                         <Image className="h-4 w-4 shrink-0 text-[var(--color-text-muted)]" />
                         <span className="flex-1 truncate">{t('editorCore.image', 'Image')}</span>
-                        {image?.kind === 'url' && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
+                        {(image?.kind === 'url' || imageUrl) && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
                           <button type="button" aria-label={t('editorCore.editImage', 'Edit image')} className={EDIT_BTN_CLASS} onClick={() => setImageEditDialogOpen(true)} data-testid="edit-image-btn">
                             <Pencil className="h-3.5 w-3.5" />
                           </button>
@@ -698,11 +571,11 @@ export function SubstepEditPopover({
                             onCancel={handleCropCancel}
                           />
                         )}
-                        {imageEditDialogOpen && image?.kind === 'url' && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
+                        {imageEditDialogOpen && (image?.kind === 'url' || imageUrl) && onAddDrawing && onUpdateDrawing && onDeleteDrawing && (
                           <ImageEditDialog
                             open={imageEditDialogOpen}
                             onClose={() => setImageEditDialogOpen(false)}
-                            imageSrc={image.url}
+                            imageSrc={image?.kind === 'url' ? image.url : imageUrl!}
                             videoFrameAreaId={videoFrameAreaId ?? null}
                             versionId={versionId}
                             drawings={drawings}
@@ -822,44 +695,22 @@ export function SubstepEditPopover({
                 />
               )}
 
-              {/* Notes — with level badges + inline editing */}
+              {/* Notes */}
               <SectionCard
                 data-testid="section-notes"
                 icon={<StickyNote className="h-4 w-4" />}
                 title={t('editorCore.notes', 'Notes')}
                 addButton={
-                  <button type="button" data-testid="popover-add-note" aria-label={t('editorCore.addNote', 'Add note')} className={ADD_BTN_CLASS} onClick={startAddNote}>
+                  <button type="button" data-testid="popover-add-note" aria-label={t('editorCore.addNote', 'Add note')} className={ADD_BTN_CLASS} onClick={openAddNoteDialog}>
                     <Plus className="h-4 w-4" />
                   </button>
                 }
                 emptyText={undefined}
               >
-                {notes.length > 0 || editState?.kind === 'add-note' || editState?.kind === 'edit-note' ? (
+                {notes.length > 0 ? (
                   <>
                     {notes.map((noteRow) => {
                       const noteIconUrl = resolveNoteIconUrl(noteRow.note.safetyIconId, icons, getIconUrl, folderName);
-                      const isEditing = editState?.kind === 'edit-note' && editState.noteRowId === noteRow.id;
-
-                      if (isEditing) {
-                        return (
-                          <NoteInlineForm
-                            key={noteRow.id}
-                            testId={`popover-note-${noteRow.id}`}
-                            textBtnTestId={`note-text-btn-${noteRow.id}`}
-                            pickerTestId="inline-icon-picker"
-                            editState={editState}
-                            icons={icons}
-                            getIconUrl={getIconUrl}
-                            folderName={folderName}
-                            t={t}
-                            onTextClick={openNoteTextModal}
-                            onIconSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
-                            onCancel={() => setEditState(null)}
-                            onSave={saveNoteEdit}
-                          />
-                        );
-                      }
-
                       const iconTitle = iconLabelMap.get(noteRow.note.safetyIconId) ?? noteRow.note.safetyIconCategory;
 
                       return (
@@ -867,7 +718,7 @@ export function SubstepEditPopover({
                           <button
                             type="button"
                             className="flex flex-1 items-center gap-2 min-w-0 cursor-pointer text-left"
-                            onClick={() => startEditNote(noteRow.id, noteRow.note.text, noteRow.note.safetyIconId, noteRow.note.safetyIconCategory)}
+                            onClick={() => openNoteDialog(noteRow.id, noteRow.note.text, noteRow.note.safetyIconId, noteRow.note.safetyIconCategory)}
                           >
                             {noteIconUrl ? (
                               <img src={noteIconUrl} alt="" title={iconTitle} className="h-5 w-5 shrink-0 object-contain" />
@@ -886,27 +737,22 @@ export function SubstepEditPopover({
                         </div>
                       );
                     })}
-
-                    {/* Inline add note */}
-                    {editState?.kind === 'add-note' && (
-                      <NoteInlineForm
-                        testId="inline-add-note"
-                        textBtnTestId="note-text-btn-add"
-                        pickerTestId="inline-icon-picker-add"
-                        editState={editState}
-                        icons={icons}
-                        getIconUrl={getIconUrl}
-                        folderName={folderName}
-                        t={t}
-                        onTextClick={openNoteTextModal}
-                        onIconSelect={(icon) => setEditState({ ...editState, selectedIconId: icon.id, selectedCategory: icon.category, selectedCatalogDirName: icon.catalogDirName ?? null, selectedFilename: icon.filename })}
-                        onCancel={() => setEditState(null)}
-                        onSave={saveNoteEdit}
-                      />
-                    )}
                   </>
                 ) : undefined}
               </SectionCard>
+
+              {/* NoteEditDialog */}
+              <NoteEditDialog
+                open={noteDialog !== null}
+                initialText={noteDialog?.text ?? ''}
+                initialSafetyIconId={noteDialog?.iconId ?? null}
+                initialSafetyIconCategory={noteDialog?.iconCategory ?? null}
+                folderName={folderName}
+                catalogs={catalogs}
+                getIconUrl={getIconUrlProp}
+                onSave={handleNoteDialogSave}
+                onClose={handleNoteDialogClose}
+              />
 
               {/* Repeat */}
               <SectionCard
@@ -982,17 +828,6 @@ export function SubstepEditPopover({
                 />
               )}
 
-              {/* TextInputModal for note text */}
-              {noteTextModal && (
-                <TextInputModal
-                  label={noteTextModal.label}
-                  value={noteTextModal.value}
-                  inputType="text"
-                  onConfirm={handleNoteTextModalConfirm}
-                  onCancel={handleNoteTextModalCancel}
-                />
-              )}
-
               {/* Tutorials */}
               <SectionCard
                 data-testid="section-tutorials"
@@ -1059,7 +894,8 @@ export function SubstepEditPopover({
                   >
                     <PartToolDetailContent
                       item={item}
-                      previewImageUrl={getPreviewUrl?.(item.partTool.id) ?? null}
+                      image={!getPreviewUrl ? resolver?.resolvePartToolImage(item.partTool.id) ?? null : undefined}
+                      previewImageUrl={getPreviewUrl ? getPreviewUrl(item.partTool.id) : undefined}
                       compactBadges
                     />
                     {onOpenPartToolList && (

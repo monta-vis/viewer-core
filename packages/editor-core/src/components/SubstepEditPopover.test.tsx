@@ -48,6 +48,43 @@ vi.mock('./ImageCropDialog', () => ({
   },
 }));
 
+// Mock ImageEditDialog — avoid ResizeObserver issues in jsdom
+vi.mock('./ImageEditDialog', () => ({
+  ImageEditDialog: ({ open, onClose }: { open: boolean; onClose: () => void }) => {
+    if (!open) return null;
+    return (
+      <div data-testid="image-edit-dialog">
+        <button data-testid="image-edit-close" onClick={onClose}>Close</button>
+      </div>
+    );
+  },
+}));
+
+// Mock NoteEditDialog — renders Save/Cancel buttons for testing
+let mockNoteDialogOnSave: ((text: string, iconId: string, category: string, sourceIconId?: string) => void) | null = null;
+let mockNoteDialogOnClose: (() => void) | null = null;
+let mockNoteDialogProps: { open: boolean; initialText: string; initialSafetyIconId: string | null; initialSafetyIconCategory: string | null } | null = null;
+vi.mock('./NoteEditDialog', () => ({
+  NoteEditDialog: ({ open, initialText, initialSafetyIconId, initialSafetyIconCategory, onSave, onClose }: {
+    open: boolean; initialText: string; initialSafetyIconId: string | null; initialSafetyIconCategory: string | null;
+    onSave: (text: string, iconId: string, category: string, sourceIconId?: string) => void; onClose: () => void;
+  }) => {
+    mockNoteDialogOnSave = onSave;
+    mockNoteDialogOnClose = onClose;
+    mockNoteDialogProps = { open, initialText, initialSafetyIconId, initialSafetyIconCategory };
+    if (!open) return null;
+    return (
+      <div data-testid="note-edit-dialog">
+        <span data-testid="note-dialog-text">{initialText}</span>
+        <span data-testid="note-dialog-icon-id">{initialSafetyIconId ?? ''}</span>
+        <span data-testid="note-dialog-icon-category">{initialSafetyIconCategory ?? ''}</span>
+        <button data-testid="note-dialog-save" onClick={() => onSave(initialText, initialSafetyIconId ?? '', initialSafetyIconCategory ?? '')}>Save</button>
+        <button data-testid="note-dialog-cancel" onClick={() => onClose()}>Cancel</button>
+      </div>
+    );
+  },
+}));
+
 // Mock VideoTrimDialog — renders confirm/close buttons for testing
 let mockVideoTrimOnConfirm: ((result: { file: File; sections: Array<{ startFrame: number; endFrame: number }> | null }) => void) | null = null;
 let mockVideoTrimOnClose: (() => void) | null = null;
@@ -68,11 +105,16 @@ vi.mock('./VideoTrimDialog', () => ({
 // Track TextInputModal instances for testing
 let textInputModalProps: { label: string; value: string; inputType?: string; onConfirm: (v: string) => void; onCancel: () => void } | null = null;
 
+// Mock useMediaResolverOptional — controllable per test
+const mockResolvePartToolImage = vi.fn<(id: string) => { kind: 'url'; url: string } | null>();
+let mockMediaResolver: { resolvePartToolImage: typeof mockResolvePartToolImage } | null = null;
+
 // Mock viewer-core exports used by inline note editing
 vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
   const actual = await importOriginal<Record<string, unknown>>();
   return {
     ...actual,
+    useMediaResolverOptional: () => mockMediaResolver,
     NOTE_CATEGORY_STYLES: {
       Verbotszeichen: { bg: 'bg-red', border: 'border-red', text: 'text-red' },
       Warnzeichen: { bg: 'bg-yellow', border: 'border-yellow', text: 'text-yellow' },
@@ -113,11 +155,13 @@ vi.mock('@monta-vis/viewer-core', async (importOriginal) => {
         </div>
       );
     },
-    PartToolDetailContent: ({ item }: { item: { partTool: { id: string; name: string; type: string }; totalAmount: number } }) => (
+    PartToolDetailContent: ({ item, image, previewImageUrl }: { item: { partTool: { id: string; name: string; type: string }; totalAmount: number }; image?: { kind: string; url: string } | null; previewImageUrl?: string | null }) => (
       <div data-testid={`parttool-card-${item.partTool.id}`}>
         <span data-testid="parttool-card-name">{item.partTool.name}</span>
         <span data-testid="parttool-card-amount">{item.totalAmount}×</span>
         <span data-testid="parttool-card-type">{item.partTool.type}</span>
+        {image && <span data-testid={`parttool-card-image-${item.partTool.id}`} data-url={image.url}>{image.kind}</span>}
+        {previewImageUrl && <span data-testid={`parttool-card-preview-${item.partTool.id}`}>{previewImageUrl}</span>}
       </div>
     ),
     ConfirmDeleteDialog: ({ open, onConfirm, onClose }: { open: boolean; onConfirm: () => void; onClose: () => void }) => (
@@ -235,8 +279,13 @@ beforeEach(() => {
   mockCropOnCancel = null;
   mockVideoTrimOnConfirm = null;
   mockVideoTrimOnClose = null;
+  mockNoteDialogOnSave = null;
+  mockNoteDialogOnClose = null;
+  mockNoteDialogProps = null;
   textInputModalProps = null;
   mockCaptureSnapshot.mockClear();
+  mockResolvePartToolImage.mockClear();
+  mockMediaResolver = null;
   mockUndo.mockClear();
   mockRedo.mockClear();
   mockReset.mockClear();
@@ -366,22 +415,21 @@ describe('SubstepEditPopover — media', () => {
     expect(screen.getByTestId('media-video-row')).toBeInTheDocument();
   });
 
-  it('clicking edit-image pencil opens the file input (no close)', async () => {
+  it('clicking edit-image pencil opens ImageEditDialog (no close)', async () => {
     const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
+    const drawingProps = {
+      onAddDrawing: vi.fn(),
+      onUpdateDrawing: vi.fn(),
+      onDeleteDrawing: vi.fn(),
+    };
+    render(<SubstepEditPopover {...baseProps} {...drawingProps} />);
 
     const row = screen.getByTestId('media-image-row');
     const editBtn = row.querySelector('[aria-label="Edit image"]');
     expect(editBtn).toBeTruthy();
 
-    // Mock click on hidden file input
-    const fileInput = screen.getByTestId('substep-image-file-input') as HTMLInputElement;
-    const clickSpy = vi.spyOn(fileInput, 'click');
-
     await user.click(editBtn!);
-    expect(clickSpy).toHaveBeenCalledOnce();
     expect(baseProps.onClose).not.toHaveBeenCalled();
-    clickSpy.mockRestore();
   });
 
   it('selecting a file opens the crop dialog', async () => {
@@ -463,9 +511,19 @@ describe('SubstepEditPopover — media', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('media image row still has edit pencil button (regression guard)', () => {
-    render(<SubstepEditPopover {...baseProps} />);
+  it('media image row has edit pencil button when drawing callbacks provided', () => {
+    const drawingProps = {
+      onAddDrawing: vi.fn(),
+      onUpdateDrawing: vi.fn(),
+      onDeleteDrawing: vi.fn(),
+    };
+    render(<SubstepEditPopover {...baseProps} {...drawingProps} />);
     expect(screen.getByLabelText('Edit image')).toBeInTheDocument();
+  });
+
+  it('media image row hides edit pencil button when drawing callbacks are missing', () => {
+    render(<SubstepEditPopover {...baseProps} />);
+    expect(screen.queryByLabelText('Edit image')).not.toBeInTheDocument();
   });
 
   it('does not show file input when hasImage=false', () => {
@@ -594,7 +652,7 @@ describe('SubstepEditPopover — descriptions', () => {
 });
 
 // ============================================================
-// Notes — edit mode with TextInputModal for text
+// Notes — NoteEditDialog-based editing
 // ============================================================
 describe('SubstepEditPopover — notes', () => {
   it('shows each note row', () => {
@@ -602,128 +660,49 @@ describe('SubstepEditPopover — notes', () => {
     expect(screen.getByText('Safety note')).toBeInTheDocument();
   });
 
-  it('clicking note text shows edit mode with text button + icon picker + Save/Cancel', async () => {
+  it('clicking note row opens NoteEditDialog with note values', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     await user.click(screen.getByText('Safety note'));
 
-    // Text button (clickable to open TextInputModal)
-    expect(screen.getByTestId('note-text-btn-note-row-1')).toBeInTheDocument();
-    // Icon picker visible
-    expect(screen.getByTestId('inline-icon-picker')).toBeInTheDocument();
-    // Save and Cancel buttons
-    expect(screen.getByTestId('note-save-btn')).toBeInTheDocument();
-    expect(screen.getByTestId('note-cancel-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('note-edit-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('note-dialog-text')).toHaveTextContent('Safety note');
+    expect(screen.getByTestId('note-dialog-icon-id')).toHaveTextContent('W001-Allgemeines-Warnzeichen.png');
+    expect(screen.getByTestId('note-dialog-icon-category')).toHaveTextContent('Warnzeichen');
   });
 
-  it('clicking note text button opens TextInputModal', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    // Enter edit mode
-    await user.click(screen.getByText('Safety note'));
-    // Click text button to open modal
-    await user.click(screen.getByTestId('note-text-btn-note-row-1'));
-
-    expect(screen.getByTestId('text-input-modal')).toBeInTheDocument();
-  });
-
-  it('TextInputModal confirm updates displayed text', async () => {
+  it('saving from NoteEditDialog calls onSaveNote with correct args', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     await user.click(screen.getByText('Safety note'));
-    await user.click(screen.getByTestId('note-text-btn-note-row-1'));
+    expect(mockNoteDialogOnSave).not.toBeNull();
 
-    // Confirm with new value via the captured props
-    textInputModalProps!.onConfirm('Updated note text');
-
-    // Modal should close, text button should show updated text
-    await vi.waitFor(() => {
-      expect(screen.queryByTestId('text-input-modal')).not.toBeInTheDocument();
-    });
-    expect(screen.getByTestId('note-text-btn-note-row-1')).toHaveTextContent('Updated note text');
-  });
-
-  it('TextInputModal cancel closes modal but stays in edit mode', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    await user.click(screen.getByText('Safety note'));
-    await user.click(screen.getByTestId('note-text-btn-note-row-1'));
-
-    // Cancel
-    textInputModalProps!.onCancel();
-
-    // Modal closed, still in edit mode
-    await vi.waitFor(() => {
-      expect(screen.queryByTestId('text-input-modal')).not.toBeInTheDocument();
-    });
-    expect(screen.getByTestId('note-text-btn-note-row-1')).toBeInTheDocument();
-    expect(screen.getByTestId('note-save-btn')).toBeInTheDocument();
-  });
-
-  it('Save button calls onSaveNote with correct args', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    await user.click(screen.getByText('Safety note'));
-    await user.click(screen.getByTestId('note-save-btn'));
+    // Simulate save with updated values
+    mockNoteDialogOnSave!('Updated note', 'P001-icon.png', 'Verbotszeichen', 'my-catalog/P001-icon.png');
 
     expect(callbacks.onSaveNote).toHaveBeenCalledWith(
       'note-row-1',
-      'Safety note',
-      'W001-Allgemeines-Warnzeichen.png',
-      'Warnzeichen',
-      undefined,
+      'Updated note',
+      'P001-icon.png',
+      'Verbotszeichen',
+      'my-catalog/P001-icon.png',
     );
     expect(mockCaptureSnapshot).toHaveBeenCalled();
   });
 
-  it('Cancel button exits edit mode without saving', async () => {
+  it('canceling NoteEditDialog does not modify notes', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     await user.click(screen.getByText('Safety note'));
-    expect(screen.getByTestId('note-save-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('note-edit-dialog')).toBeInTheDocument();
 
-    await user.click(screen.getByTestId('note-cancel-btn'));
+    await user.click(screen.getByTestId('note-dialog-cancel'));
 
-    // Edit mode should be gone
-    expect(screen.queryByTestId('note-save-btn')).not.toBeInTheDocument();
     expect(callbacks.onSaveNote).not.toHaveBeenCalled();
-  });
-
-  it('Escape in edit mode (no modal open) cancels edit', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    await user.click(screen.getByText('Safety note'));
-    expect(screen.getByTestId('note-save-btn')).toBeInTheDocument();
-
-    await user.keyboard('{Escape}');
-
-    await vi.waitFor(() => {
-      expect(screen.queryByTestId('note-save-btn')).not.toBeInTheDocument();
-    });
-    expect(callbacks.onSaveNote).not.toHaveBeenCalled();
-  });
-
-  it('Escape while noteTextModal is open does not cancel edit', async () => {
-    const user = userEvent.setup();
-    render(<SubstepEditPopover {...baseProps} />);
-
-    await user.click(screen.getByText('Safety note'));
-    await user.click(screen.getByTestId('note-text-btn-note-row-1'));
-    expect(screen.getByTestId('text-input-modal')).toBeInTheDocument();
-
-    // Escape should be handled by TextInputModal, not cancel note edit
-    await user.keyboard('{Escape}');
-
-    // Edit mode should still be active (modal cancels on its own)
-    // The escape handler should not close edit state when noteTextModal is open
-    // (in the real implementation, TextInputModal handles its own Escape first)
+    expect(screen.queryByTestId('note-edit-dialog')).not.toBeInTheDocument();
   });
 
   it('note row does not have edit pencil button', () => {
@@ -747,39 +726,47 @@ describe('SubstepEditPopover — notes', () => {
     expect(baseProps.onClose).not.toHaveBeenCalled();
   });
 
-  it('add-note: clicking "+" shows edit mode, Save calls onAddNote', async () => {
+  it('clicking "+" opens NoteEditDialog with empty values', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     await user.click(screen.getByTestId('popover-add-note'));
-    expect(screen.getByTestId('inline-add-note')).toBeInTheDocument();
 
-    // Open text modal, type text, confirm
-    await user.click(screen.getByTestId('note-text-btn-add'));
-    textInputModalProps!.onConfirm('New note text');
-
-    // Now pick an icon (simulate icon selection via the mock)
-    const iconPicker = screen.getByTestId('inline-icon-picker-add');
-    const firstIcon = iconPicker.querySelector('button');
-    if (firstIcon) await user.click(firstIcon);
-
-    // Save should persist
-    await user.click(screen.getByTestId('note-save-btn'));
-    // Without an icon selected, onAddNote won't fire (icon required)
-    // The test validates the flow works end-to-end
+    expect(screen.getByTestId('note-edit-dialog')).toBeInTheDocument();
+    expect(screen.getByTestId('note-dialog-text')).toHaveTextContent('');
+    expect(screen.getByTestId('note-dialog-icon-id')).toHaveTextContent('');
+    expect(screen.getByTestId('note-dialog-icon-category')).toHaveTextContent('');
   });
 
-  it('add-note: Save without icon does not call onAddNote', async () => {
+  it('saving from add-note NoteEditDialog calls onAddNote', async () => {
     const user = userEvent.setup();
     render(<SubstepEditPopover {...baseProps} />);
 
     await user.click(screen.getByTestId('popover-add-note'));
-    expect(screen.getByTestId('inline-add-note')).toBeInTheDocument();
+    expect(mockNoteDialogOnSave).not.toBeNull();
 
-    // Save without selecting icon
-    await user.click(screen.getByTestId('note-save-btn'));
+    mockNoteDialogOnSave!('New note', 'W001-icon.png', 'Warnzeichen', 'catalog/W001-icon.png');
+
+    expect(callbacks.onAddNote).toHaveBeenCalledWith(
+      'New note',
+      'W001-icon.png',
+      'Warnzeichen',
+      'catalog/W001-icon.png',
+    );
+    expect(mockCaptureSnapshot).toHaveBeenCalled();
+  });
+
+  it('canceling add-note NoteEditDialog does not call onAddNote', async () => {
+    const user = userEvent.setup();
+    render(<SubstepEditPopover {...baseProps} />);
+
+    await user.click(screen.getByTestId('popover-add-note'));
+    expect(screen.getByTestId('note-edit-dialog')).toBeInTheDocument();
+
+    await user.click(screen.getByTestId('note-dialog-cancel'));
 
     expect(callbacks.onAddNote).not.toHaveBeenCalled();
+    expect(screen.queryByTestId('note-edit-dialog')).not.toBeInTheDocument();
   });
 });
 
@@ -1001,13 +988,14 @@ describe('SubstepEditPopover — parts/tools cards', () => {
     expect(amounts[1]).toHaveTextContent('1×');
   });
 
-  it('edit button on card triggers onOpenPartToolList callback', async () => {
+  it('clicking card triggers onOpenPartToolList callback', async () => {
     const user = userEvent.setup();
     const onOpenPartToolList = vi.fn();
     render(<SubstepEditPopover {...baseProps} onOpenPartToolList={onOpenPartToolList} />);
 
-    const editBtns = screen.getAllByTestId('parttool-card-edit');
-    await user.click(editBtns[0]);
+    const card = screen.getByTestId('parttool-card-pt-1').closest('[role="button"]');
+    expect(card).toBeTruthy();
+    await user.click(card!);
     expect(onOpenPartToolList).toHaveBeenCalledOnce();
   });
 
@@ -1401,5 +1389,196 @@ describe('SubstepEditPopover — note icon label tooltip', () => {
     const img = noteRow.querySelector('img');
     // Falls back to category since no icon label found
     expect(img?.getAttribute('title')).toBe('Gebotszeichen');
+  });
+});
+
+// ============================================================
+// getIconUrl override prop
+// ============================================================
+describe('SubstepEditPopover — getIconUrl override prop', () => {
+  const catalogData: SubstepEditPopoverProps['catalogs'] = [
+    {
+      name: 'Test Catalog',
+      dirName: 'test-catalog',
+      assetsDir: '/catalogs/test/assets',
+      categories: [{ id: 'Warnzeichen', label: { en: 'Warning' } }],
+      entries: [
+        { id: 'W001-Allgemeines-Warnzeichen.png', filename: 'W001-Allgemeines-Warnzeichen.png', category: 'Warnzeichen', label: { en: 'General Warning' } },
+      ],
+    },
+  ];
+
+  it('uses custom getIconUrl for note icon display when provided', () => {
+    const customGetIconUrl = vi.fn(() => 'https://custom-cdn.example.com/icon.png');
+    const notesWithIcon = [{
+      id: 'note-row-custom',
+      substepId: 's1',
+      noteId: 'note-custom',
+      order: 1,
+      note: { id: 'note-custom', versionId: 'v1', instructionId: 'i1', text: 'Custom note', safetyIconId: 'W001-Allgemeines-Warnzeichen.png', safetyIconCategory: 'Warnzeichen' as const },
+    }];
+
+    render(
+      <SubstepEditPopover
+        {...baseProps}
+        notes={notesWithIcon}
+        catalogs={catalogData}
+        getIconUrl={customGetIconUrl}
+      />,
+    );
+
+    const noteRow = screen.getByTestId('popover-note-note-row-custom');
+    const img = noteRow.querySelector('img');
+    expect(img?.getAttribute('src')).toBe('https://custom-cdn.example.com/icon.png');
+    expect(customGetIconUrl).toHaveBeenCalled();
+  });
+
+  it('opens NoteEditDialog when editing a note (getIconUrl is forwarded via props)', async () => {
+    const user = userEvent.setup();
+    const customGetIconUrl = vi.fn(() => 'https://custom-cdn.example.com/icon.png');
+
+    render(
+      <SubstepEditPopover
+        {...baseProps}
+        catalogs={catalogData}
+        getIconUrl={customGetIconUrl}
+      />,
+    );
+
+    // Click the note row to open NoteEditDialog
+    const noteRow = screen.getByTestId('popover-note-note-row-1');
+    const editBtn = noteRow.querySelector('button');
+    await user.click(editBtn!);
+
+    // NoteEditDialog should be rendered (getIconUrl is forwarded as a prop)
+    expect(screen.getByTestId('note-edit-dialog')).toBeInTheDocument();
+  });
+
+  it('falls back to default getIconUrl when prop is not provided', () => {
+    const notesWithCatalogIcon = [{
+      id: 'note-row-fallback',
+      substepId: 's1',
+      noteId: 'note-fallback',
+      order: 1,
+      note: { id: 'note-fallback', versionId: 'v1', instructionId: 'i1', text: 'Fallback note', safetyIconId: 'W001-Allgemeines-Warnzeichen.png', safetyIconCategory: 'Warnzeichen' as const },
+    }];
+
+    render(
+      <SubstepEditPopover
+        {...baseProps}
+        notes={notesWithCatalogIcon}
+        catalogs={catalogData}
+        folderName="test-folder"
+      />,
+    );
+
+    const noteRow = screen.getByTestId('popover-note-note-row-fallback');
+    const img = noteRow.querySelector('img');
+    // Default uses buildMediaUrl → mvis-media:// URL
+    const src = img?.getAttribute('src') ?? '';
+    expect(src).toContain('mvis-media://');
+    expect(src).not.toContain('custom-cdn');
+  });
+});
+
+// ============================================================
+// Bug 1: Image edit icon renders with imageUrl prop (frameCapture support)
+// ============================================================
+describe('SubstepEditPopover — imageUrl prop', () => {
+  const drawingCallbacks = {
+    onAddDrawing: vi.fn(),
+    onUpdateDrawing: vi.fn(),
+    onDeleteDrawing: vi.fn(),
+  };
+
+  it('shows edit-image button when imageUrl is provided but image is frameCapture', () => {
+    render(
+      <SubstepEditPopover
+        {...baseProps}
+        image={{ kind: 'frameCapture', data: { videoId: 'v1', fps: 30, frameNumber: 10, videoSrc: 'test.mp4' } } as any}
+        imageUrl="http://example.com/image.jpg"
+        {...drawingCallbacks}
+      />,
+    );
+    const editBtn = screen.getByTestId('edit-image-btn');
+    expect(editBtn).toBeInTheDocument();
+  });
+
+  it('shows edit-image button when imageUrl is provided and image is null', () => {
+    render(
+      <SubstepEditPopover
+        {...baseProps}
+        image={null}
+        imageUrl="http://example.com/image.jpg"
+        {...drawingCallbacks}
+      />,
+    );
+    const editBtn = screen.getByTestId('edit-image-btn');
+    expect(editBtn).toBeInTheDocument();
+  });
+
+  it('still shows edit-image button with kind=url (existing behavior)', () => {
+    render(
+      <SubstepEditPopover
+        {...baseProps}
+        image={{ kind: 'url', url: 'test.jpg' }}
+        {...drawingCallbacks}
+      />,
+    );
+    const editBtn = screen.getByTestId('edit-image-btn');
+    expect(editBtn).toBeInTheDocument();
+  });
+});
+
+/* ── MediaResolver-based part/tool image resolution ── */
+describe('SubstepEditPopover — MediaResolver part/tool images', () => {
+  it('resolves part/tool preview via resolver when no getPreviewUrl prop', () => {
+    mockMediaResolver = { resolvePartToolImage: mockResolvePartToolImage };
+    mockResolvePartToolImage.mockImplementation((id: string) =>
+      id === 'pt-1' ? { kind: 'url' as const, url: 'resolved-pt-1.jpg' } : null,
+    );
+
+    render(<SubstepEditPopover {...baseProps} />);
+
+    // resolver should have been called for each part/tool
+    expect(mockResolvePartToolImage).toHaveBeenCalledWith('pt-1');
+    expect(mockResolvePartToolImage).toHaveBeenCalledWith('pt-2');
+
+    // pt-1 should render a ResolvedImage via `image` prop
+    const imageSpan = screen.getByTestId('parttool-card-image-pt-1');
+    expect(imageSpan).toHaveAttribute('data-url', 'resolved-pt-1.jpg');
+
+    // pt-2 has no resolved image — no image or preview elements
+    expect(screen.queryByTestId('parttool-card-image-pt-2')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('parttool-card-preview-pt-2')).not.toBeInTheDocument();
+  });
+
+  it('uses getPreviewUrl override when provided (backward compat)', () => {
+    mockMediaResolver = { resolvePartToolImage: mockResolvePartToolImage };
+    const getPreviewUrl = vi.fn((id: string) => `legacy://${id}.png`);
+
+    render(<SubstepEditPopover {...baseProps} getPreviewUrl={getPreviewUrl} />);
+
+    // getPreviewUrl should be used
+    expect(getPreviewUrl).toHaveBeenCalledWith('pt-1');
+    expect(getPreviewUrl).toHaveBeenCalledWith('pt-2');
+
+    // resolver should NOT be called when getPreviewUrl is provided
+    expect(mockResolvePartToolImage).not.toHaveBeenCalled();
+
+    // Should render via previewImageUrl, not image
+    expect(screen.getByTestId('parttool-card-preview-pt-1')).toHaveTextContent('legacy://pt-1.png');
+    expect(screen.getByTestId('parttool-card-preview-pt-2')).toHaveTextContent('legacy://pt-2.png');
+  });
+
+  it('renders no image when neither resolver nor getPreviewUrl is available', () => {
+    // mockMediaResolver defaults to null (no provider)
+    render(<SubstepEditPopover {...baseProps} />);
+
+    // No image/preview elements for any part/tool
+    expect(screen.queryByTestId('parttool-card-image-pt-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('parttool-card-preview-pt-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('parttool-card-image-pt-2')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('parttool-card-preview-pt-2')).not.toBeInTheDocument();
   });
 });

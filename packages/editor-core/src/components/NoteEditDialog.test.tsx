@@ -151,6 +151,7 @@ describe('NoteEditDialog — save', () => {
       'Safety warning',
       'W001-Allgemeines-Warnzeichen.png',
       'Warnzeichen',
+      undefined,
     );
     expect(defaultProps.onClose).toHaveBeenCalled();
   });
@@ -210,5 +211,124 @@ describe('NoteEditDialog — initial values', () => {
     render(<NoteEditDialog {...defaultProps} />);
     const input = screen.getByPlaceholderText('Enter note...');
     expect(input).toHaveValue('Safety warning');
+  });
+});
+
+// ============================================================
+// sourceIconId in onSave
+// ============================================================
+describe('NoteEditDialog — sourceIconId', () => {
+  const catalogsWithDirName: SafetyIconCatalog[] = [
+    {
+      name: 'Test Catalog',
+      dirName: 'test-catalog',
+      assetsDir: '/catalogs/test/assets',
+      categories: [{ id: 'Warnzeichen', label: { en: 'Warning' } }],
+      entries: [
+        { id: 'ext-warn-icon', filename: 'ext-warn.png', category: 'Warnzeichen', label: { en: 'External Warning' } },
+      ],
+    },
+  ];
+
+  it('passes sourceIconId when a catalog icon is selected', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <NoteEditDialog
+        {...defaultProps}
+        onSave={onSave}
+        catalogs={catalogsWithDirName}
+      />,
+    );
+
+    // Click the catalog icon to select it
+    const images = screen.getAllByRole('img');
+    await user.click(images[0]);
+
+    // Save
+    await user.click(screen.getByText('Save'));
+
+    expect(onSave).toHaveBeenCalledWith(
+      'Safety warning',
+      'ext-warn-icon',
+      'Warnzeichen',
+      'test-catalog/ext-warn.png',
+    );
+  });
+
+  it('passes undefined sourceIconId when a built-in icon is selected', async () => {
+    const user = userEvent.setup();
+    const onSave = vi.fn();
+    render(
+      <NoteEditDialog
+        {...defaultProps}
+        onSave={onSave}
+        initialSafetyIconId="W001-Allgemeines-Warnzeichen.png"
+        initialSafetyIconCategory="Warnzeichen"
+      />,
+    );
+
+    await user.click(screen.getByText('Save'));
+
+    expect(onSave).toHaveBeenCalledWith(
+      'Safety warning',
+      'W001-Allgemeines-Warnzeichen.png',
+      'Warnzeichen',
+      undefined,
+    );
+  });
+});
+
+// ============================================================
+// getIconUrl override prop
+// ============================================================
+describe('NoteEditDialog — getIconUrl override prop', () => {
+  const catalogs: SafetyIconCatalog[] = [
+    {
+      name: 'Test Catalog',
+      dirName: 'test-catalog',
+      assetsDir: '/catalogs/test/assets',
+      categories: [{ id: 'Warnzeichen', label: { en: 'Warning' } }],
+      entries: [
+        { id: 'W001-Allgemeines-Warnzeichen.png', filename: 'W001-Allgemeines-Warnzeichen.png', category: 'Warnzeichen', label: { en: 'General Warning' } },
+      ],
+    },
+  ];
+
+  it('uses custom getIconUrl for SafetyIconPicker icons when provided', () => {
+    const customGetIconUrl = vi.fn(() => 'https://custom-cdn.example.com/icon.png');
+
+    render(
+      <NoteEditDialog
+        {...defaultProps}
+        catalogs={catalogs}
+        getIconUrl={customGetIconUrl}
+      />,
+    );
+
+    const images = screen.getAllByRole('img');
+    expect(images.length).toBeGreaterThan(0);
+    for (const img of images) {
+      expect(img.getAttribute('src')).toBe('https://custom-cdn.example.com/icon.png');
+    }
+    expect(customGetIconUrl).toHaveBeenCalled();
+  });
+
+  it('falls back to default icon URL resolution when getIconUrl is not provided', () => {
+    render(
+      <NoteEditDialog
+        {...defaultProps}
+        catalogs={catalogs}
+        folderName="test-folder"
+      />,
+    );
+
+    const images = screen.getAllByRole('img');
+    expect(images.length).toBeGreaterThan(0);
+    // Default should use buildMediaUrl or ./SafetyIcons/ path
+    for (const img of images) {
+      const src = img.getAttribute('src') ?? '';
+      expect(src).not.toContain('custom-cdn');
+    }
   });
 });

@@ -103,10 +103,10 @@ describe('resolveNoteIconUrl', () => {
     expect(url).toBe('resolved://W001.png');
   });
 
-  it('does NOT match catalog icons (prevents catalog path leakage)', () => {
-    // C001.png only exists in catalog, not built-in — should not resolve
+  it('matches catalog icons by ID', () => {
+    // C001.png only exists in catalog — should resolve via getIconUrl
     const url = resolveNoteIconUrl('C001.png', allIcons, getIconUrl);
-    expect(url).toBeNull();
+    expect(url).toBe('resolved://C001.png');
   });
 
   it('skips catalog icon even when same filename exists in both catalog and built-in', () => {

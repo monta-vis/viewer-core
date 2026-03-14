@@ -206,6 +206,12 @@ export function ImageEditDialog({
           onDrawingMultiSelect={imageDrawing.handleDrawingMultiSelect}
           selectedDrawingFontSize={imageDrawing.selectedDrawingFontSize}
           onFontSizeSelect={imageDrawing.handleDrawingFontSizeSelect}
+          onDrawingDelete={(ids) => {
+            for (const id of ids) {
+              imageDrawing.handleDrawingDelete(id);
+            }
+          }}
+          onDeselectAll={imageDrawing.deselectDrawing}
           drawingMode="image"
           onClose={onClose}
         />
@@ -257,6 +263,7 @@ export function ImageEditDialog({
         <TextInputModal
           label={t('editorCore.editText', 'Edit text')}
           value={imageDrawing.textInputState.initialText ?? ''}
+          inputType="textarea"
           onConfirm={(text) => imageDrawing.handleTextSubmit(text, imageDrawing.textInputState.initialFontSize ?? 5)}
           onCancel={imageDrawing.handleTextCancel}
         />
