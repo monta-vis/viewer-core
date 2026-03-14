@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import type { ShapeHandleType, Rectangle } from '../types';
-import { containerToLocalSpace, localSpaceToContainer, shiftFreehandPoints } from '../utils';
+import { containerToLocalSpace, localSpaceToContainer } from '../utils';
 
 /**
  * Common shape coordinates interface
@@ -118,8 +118,6 @@ export function useShapeResize<T extends ResizableShape>({
   const groupInitialCoordsRef = useRef<Map<string, ShapeCoords> | null>(null);
   const liveGroupCoordsRef = useRef<Map<string, ShapeCoords> | null>(null);
   const groupInitialBBoxRef = useRef<{ minX: number; minY: number; maxX: number; maxY: number } | null>(null);
-  // Store initial freehand points per shape for delta computation in group mode
-  const groupInitialPointsRef = useRef<Map<string, string> | null>(null);
 
   const getRelativePosition = useCallback(
     (e: MouseEvent): { x: number; y: number } | null => {
@@ -218,15 +216,6 @@ export function useShapeResize<T extends ResizableShape>({
 
       groupInitialCoordsRef.current = initialCoords;
       liveGroupCoordsRef.current = new Map(initialCoords);
-
-      // Store initial freehand points for delta computation
-      const initialPoints = new Map<string, string>();
-      for (const shape of shapes) {
-        if (shape.type === 'freehand' && typeof shape.points === 'string') {
-          initialPoints.set(shape.id, shape.points);
-        }
-      }
-      groupInitialPointsRef.current = initialPoints;
 
       // Use the primary shape for single-shape compat fields
       const primaryShape = shapes.find((s) => s.id === primaryId) ?? shapes[0];
@@ -538,8 +527,9 @@ export function useShapeResize<T extends ResizableShape>({
             break;
 
           case 'circle':
-          case 'rectangle': {
-            // Both circle and rectangle use bounding box with 8 handles
+          case 'rectangle':
+          case 'freehand': {
+            // Circle, rectangle, and freehand all use bounding box with 8 handles
             const isCornerHandle = handle === 'nw' || handle === 'ne' || handle === 'se' || handle === 'sw';
             const shiftKey = e.shiftKey;
             const aspectRatio = containerAspectRef.current;
@@ -705,21 +695,8 @@ export function useShapeResize<T extends ResizableShape>({
 
           const updates: Partial<T> = { x1, y1, x2, y2 } as Partial<T>;
 
-          // Shift freehand points by the delta from initial to final coords
-          const initialCoords = groupInitialCoordsRef.current!.get(id);
-          const initialPoints = groupInitialPointsRef.current?.get(id);
-          if (initialCoords && initialPoints) {
-            const deltaX = x1 - (bounds
-              ? Math.max(0, Math.min(1, containerToLocalSpace(initialCoords.x1, bounds.x, bounds.width)))
-              : initialCoords.x1);
-            const deltaY = y1 - (bounds
-              ? Math.max(0, Math.min(1, containerToLocalSpace(initialCoords.y1, bounds.y, bounds.height)))
-              : initialCoords.y1);
-            const shifted = shiftFreehandPoints(initialPoints, deltaX, deltaY);
-            if (shifted !== undefined) {
-              (updates as Partial<ResizableShape>).points = shifted;
-            }
-          }
+          // Freehand points are bbox-relative [0-1] — no point shifting needed.
+          // Moving/resizing only updates x1/y1/x2/y2, identical to rectangles.
 
           moves.push({ id, updates });
         }
@@ -728,7 +705,6 @@ export function useShapeResize<T extends ResizableShape>({
 
         groupInitialCoordsRef.current = null;
         liveGroupCoordsRef.current = null;
-        groupInitialPointsRef.current = null;
       }
       // SINGLE SHAPE MODE
       else if (state.resizingShapeId && liveCoordsRef.current) {
@@ -756,16 +732,8 @@ export function useShapeResize<T extends ResizableShape>({
           (updates as Partial<ResizableShape>).radius = coords.radius;
         }
 
-        // Shift freehand points by the delta from initial to final coords
-        const initialShape = initialShapeRef.current;
-        if (initialShape && initialShape.type === 'freehand' && typeof initialShape.points === 'string') {
-          const deltaX = x1 - (initialShape.x1 ?? 0);
-          const deltaY = y1 - (initialShape.y1 ?? 0);
-          const shifted = shiftFreehandPoints(initialShape.points, deltaX, deltaY);
-          if (shifted !== undefined) {
-            (updates as Partial<ResizableShape>).points = shifted;
-          }
-        }
+        // Freehand points are bbox-relative [0-1] — no point shifting needed.
+        // Moving/resizing only updates x1/y1/x2/y2, identical to rectangles.
 
         onResizeComplete?.(state.resizingShapeId, updates);
       }
@@ -783,7 +751,6 @@ export function useShapeResize<T extends ResizableShape>({
     groupInitialCoordsRef.current = null;
     liveGroupCoordsRef.current = null;
     groupInitialBBoxRef.current = null;
-    groupInitialPointsRef.current = null;
   }, [state.isResizing, state.resizingShapeId, onResizeComplete, onGroupMoveComplete, bounds]);
 
   const cancelResize = useCallback(() => {
@@ -805,7 +772,6 @@ export function useShapeResize<T extends ResizableShape>({
     groupInitialCoordsRef.current = null;
     liveGroupCoordsRef.current = null;
     groupInitialBBoxRef.current = null;
-    groupInitialPointsRef.current = null;
   }, []);
 
   // Global mouse event listeners during resize

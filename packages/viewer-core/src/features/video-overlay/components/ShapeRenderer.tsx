@@ -1,6 +1,7 @@
 import type { ShapeHandleType, ShapeType, ShapeColor } from '../types';
 import { getShapeColorValue } from '../types';
 import { SelectionHandle } from './SelectionHandle';
+import { detectAndNormalize } from '../utils';
 
 /**
  * Common shape data interface that both AnnotationRow and DrawingRow satisfy.
@@ -286,23 +287,34 @@ function RectangleShape({
 }
 
 /**
- * Renders freehand path (only for drawings)
+ * Renders freehand path (only for drawings).
+ * Points are stored as bbox-relative [0-1] and denormalized via x1/y1/x2/y2 for display.
  */
 function FreehandShape({
   points,
+  x1,
+  y1,
+  x2,
+  y2,
   containerWidth,
   containerHeight,
   commonProps,
   hitAreaProps,
   isSelected,
+  showEdgeHandles,
   onHandleMouseDown,
 }: {
   points: string | null | undefined;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
   containerWidth: number;
   containerHeight: number;
   commonProps: Omit<React.SVGProps<SVGElement>, 'ref'>;
   hitAreaProps: Omit<React.SVGProps<SVGElement>, 'ref'>;
   isSelected?: boolean;
+  showEdgeHandles?: boolean;
   onHandleMouseDown?: (handle: ShapeHandleType, e: React.MouseEvent) => void;
 }) {
   if (!points) return null;
@@ -316,35 +328,41 @@ function FreehandShape({
 
   if (parsedPoints.length < 2) return null;
 
-  const pathData = parsedPoints
+  // Backward compatibility: detect old absolute points and auto-convert
+  // x1/y1/x2/y2 are already in 0-100% container space at this point
+  const normalizedPoints = detectAndNormalize(parsedPoints, x1, y1, x2, y2);
+
+  // Denormalize: bbox-relative [0-1] → absolute 0-100% → pixels
+  const pathData = normalizedPoints
     .map((p, i) => {
-      const px = (p.x / 100) * containerWidth;
-      const py = (p.y / 100) * containerHeight;
+      const absX = x1 + p.x * (x2 - x1);
+      const absY = y1 + p.y * (y2 - y1);
+      const px = (absX / 100) * containerWidth;
+      const py = (absY / 100) * containerHeight;
       return i === 0 ? `M ${px} ${py}` : `L ${px} ${py}`;
     })
     .join(' ');
 
-  // Compute bounding box center for the move handle
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (const p of parsedPoints) {
-    const px = (p.x / 100) * containerWidth;
-    const py = (p.y / 100) * containerHeight;
-    if (px < minX) minX = px;
-    if (py < minY) minY = py;
-    if (px > maxX) maxX = px;
-    if (py > maxY) maxY = py;
-  }
-  const centerX = (minX + maxX) / 2;
-  const centerY = (minY + maxY) / 2;
+  // Bounding box in pixels for hit area and handles
+  const rectX = Math.min(x1, x2);
+  const rectY = Math.min(y1, y2);
+  const rectWidth = Math.abs(x2 - x1);
+  const rectHeight = Math.abs(y2 - y1);
+  const bboxPxX = (rectX / 100) * containerWidth;
+  const bboxPxY = (rectY / 100) * containerHeight;
+  const bboxPxW = (rectWidth / 100) * containerWidth;
+  const bboxPxH = (rectHeight / 100) * containerHeight;
+  const midX = bboxPxX + bboxPxW / 2;
+  const midY = bboxPxY + bboxPxH / 2;
 
   return (
     <g>
       {/* Invisible bounding-box hit area for easier clicking/dragging */}
       <rect
-        x={minX}
-        y={minY}
-        width={maxX - minX}
-        height={maxY - minY}
+        x={bboxPxX}
+        y={bboxPxY}
+        width={bboxPxW}
+        height={bboxPxH}
         {...hitAreaProps}
         fill="transparent"
         stroke="none"
@@ -356,8 +374,24 @@ function FreehandShape({
         strokeLinejoin="round"
         style={{ ...commonProps.style, pointerEvents: 'none' }}
       />
+      {/* Selection handles: 8 handles like rectangle/circle */}
       {isSelected && (
-        <SelectionHandle x={centerX} y={centerY} handleType="move" onMouseDown={onHandleMouseDown} />
+        <>
+          {/* Corners */}
+          <SelectionHandle x={bboxPxX} y={bboxPxY} handleType="nw" onMouseDown={onHandleMouseDown} />
+          <SelectionHandle x={bboxPxX + bboxPxW} y={bboxPxY} handleType="ne" onMouseDown={onHandleMouseDown} />
+          <SelectionHandle x={bboxPxX + bboxPxW} y={bboxPxY + bboxPxH} handleType="se" onMouseDown={onHandleMouseDown} />
+          <SelectionHandle x={bboxPxX} y={bboxPxY + bboxPxH} handleType="sw" onMouseDown={onHandleMouseDown} />
+          {/* Edge midpoints - only shown when Shift is pressed */}
+          {showEdgeHandles && (
+            <>
+              <SelectionHandle x={midX} y={bboxPxY} handleType="n" onMouseDown={onHandleMouseDown} />
+              <SelectionHandle x={bboxPxX + bboxPxW} y={midY} handleType="e" onMouseDown={onHandleMouseDown} />
+              <SelectionHandle x={midX} y={bboxPxY + bboxPxH} handleType="s" onMouseDown={onHandleMouseDown} />
+              <SelectionHandle x={bboxPxX} y={midY} handleType="w" onMouseDown={onHandleMouseDown} />
+            </>
+          )}
+        </>
       )}
     </g>
   );
@@ -569,11 +603,16 @@ export function ShapeRenderer<T extends ShapeData>({
       return (
         <FreehandShape
           points={shape.points}
+          x1={shape.x1}
+          y1={shape.y1}
+          x2={shape.x2 ?? shape.x1}
+          y2={shape.y2 ?? shape.y1}
           containerWidth={containerWidth}
           containerHeight={containerHeight}
           commonProps={commonProps}
           hitAreaProps={hitAreaProps}
           isSelected={showHandles}
+          showEdgeHandles={showEdgeHandles}
           onHandleMouseDown={onHandleMouseDown}
         />
       );

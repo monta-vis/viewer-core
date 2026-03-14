@@ -208,15 +208,16 @@ describe('renderImageWithDrawings', () => {
     expect(mockCtx.fillText).toHaveBeenCalledWith('Hello', expect.any(Number), expect.any(Number));
   });
 
-  it('draws freehand shape correctly', async () => {
+  it('draws freehand shape with bbox-relative points correctly', async () => {
     const freehandDrawing: DrawingRow = {
       ...mockDrawing,
       type: 'freehand',
-      points: JSON.stringify([{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }, { x: 0.3, y: 0.3 }]),
-      x1: null,
-      y1: null,
-      x2: null,
-      y2: null,
+      // Bbox-relative points [0-1] within bbox (0.1, 0.1) → (0.3, 0.3)
+      points: JSON.stringify([{ x: 0, y: 0 }, { x: 0.5, y: 0.5 }, { x: 1, y: 1 }]),
+      x1: 0.1,
+      y1: 0.1,
+      x2: 0.3,
+      y2: 0.3,
     };
 
     await renderImageWithDrawings({

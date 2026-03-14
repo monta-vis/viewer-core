@@ -57,19 +57,9 @@ export function transformShapeToContainerSpace<T extends ShapeData>(
     transformed.y = localSpaceToContainer(shape.y, bounds.y, bounds.height);
   }
 
-  // Transform freehand points if present
-  if (shape.points) {
-    try {
-      const parsedPoints: Array<{ x: number; y: number }> = JSON.parse(shape.points);
-      const transformedPoints = parsedPoints.map((p) => ({
-        x: localSpaceToContainer(p.x, bounds.x, bounds.width),
-        y: localSpaceToContainer(p.y, bounds.y, bounds.height),
-      }));
-      transformed.points = JSON.stringify(transformedPoints);
-    } catch (err) {
-      console.error('[ShapeLayer] Failed to parse freehand points for transform:', err);
-    }
-  }
+  // Freehand points are bbox-relative [0-1] — no per-point transformation needed.
+  // The bbox coordinates (x1/y1/x2/y2) are already transformed above,
+  // and the relative points scale with them automatically.
 
   return transformed;
 }

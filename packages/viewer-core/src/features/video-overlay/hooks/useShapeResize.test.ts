@@ -573,7 +573,7 @@ describe('useShapeResize - freehand single move', () => {
     expect(result.current.liveCoords!.y1).toBeCloseTo(0.6, 2);
   });
 
-  it('should persist freehand move with shifted points on finish', () => {
+  it('should persist freehand move without shifting points on finish (bbox-relative)', () => {
     const bounds = { x: 0, y: 0, width: 100, height: 100 };
     const { result } = renderHook(() =>
       useShapeResize<FreehandTestShape>({ onResizeComplete, bounds }),
@@ -584,9 +584,9 @@ describe('useShapeResize - freehand single move', () => {
     });
 
     const shape = makeFreehand('f1', 0.5, 0.5, 0.7, 0.7, [
+      { x: 0, y: 0 },
       { x: 0.5, y: 0.5 },
-      { x: 0.6, y: 0.6 },
-      { x: 0.7, y: 0.7 },
+      { x: 1, y: 1 },
     ]);
 
     act(() => {
@@ -612,12 +612,8 @@ describe('useShapeResize - freehand single move', () => {
     // x1 should have moved from 0.5 to ~0.6
     expect(updates.x1).toBeCloseTo(0.6, 2);
     expect(updates.y1).toBeCloseTo(0.6, 2);
-    // Points should be shifted by the same delta
-    const points = JSON.parse(updates.points);
-    expect(points[0].x).toBeCloseTo(0.6, 2);
-    expect(points[0].y).toBeCloseTo(0.6, 2);
-    expect(points[2].x).toBeCloseTo(0.8, 2);
-    expect(points[2].y).toBeCloseTo(0.8, 2);
+    // Points should NOT be in the updates — they are bbox-relative and don't change
+    expect(updates.points).toBeUndefined();
   });
 
   it('should move freehand correctly when container repositions between start and update', () => {

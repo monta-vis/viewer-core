@@ -282,7 +282,7 @@ function renderDrawingToCanvas(
     }
 
     case 'freehand': {
-      if (!d.points) return;
+      if (!d.points || d.x1 === null || d.y1 === null || d.x2 === null || d.y2 === null) return;
       let points: Array<{ x: number; y: number }>;
       try {
         points = JSON.parse(d.points) as Array<{ x: number; y: number }>;
@@ -292,12 +292,32 @@ function renderDrawingToCanvas(
       }
       if (points.length === 0) return;
 
+      // Backward compatibility: detect old absolute-format points
+      const maxVal = Math.max(...points.map((p) => Math.max(Math.abs(p.x), Math.abs(p.y))));
+      const isAbsolute = maxVal > 1.5;
+
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(points[0].x * w, points[0].y * h);
-      for (let i = 1; i < points.length; i++) {
-        ctx.lineTo(points[i].x * w, points[i].y * h);
+
+      for (let i = 0; i < points.length; i++) {
+        let px: number, py: number;
+        if (isAbsolute) {
+          // Old format: points already in 0-1 absolute space, scale directly
+          px = points[i].x * w;
+          py = points[i].y * h;
+        } else {
+          // New format: bbox-relative [0-1], denormalize through bbox first
+          const absX = d.x1 + points[i].x * (d.x2 - d.x1);
+          const absY = d.y1 + points[i].y * (d.y2 - d.y1);
+          px = absX * w;
+          py = absY * h;
+        }
+        if (i === 0) {
+          ctx.moveTo(px, py);
+        } else {
+          ctx.lineTo(px, py);
+        }
       }
       ctx.stroke();
       break;

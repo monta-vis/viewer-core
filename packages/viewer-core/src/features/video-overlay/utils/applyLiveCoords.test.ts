@@ -14,19 +14,18 @@ interface TestShape {
   points?: string | null;
 }
 
-describe('applyLiveCoords — freehand point shifting', () => {
-  const freehandPoints = JSON.stringify([
-    { x: 10, y: 20 },
-    { x: 30, y: 40 },
-    { x: 50, y: 60 },
+describe('applyLiveCoords — freehand (bbox-relative points)', () => {
+  const bboxRelativePoints = JSON.stringify([
+    { x: 0.125, y: 0.125 },
+    { x: 0.5, y: 0.5 },
+    { x: 0.75, y: 0.75 },
   ]);
 
-  it('shifts freehand points by x1/y1 delta in single shape mode', () => {
+  it('updates only x1/y1/x2/y2 for freehand in single shape mode (points unchanged)', () => {
     const shapes: TestShape[] = [
-      { id: 'f1', type: 'freehand', x1: 10, y1: 20, x2: 50, y2: 60, points: freehandPoints },
+      { id: 'f1', type: 'freehand', x1: 10, y1: 20, x2: 50, y2: 60, points: bboxRelativePoints },
     ];
 
-    // Move shape: x1 goes from 10→15 (+5), y1 from 20→30 (+10)
     const result = applyLiveCoords(shapes, {
       isResizing: true,
       liveGroupCoords: null,
@@ -34,20 +33,19 @@ describe('applyLiveCoords — freehand point shifting', () => {
       resizingShapeId: 'f1',
     });
 
-    const shifted = JSON.parse(result[0].points!);
-    expect(shifted).toEqual([
-      { x: 15, y: 30 },
-      { x: 35, y: 50 },
-      { x: 55, y: 70 },
-    ]);
+    expect(result[0].x1).toBe(15);
+    expect(result[0].y1).toBe(30);
+    expect(result[0].x2).toBe(55);
+    expect(result[0].y2).toBe(70);
+    // Points should NOT be modified — they are bbox-relative
+    expect(result[0].points).toBe(bboxRelativePoints);
   });
 
-  it('shifts freehand points by delta in group move mode', () => {
+  it('updates only x1/y1/x2/y2 for freehand in group move mode (points unchanged)', () => {
     const shapes: TestShape[] = [
-      { id: 'f1', type: 'freehand', x1: 10, y1: 20, x2: 50, y2: 60, points: freehandPoints },
+      { id: 'f1', type: 'freehand', x1: 10, y1: 20, x2: 50, y2: 60, points: bboxRelativePoints },
     ];
 
-    // Group move: x1 goes from 10→12 (+2), y1 from 20→25 (+5)
     const groupCoords = new Map([
       ['f1', { x1: 12, y1: 25, x2: 52, y2: 65 }],
     ]);
@@ -59,12 +57,12 @@ describe('applyLiveCoords — freehand point shifting', () => {
       resizingShapeId: null,
     });
 
-    const shifted = JSON.parse(result[0].points!);
-    expect(shifted).toEqual([
-      { x: 12, y: 25 },
-      { x: 32, y: 45 },
-      { x: 52, y: 65 },
-    ]);
+    expect(result[0].x1).toBe(12);
+    expect(result[0].y1).toBe(25);
+    expect(result[0].x2).toBe(52);
+    expect(result[0].y2).toBe(65);
+    // Points should NOT be modified
+    expect(result[0].points).toBe(bboxRelativePoints);
   });
 
   it('does not add points field to non-freehand shapes', () => {
@@ -82,7 +80,7 @@ describe('applyLiveCoords — freehand point shifting', () => {
     expect(result[0].points).toBeUndefined();
   });
 
-  it('does not shift points for freehand shape without points field', () => {
+  it('preserves freehand shape without points field', () => {
     const shapes: TestShape[] = [
       { id: 'f1', type: 'freehand', x1: 10, y1: 20, x2: 50, y2: 60 },
     ];
@@ -94,12 +92,13 @@ describe('applyLiveCoords — freehand point shifting', () => {
       resizingShapeId: 'f1',
     });
 
+    expect(result[0].x1).toBe(15);
     expect(result[0].points).toBeUndefined();
   });
 
   it('returns shapes unchanged when not resizing', () => {
     const shapes: TestShape[] = [
-      { id: 'f1', type: 'freehand', x1: 10, y1: 20, x2: 50, y2: 60, points: freehandPoints },
+      { id: 'f1', type: 'freehand', x1: 10, y1: 20, x2: 50, y2: 60, points: bboxRelativePoints },
     ];
 
     const result = applyLiveCoords(shapes, {

@@ -1,6 +1,10 @@
 export { applyLiveCoords } from './applyLiveCoords';
-export { shiftFreehandPoints } from './shiftFreehandPoints';
 export { applySquareConstraint } from './squareConstraint';
+export {
+  normalizeFreehandPoints,
+  denormalizeFreehandPoints,
+  detectAndNormalize,
+} from './freehandPoints';
 export type { SquareConstraintOptions, SquareConstraintResult } from './squareConstraint';
 
 export {

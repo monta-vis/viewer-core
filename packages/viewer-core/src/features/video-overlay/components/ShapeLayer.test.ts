@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { transformShapeToContainerSpace } from './ShapeLayer';
 import type { ShapeData } from './ShapeRenderer';
 import type { Rectangle } from '../types';
@@ -29,8 +29,8 @@ describe('transformShapeToContainerSpace', () => {
     expect(result.y2).toBe(60);
   });
 
-  it('transforms freehand points from local (0-1) to container space', () => {
-    const points = [
+  it('does NOT transform freehand points (they are bbox-relative)', () => {
+    const bboxRelativePoints = [
       { x: 0.0, y: 0.0 },
       { x: 0.5, y: 0.5 },
       { x: 1.0, y: 1.0 },
@@ -44,18 +44,21 @@ describe('transformShapeToContainerSpace', () => {
       y1: 0,
       x2: 1,
       y2: 1,
-      points: JSON.stringify(points),
+      points: JSON.stringify(bboxRelativePoints),
     };
 
     const result = transformShapeToContainerSpace(shape, bounds);
     const resultPoints = JSON.parse(result.points!);
 
-    // Point (0, 0): localSpaceToContainer(0, 10, 50)=10, localSpaceToContainer(0, 20, 40)=20
-    expect(resultPoints[0]).toEqual({ x: 10, y: 20 });
-    // Point (0.5, 0.5): 35, 40
-    expect(resultPoints[1]).toEqual({ x: 35, y: 40 });
-    // Point (1.0, 1.0): 60, 60
-    expect(resultPoints[2]).toEqual({ x: 60, y: 60 });
+    // Points should remain unchanged — they are bbox-relative [0-1]
+    // Only x1/y1/x2/y2 get transformed
+    expect(resultPoints).toEqual(bboxRelativePoints);
+
+    // But bbox coords should be transformed
+    expect(result.x1).toBe(10); // localSpaceToContainer(0, 10, 50) = 10
+    expect(result.y1).toBe(20); // localSpaceToContainer(0, 20, 40) = 20
+    expect(result.x2).toBe(60); // localSpaceToContainer(1, 10, 50) = 60
+    expect(result.y2).toBe(60); // localSpaceToContainer(1, 20, 40) = 60
   });
 
   it('does not modify shape when points is null', () => {
@@ -72,30 +75,5 @@ describe('transformShapeToContainerSpace', () => {
 
     const result = transformShapeToContainerSpace(shape, bounds);
     expect(result.points).toBeNull();
-  });
-
-  it('does not crash on invalid JSON in points', () => {
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-    const shape: ShapeData = {
-      id: '4',
-      type: 'freehand',
-      color: 'red',
-      x1: 0,
-      y1: 0,
-      x2: 1,
-      y2: 1,
-      points: 'not-valid-json',
-    };
-
-    // Should not throw, just log error and keep original points
-    const result = transformShapeToContainerSpace(shape, bounds);
-    expect(result.points).toBe('not-valid-json');
-    expect(errorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('[ShapeLayer]'),
-      expect.anything(),
-    );
-
-    errorSpy.mockRestore();
   });
 });

@@ -4,6 +4,7 @@ import {
   applySquareConstraint,
   pointContainerToLocal,
   clampPointToLocalSpace,
+  normalizeFreehandPoints,
 } from '../utils';
 
 // Re-export for backwards compatibility
@@ -269,6 +270,14 @@ export function useAnnotationDrawing({
         if (p.y > maxY) maxY = p.y;
       }
 
+      // Discard degenerate strokes (perfectly straight horizontal/vertical lines)
+      if (minX === maxX || minY === maxY) {
+        console.warn('[useAnnotationDrawing] Discarding degenerate freehand stroke with zero-area bbox');
+        freehandPointsRef.current = [];
+        setState(IDLE_STATE);
+        return;
+      }
+
       // Transform points to local space if bounds provided
       let finalPoints: Point[];
       let finalBBoxStart: Point;
@@ -286,6 +295,15 @@ export function useAnnotationDrawing({
         finalBBoxEnd = { x: maxX, y: maxY };
       }
 
+      // Normalize points to bbox-relative [0-1] space
+      const bboxRelativePoints = normalizeFreehandPoints(
+        finalPoints,
+        finalBBoxStart.x,
+        finalBBoxStart.y,
+        finalBBoxEnd.x,
+        finalBBoxEnd.y,
+      );
+
       onShapeCreate({
         type: 'freehand',
         color,
@@ -295,7 +313,7 @@ export function useAnnotationDrawing({
         x2: finalBBoxEnd.x,
         y2: finalBBoxEnd.y,
         text: null,
-        points: JSON.stringify(finalPoints),
+        points: JSON.stringify(bboxRelativePoints),
       });
 
       freehandPointsRef.current = [];
